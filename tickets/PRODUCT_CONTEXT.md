@@ -178,12 +178,15 @@ colours or wording are copied.
 
 ## Still open
 
-1. The named unofficial market-data endpoint, to be proposed by the WL-P0-009A
-   spike and approved by the owner.
-2. The official keyed quote provider, to be proposed by the WL-P0-009E spike and
-   chosen by the owner.
-3. The CI reviewer's service, spending limit and secret (WL-P1-011).
-4. P1 and P2 tickets are refined after the owner has used the MVP.
+1. The official keyed quote provider (WL-P0-009E). The spike's desk research is
+   done; the real-key probe waits for the owner's provider keys, and the owner
+   then chooses.
+2. The CI reviewer's service, spending limit and secret (WL-P1-011).
+3. The P1 and P2 tickets were rewritten in the 2026-11-13 triage so each stands on
+   its own. Their order is a planner's estimate; WL-P1-020 re-ranks them with the
+   owner after two weeks of real use. The triage's two priority changes, eight new
+   tickets and one proposed closure await the owner (see [ROADMAP.md](ROADMAP.md)).
+4. Whether Kurafolio records transactions at all (WL-P2-002). Six tickets wait on it.
 
 Answered on 2026-11-10: WL-P0-007C's six questions (all recommendations accepted,
 WL-P0-007K folded in); WL-P0-007J option (b); one bundle with the shell chosen

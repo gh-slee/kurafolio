@@ -6,17 +6,107 @@ on-demand exports. The current CLI and Web app stay usable throughout. This page
 orders the work. Each ticket file holds its own scope, acceptance and handoff;
 `python3 scripts/tickets.py list` is the live status.
 
-Updated 2026-11-10 (UI/UX backlog pass; see the section at the end). Phases describe sequencing, not approval. Tickets with
-`gate: owner` still need the owner's approval before work starts.
+Updated 2026-11-13 (triage; see the next two sections). Phases describe sequencing, not approval. Tickets with
+`gate: owner` still need the owner's approval before work starts. The sections from "Phases" onward
+are the history of earlier planning passes; where they disagree with the triage, the triage is current.
 
-## Where things stand
+## Where things stand (2026-11-13)
 
-- Done: WL-P0-001 to WL-P0-006 (country labels, governance, domain contract, PG
-  foundation, identity backend, source capabilities) and UX-P0-001 to UX-P0-003.
-- In progress: WL-P0-007 V2 CSV import acceptance. About half of its SQL surface
-  is merged (PR #27, PR #29). `create_set_v1`/`reserve_member_v1` is written but
-  uncommitted (WL-P0-007A).
-- Everything else is planned.
+- The board holds 118 tickets: 41 done or superseded, 77 open (35 P0, 23 P1, 19 P2).
+- A user can register, sign in, manage invitations and enable sources in the V2 shell
+  (WL-P0-011A, 011B, 011C, 011G). No V2 screen shows an import or a value yet.
+- The import database functions are complete (WL-P0-007A, B, C, I, J, L). WL-P0-007D, the migration that
+  installs them, is being worked and is the single ticket every other MVP ticket waits on.
+- The quote adapter contract is merged (WL-P0-009A). WL-P0-009E, the official provider, is half done and
+  waits for the owner to supply provider keys for the probe.
+- The project is renamed (WL-P0-024) and the import SQL tests run in CI (WL-P0-022).
+
+## Triage of 2026-11-13
+
+What changed on the board is in each ticket's Log. In short: board drift fixed (WL-P0-017 done, WL-P0-019
+superseded, epics and stale handoffs corrected, WL-P0-015 now depends on real tickets instead of epics that
+nothing closes); WL-P0-007E, 007F and 007G gained the concrete routes, rules and cases from the approved
+contract; every thin P1 and P2 ticket was rewritten to stand on its own; eight tickets were added
+(WL-P1-015 to WL-P1-020, WL-P2-010, WL-P2-011); WL-P1-001 moved to P2 and WL-P2-009 to P1.
+
+### Step 1: a V2 MVP the owner can use (11 tickets)
+
+The owner's flow works end to end: register, enable plugins, import, see Stock/Bond, Crypto and Total.
+
+| Order | Ticket | What it delivers | Tier | Waits on |
+|---|---|---|---|---|
+| 1 | WL-P0-007D | Installs the import functions on an instance | frontier | in progress |
+| 2 | WL-P0-007E | The import routes the browser calls | frontier | 007D |
+| 2 | WL-P0-007F | The worker that parses uploaded files in isolation | frontier | 007D |
+| 2 | WL-P0-008 | Positions from accepted imports, with the owner's rules | frontier | 007D |
+| 3 | WL-P0-011D | Import Data page: upload, review, confirm, history | standard | 007E |
+| 3 | WL-P0-012A | One analysis contract for securities, crypto and total | frontier | 008 |
+| 4 | WL-P0-012B | Stock/Bond page and the shared toolbar | standard | 012A |
+| 4 | WL-P0-021 | One-command deployment; its pull request says "ready to use" | frontier | 007E, 007F, 012A |
+| 5 | WL-P0-012C | Crypto page | standard | 012B |
+| 5 | WL-P0-007G | Independent acceptance of imports (36 cases) | frontier | 007E, 007F |
+| 6 | WL-P0-012D | Total page and Home | standard | 012C |
+
+Tickets with the same order number share no resource and can run at the same time. In the MVP,
+securities are valued from the import's own market values or the optional unofficial adapter, Bitcoin
+from the live price, in CAD, USD and TWD.
+
+### Step 2: V2 go-live (17 more tickets)
+
+WL-P0-015 is the go-live gate. Its `depends_on` is this list.
+
+| Order | Ticket | What it delivers | Tier | Waits on |
+|---|---|---|---|---|
+| any | WL-P0-011E, then 011F | Language, time zone and currency saved per user; Settings and Profile pages | frontier, standard | 007D frees the migration lock |
+| any | WL-P0-007N | A failing cleanup no longer starves other imports | frontier | 007D frees the SQL lock |
+| any | WL-P0-007M | Decision: retrying an upload whose previous attempt is stuck | frontier | 007D frees the SQL lock; then the owner |
+| any | WL-P0-009E | Official price provider with the operator's own key | frontier | owner supplies keys; then the owner chooses |
+| 1 | WL-P0-009B | Stored prices, scheduled and manual refresh | frontier | 012A |
+| 1 | WL-P0-011H | Pages offer "Enable a source" only when it applies | standard | 012A |
+| 1 | WL-P0-013A | Downloads rendered on demand: PDF, Excel, ODS, Markdown | frontier | 012A |
+| 2 | WL-P0-009C | Twelve display currencies with daily rates | frontier | 009B |
+| 2 | WL-P0-010A | Fund holdings stored and refreshed for held funds | frontier | 009B |
+| 2 | WL-P0-013B | Download panel on every analysis page | standard | 013A, 012B |
+| 2 | WL-P0-023 | Real end-to-end browser suite in CI | frontier | 011D, 007F, 012B |
+| 3 | WL-P0-009D | Daily value line, with estimated days marked | frontier | 009B, 009C |
+| 3 | WL-P0-010B, then 012E | Exposure analysis and the Exposures page | frontier, standard | 010A, 012A; then 012B |
+| 3 | WL-P0-014 | Fresh-start guide from the old application | standard | 021, 012D |
+| 4 | WL-P0-015 | Release acceptance on the owner's platform; closes the epics | frontier | all of the above |
+
+WL-P0-016 (publish the planning package) is P0 without an approval. The tickets no longer need it to be
+workable; WL-P0-015 needs the golden cases it contains. The owner decides whether to approve or drop it.
+
+### Step 3: after go-live
+
+P1, in recommended order. All are `backlog` until the owner approves each one.
+
+| Group | Tickets | Why this order |
+|---|---|---|
+| Before inviting anyone else | WL-P1-018 security review, WL-P2-009 dependency scanning (now P1), WL-P1-019 access from other devices, WL-P1-017 user administration and the registration switch, WL-P0-011I invitation status | The instance holds several people's financial records |
+| Learn from real use | WL-P1-020 feedback review, WL-P1-016 recovering from a wrong import, WL-P1-007 time zone contract | The owner's use decides the rest |
+| Deeper analysis | WL-P1-002 look up any ETF, UX-P1-005 holding detail, WL-P1-004 why the value changed, UX-P1-004 targets and drift, WL-P1-015 fund overlap, WL-P1-014 more export formats | Each needs only data that exists at go-live |
+| Reach other users | WL-P1-003 contributor guide and harness, UX-P1-007 published images | Other households can install it and add their broker |
+| Agent workflow, any time | WL-P1-012 flaky test (claimable now), WL-P1-006 (stale claim), WL-P1-010 faster CI, WL-P1-008 and 009 board check and owner inbox, WL-P1-011 CI reviewer, WL-P1-005 path check | They speed up everything else |
+
+P2:
+
+| Group | Tickets | Note |
+|---|---|---|
+| One decision gates six tickets | WL-P2-002, then UX-P1-001, UX-P1-002, UX-P1-003, UX-P2-001, UX-P2-005 | Whether to record transactions: contributions, rate of return, income, benchmarks, tax evidence |
+| More institutions | WL-P2-001 (epic), WL-P1-001 API connector (moved from P1) | After WL-P1-003 |
+| Smaller enhancements | WL-P2-011 fund costs, UX-P2-003 hide balances and phone polish, UX-P2-002 goal scenarios, WL-P2-004 French, UX-P2-004 status page, WL-P2-010 two-factor sign-in, WL-P2-007 demo instance | Independent of each other |
+| Housekeeping | WL-P2-006 lint gate, WL-P2-008 retire old import paths, WL-P0-020 legacy archive (optional) | |
+| Proposed for closure | WL-P2-005 folder-watch imports | No request on record |
+
+### What only the owner can do now
+
+1. Supply the provider keys for WL-P0-009E, or tell an agent where they are. Its Handoff has the steps.
+2. Approve or drop WL-P0-016.
+3. Say whether WL-P1-006's stale claim may be taken over; it has uncommitted work in its worktree.
+4. Approve WL-P1-010 (faster CI) and its two decisions, now that several branches are open at once.
+5. Answer WL-P1-011's three questions if a CI reviewer is wanted.
+6. Confirm or reverse the two priority changes of this triage (WL-P1-001 to P2, WL-P2-009 to P1), the
+   proposal to close WL-P2-005, and the eight new tickets.
 
 ## Phases
 
