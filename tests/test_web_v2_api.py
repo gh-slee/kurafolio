@@ -181,7 +181,7 @@ class IdentityHttp(IdentityCase):
 
 
 class IdentityFrontendHttp(IdentityCase):
-    """Same-origin browser bundle routes on the V2 boundary (WL-P0-011G)."""
+    """Same-origin browser bundle routes on the V2 boundary (APP-011G)."""
     MARKUP='<!doctype html><div id="root">synthetic shell</div>'
 
     def app_for(self,root,origin='http://localhost'):

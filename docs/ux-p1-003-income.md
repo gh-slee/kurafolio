@@ -1,4 +1,4 @@
-# UX-P1-003: Income, fees and corporate actions
+# ANL-105: Income, fees and corporate actions
 
 Priority: **P1**
 
@@ -23,7 +23,7 @@ Add explicit cash income, taxes/withholding, fees and security actions from evid
 
 ## Dependencies and boundaries
 
-Transaction sources, UX-P1-001, separate lot/cost and corporate-action contracts.
+Transaction sources, ANL-103, separate lot/cost and corporate-action contracts.
 
 All features run deterministically in code. Use isolated synthetic data. Keep
 unknowns, explicit confirmation, original evidence and frozen editions. No private

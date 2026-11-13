@@ -1,0 +1,68 @@
+---
+id: IMP-007D
+title: Add the operator 0004 ingestion migration provider and grants
+priority: P0
+status: ready
+type: feature
+parent: IMP-007
+depends_on: [IMP-007B, IMP-007C, IMP-007L, IMP-007J]
+resources: [ingestion-schema-sql, migration-order, postgres-schema]
+risk: critical
+size: M
+agent_tier: frontier
+gate: owner
+gate_approval: "owner 2026-10-31, IMP-007 spec r7 (covers all child tickets)"
+review: independent
+branch: 
+pr: 
+spec: docs/specs/wealth-ledger-v2/P0/WL-P0-007.md
+updated: 2026-11-10
+---
+
+# IMP-007D: Add the operator 0004 ingestion migration provider and grants
+
+## Goal
+
+Install the ingestion schema through an explicit operator migration `0004` with exact grants, upgrade and inventory verification, so a synthetic instance can enable V2 imports.
+
+## Context
+
+- Frozen r7 contract bundle (local only until ENG-016): `work/wl-p0-007/r7/` in the primary checkout, notably `spec.md`, `sql-appendix.md`, `sql-inventory.json`, `contract-appendix.md` and `acceptance.md`.
+- Existing providers: see [postgres-foundation.md](../docs/postgres-foundation.md).
+- The detailed draft spec is in the local planning package `docs/specs/wealth-ledger-v2/P0/WL-P0-007.md` until ENG-016 publishes it. If it is not in your checkout, work from this ticket and ask the owner.
+
+### Where to start
+
+- SQL fragments and the function inventory: `src/kurafolio/persistence/ingestion_schema.py`. Existing providers and operator commands: `src/kurafolio/persistence/migration.py`, `source_migration.py`, `migrations/`, `scripts/postgres.py`.
+- Python reference checks and DTO codecs: `src/kurafolio/ingestion/` (`approval.py`, `codec.py`, `contracts.py`, `cursors.py`, `reconciliation.py`).
+- V2 HTTP application and DTO style: `src/kurafolio/web_v2/api.py`, `web_v2/schemas.py`.
+- Tests to extend: `tests/test_postgres_migration.py`, `tests/test_ingestion_*.py`, `tests/test_web_v2_api.py`, `tests/test_web_v2_sources.py`; vectors in `tests/fixtures/ingestion/oracle.json`.
+- Public status and boundaries: [web-v2-imports.md](../docs/web-v2-imports.md). Product intent: [PRODUCT_CONTEXT.md](PRODUCT_CONTEXT.md).
+- Real-PostgreSQL tests need the explicit isolated environment; a skipped test is not acceptance. Use the claim's `isolation_id` and `port_base`.
+
+## Acceptance criteria
+
+- [ ] `0004` installs only on an explicit operator command and verifies the SQL inventory.
+- [ ] Runtime and worker roles receive exactly the r7 grants; PUBLIC has none.
+- [ ] Upgrade from 0003 and fresh install produce identical inventories; restore keeps unaccepted authority inactive.
+
+## Plan
+
+- [ ] Draft provider and inventory check.
+- [ ] Grant matrix tests.
+- [ ] Upgrade and restore tests.
+- [ ] Docs update in web-v2-imports.md.
+
+## Handoff
+
+- State: Not started.
+- Next step: Read the files under "Where to start", then begin the first Plan item.
+- Verify: `KURAFOLIO_INGESTION_TEST=1 PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -p 'test_postgres_migration.py' -v` and `PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -p 'test_ingestion_*.py' -v`; environment setup in [postgres-foundation.md](../docs/postgres-foundation.md) and [web-v2-imports.md](../docs/web-v2-imports.md)
+- Gotchas: None recorded.
+- Open questions: None.
+
+## Log
+
+- 2026-11-05 planner: created in the initial backlog plan.
+- 2026-11-10 planner: owner re-confirmed this ticket for the V2 MVP on 2026-11-10; released (status ready), added starting files and verify commands.
+- 2026-11-10 planner: added dependencies on IMP-007L (0004 verifies the full function inventory, which 007L extends) and IMP-007J (its own text requires the rate-limit decision before grants).

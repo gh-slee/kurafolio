@@ -1,8 +1,8 @@
-# UX-P0-002 design brief: evidence status and next actions
+# APP-103 design brief: evidence status and next actions
 
 Status: **Implemented and merged through PR #13 (`0b62a8a`); deployment is a separate operator action**
 
-Parent: [UX-P0-002](ux-p0-002-status.md). Visitor mode: **Operate**.
+Parent: [APP-103](ux-p0-002-status.md). Visitor mode: **Operate**.
 Visual authority: [DESIGN.md](../DESIGN.md), existing Overview and synthetic gallery.
 Product facts: [PRODUCT.md](../PRODUCT.md). This refines the existing workbench.
 

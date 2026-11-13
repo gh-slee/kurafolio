@@ -22,19 +22,19 @@ exchange. Institutions are plugins.
 
 | # | The user does | The app does | Tickets |
 |---|---|---|---|
-| 1 | Registers | Creates one account with exactly one portfolio | WL-P0-005 (done), WL-P0-011B |
-| 2 | Signs in | | WL-P0-011B |
-| 3 | Enables the Wealthsimple and Bull Bitcoin plugins in the plugin store | Only enabled plugins are offered at import | WL-P0-006 (done), WL-P0-011C |
-| 4 | Imports a first Wealthsimple holdings file | Parses, reconciles, stores facts in the database; does not keep the file | WL-P0-007, WL-P0-011D |
-| 5 | Opens analysis | Shows reports and analysis from Wealthsimple alone | WL-P0-008, WL-P0-012A, 012B, 012D |
-| 6 | Imports a Bull Bitcoin transactions file | Same pipeline | WL-P0-007, WL-P0-011D |
-| 7 | Opens analysis | Analysis now includes Bitcoin, updated at once | WL-P0-012C, 012D |
-| 8 | Any time later, imports newer files of either kind | Consolidates with stored data; analysis is current again | WL-P0-007 |
-| 9 | Later enables a newly supported plugin (for example Questrade, TD) | That institution's tracking appears | WL-P1-003, WL-P2-001 |
-| 10 | Presses Refresh, or waits | FX rates and Bitcoin, stock and ETF prices are fetched at intervals and on demand | WL-P0-009, WL-P0-012B |
-| 11 | Looks at ETF exposure, or searches any ETF | Underlying holdings are fetched and refreshed, for held and unheld ETFs | WL-P0-010, WL-P0-012E, WL-P1-002 |
-| 12 | Switches display currency | Every holding, chart and report follows; more currencies than CAD, USD, TWD | WL-P0-009, WL-P0-011E, WL-P0-012B |
-| 13 | Presses Download | PDF, ODS or Markdown is generated then, from what is on screen | WL-P0-013A, 013B |
+| 1 | Registers | Creates one account with exactly one portfolio | AUTH-005 (done), APP-011B |
+| 2 | Signs in | | APP-011B |
+| 3 | Enables the Wealthsimple and Bull Bitcoin plugins in the plugin store | Only enabled plugins are offered at import | PLG-006 (done), APP-011C |
+| 4 | Imports a first Wealthsimple holdings file | Parses, reconciles, stores facts in the database; does not keep the file | IMP-007, APP-011D |
+| 5 | Opens analysis | Shows reports and analysis from Wealthsimple alone | ANL-008, ANL-012A, 012B, 012D |
+| 6 | Imports a Bull Bitcoin transactions file | Same pipeline | IMP-007, APP-011D |
+| 7 | Opens analysis | Analysis now includes Bitcoin, updated at once | ANL-012C, 012D |
+| 8 | Any time later, imports newer files of either kind | Consolidates with stored data; analysis is current again | IMP-007 |
+| 9 | Later enables a newly supported plugin (for example Questrade, TD) | That institution's tracking appears | PLG-101, PLG-103 |
+| 10 | Presses Refresh, or waits | FX rates and Bitcoin, stock and ETF prices are fetched at intervals and on demand | MKT-009, ANL-012B |
+| 11 | Looks at ETF exposure, or searches any ETF | Underlying holdings are fetched and refreshed, for held and unheld ETFs | ETF-010, ANL-012E, ETF-101 |
+| 12 | Switches display currency | Every holding, chart and report follows; more currencies than CAD, USD, TWD | MKT-009, APP-011E, ANL-012B |
+| 13 | Presses Download | PDF, ODS or Markdown is generated then, from what is on screen | RPT-013A, 013B |
 
 ## Rules the owner set
 
@@ -62,7 +62,7 @@ exchange. Institutions are plugins.
   source scope", "Carried forward", "Provided", "Next steps", "Saved evidence
   and checks", "Report edition".
 - Exposure must show every country that has holdings, Taiwan included
-  (fixed in WL-P0-001).
+  (fixed in ETF-001).
 - The plugin store teaches how to write a plugin and submit it to the repository
   for review, and a user can test their own plugin locally before it is official.
 
@@ -96,35 +96,35 @@ These are decisions. Tickets that contradict them are wrong and must be updated.
 | Topic | Answer | Consequence |
 |---|---|---|
 | Who uses an instance | One self-hosted instance serves multiple users | Tenant isolation and per-user data stay P0. How a new user gets an account is still open (below) |
-| Shipped SQLite application | Do not change it. All effort goes into V2; V1 was built before the use case was planned | UX-P1-008 to UX-P1-015 and UX-P2-006 to UX-P2-008 are superseded; their findings are criteria in the V2 tickets |
-| Display currencies | Convert to other popular currencies at the latest exchange rate | WL-P0-009 must deliver a currency list beyond CAD, USD and TWD; its "none until requested" recommendation is withdrawn |
-| Position missing from a newer broker snapshot | Treat as sold | Reconciliation and positions (WL-P0-007, WL-P0-008); see the refinement proposed below |
-| Value history | A daily line revalued with fetched prices, not only import dates | WL-P0-009 needs historical daily prices and FX; WL-P0-012A needs a daily series |
-| Price refresh | The app can refresh any stock, ETF or bond the user holds, close to real time, so values and charts are current | No hard-coded symbol list; WL-P0-009 |
-| Plugin store name and form | "Parser Plugin Store"; a simple list with enable switches is fine | WL-P0-011A, WL-P0-011C |
-| Who can add plugins | Only official plugins: written by the owner or contributors, reviewed and merged in the repository. Users cannot create, upload or enable their own | The brief's "test your own plugin in the app" is dropped. WL-P1-003 becomes a contributor guide and test harness for pull requests |
+| Shipped SQLite application | Do not change it. All effort goes into V2; V1 was built before the use case was planned | APP-104, APP-105, APP-106, ANL-111, APP-107, IMP-105, IMP-106, APP-108 and ANL-110, APP-110, RPT-103 are superseded; their findings are criteria in the V2 tickets |
+| Display currencies | Convert to other popular currencies at the latest exchange rate | MKT-009 must deliver a currency list beyond CAD, USD and TWD; its "none until requested" recommendation is withdrawn |
+| Position missing from a newer broker snapshot | Treat as sold | Reconciliation and positions (IMP-007, ANL-008); see the refinement proposed below |
+| Value history | A daily line revalued with fetched prices, not only import dates | MKT-009 needs historical daily prices and FX; ANL-012A needs a daily series |
+| Price refresh | The app can refresh any stock, ETF or bond the user holds, close to real time, so values and charts are current | No hard-coded symbol list; MKT-009 |
+| Plugin store name and form | "Parser Plugin Store"; a simple list with enable switches is fine | APP-011A, APP-011C |
+| Who can add plugins | Only official plugins: written by the owner or contributors, reviewed and merged in the repository. Users cannot create, upload or enable their own | The brief's "test your own plugin in the app" is dropped. PLG-101 becomes a contributor guide and test harness for pull requests |
 
 ## Confirmed on 2026-11-10 after discussion
 
 | Topic | Decision |
 |---|---|
 | Delivery | Reach a usable V2 MVP as soon as possible. The owner is a real user and will give feedback from daily use. MVP scope and order are in [ROADMAP.md](ROADMAP.md) |
-| Price data | Pluggable provider adapter. Bitcoin near real time from a public exchange API; FX from official daily sources; stocks, ETFs and bonds through an adapter the instance operator configures with their own API key, typically 15 minutes delayed or last close. Every value shows its "as of" time. The provider is chosen after a verification spike in WL-P0-009 |
+| Price data | Pluggable provider adapter. Bitcoin near real time from a public exchange API; FX from official daily sources; stocks, ETFs and bonds through an adapter the instance operator configures with their own API key, typically 15 minutes delayed or last close. Every value shows its "as of" time. The provider is chosen after a verification spike in MKT-009 |
 | Sales in an exchange file | Tracked quantity is purchases minus sales reported by the same exchange file. Funding rows and withdrawals to the user's own wallet change nothing. A one-line notice appears when sales were counted |
 | Where an asset appears | By asset class, not institution. A Bitcoin ETF is a security (Stock/Bond, and "Bitcoin through ETF" in Exposures). Coins held directly are Crypto. Total counts each holding once |
 | Cost and gain | Shown where the source provides cost: live market value minus book cost. No cost means a dash, never zero. Bitcoin cost is the sum of purchase spending |
 | Cash | Broker cash is in Total as its own "Cash" line, separate from securities |
-| ETF lookup | Held ETFs: full underlying holdings, refreshed automatically, in P0. Searching an ETF the user does not hold: P1 (WL-P1-002) |
+| ETF lookup | Held ETFs: full underlying holdings, refreshed automatically, in P0. Searching an ETF the user does not hold: P1 (ETF-101) |
 | Account absent from a newer broker file | Kept unchanged; the import preview asks "keep, or mark closed?". A position missing inside an account the file does cover is sold |
-| Price sources | Bitcoin: Coinbase Exchange public API. FX: Bank of Canada daily rates plus Frankfurter for other currencies. Stocks, ETFs and bonds: pluggable adapter with the operator's own key, provider chosen after the WL-P0-009 spike |
-| Unofficial market data | Included in the first V2 release as an optional adapter the operator enables (WL-P0-009A). It can break without notice and its terms of use are the operator's responsibility |
+| Price sources | Bitcoin: Coinbase Exchange public API. FX: Bank of Canada daily rates plus Frankfurter for other currencies. Stocks, ETFs and bonds: pluggable adapter with the operator's own key, provider chosen after the MKT-009 spike |
+| Unofficial market data | Included in the first V2 release as an optional adapter the operator enables (MKT-009A). It can break without notice and its terms of use are the operator's responsibility |
 | Visual direction | Consumer-clear top, analyst depth below: large value with change, full-width chart with range buttons, key figures, allocation, holdings table, deeper analysis. Same skeleton on Stock/Bond, Crypto and Total. Layout patterns only; nothing copied from another product |
 | Registration | Invite-only by default, with an administrator switch that opens self-registration. The switch is built after the MVP |
 
 ## Price data: what was found, and what is not known
 
 Searched on 2026-11-10; figures come from secondary comparisons that disagree
-with each other, so WL-P0-009 must verify them on the providers' own pages.
+with each other, so MKT-009 must verify them on the providers' own pages.
 
 - Free tiers of the usual keyed providers are small and licensed for personal
   use: Alpha Vantage about 25 requests a day; Twelve Data about 800 a day with a
@@ -159,36 +159,36 @@ colours or wording are copied.
 
 | Topic | Decision | Consequence |
 |---|---|---|
-| Existing data in the SQLite application | Not migrated. V2 starts empty and the user imports their files again. The old application stays untouched and is where old reports are read | WL-P0-014 is a guide and a verification test, not a conversion tool. WL-P0-020 is P2 |
-| Days between two imports on the value curve | Use the previous import's quantities with each day's closing price, and mark those days as estimates | WL-P0-009D. Nothing else (return, contribution, period gain) may be derived from estimated days |
-| Platforms verified for release | Apple Silicon Mac with Docker Desktop. Linux amd64 through CI only; nothing else is claimed | WL-P0-015 |
-| Post-MVP tickets | Gate A approved for WL-P0-009B to 009E, 010A, 010B, 014 and 015. Refresh: Bitcoin every 5 minutes, securities every 15 minutes in market hours, manual at most once a minute, daily when idle. Currencies: CAD, USD, TWD, EUR, GBP, JPY, AUD, CHF, HKD, SGD, CNY, KRW | Those tickets |
-| Review | Agents review automatically; the owner reviews last on GitHub and merges | Reviews rule in [README.md](README.md); WL-P1-011 adds a reviewer in CI |
-| Project name | Kurafolio: kura (the kanji U+8535), the storehouse where a family kept its valuables, plus "folio". Rename everything, old names stop working, done alone before parallel work. The README explains the name | WL-P0-024 |
-| When the MVP is usable | The pull request of WL-P0-021 must say so, with the start command and first-use steps | WL-P0-021 |
+| Existing data in the SQLite application | Not migrated. V2 starts empty and the user imports their files again. The old application stays untouched and is where old reports are read | OPS-014 is a guide and a verification test, not a conversion tool. RPT-020 is P2 |
+| Days between two imports on the value curve | Use the previous import's quantities with each day's closing price, and mark those days as estimates | MKT-009D. Nothing else (return, contribution, period gain) may be derived from estimated days |
+| Platforms verified for release | Apple Silicon Mac with Docker Desktop. Linux amd64 through CI only; nothing else is claimed | OPS-015 |
+| Post-MVP tickets | Gate A approved for MKT-009B to 009E, 010A, 010B, 014 and 015. Refresh: Bitcoin every 5 minutes, securities every 15 minutes in market hours, manual at most once a minute, daily when idle. Currencies: CAD, USD, TWD, EUR, GBP, JPY, AUD, CHF, HKD, SGD, CNY, KRW | Those tickets |
+| Review | Agents review automatically; the owner reviews last on GitHub and merges | Reviews rule in [README.md](README.md); ENG-106 adds a reviewer in CI |
+| Project name | Kurafolio: kura (the kanji U+8535), the storehouse where a family kept its valuables, plus "folio". Rename everything, old names stop working, done alone before parallel work. The README explains the name | ENG-024 |
+| When the MVP is usable | The pull request of OPS-021 must say so, with the start command and first-use steps | OPS-021 |
 
 ## Owner answers recorded on 2026-11-12
 
 | Topic | Decision | Consequence |
 |---|---|---|
-| Remaining P0 backlog | Gate A approved for WL-P0-011E, 011F, 011H, 012E, 013A, 013B and 023; WL-P0-007M released for its options write-up; WL-P0-022 released | Those tickets are `ready` |
-| Preferences stored on the server | Interface language, time zone and reporting currency. Appearance stays in the browser. No session list in the first release | WL-P0-011E, 011F |
-| When a page offers "Enable a source" | Each plugin declares its asset classes; the offer appears only when no enabled source declares that class and there are no holdings of it. Imported holdings always count | WL-P0-011H |
-| Export formats for go-live | PDF, Excel (.xlsx), ODS and Markdown. CSV, JSON, PNG and ZIP come later | WL-P0-013A, 013B; WL-P1-014 |
+| Remaining P0 backlog | Gate A approved for APP-011E, 011F, 011H, 012E, 013A, 013B and 023; IMP-007M released for its options write-up; ENG-022 released | Those tickets are `ready` |
+| Preferences stored on the server | Interface language, time zone and reporting currency. Appearance stays in the browser. No session list in the first release | APP-011E, 011F |
+| When a page offers "Enable a source" | Each plugin declares its asset classes; the offer appears only when no enabled source declares that class and there are no holdings of it. Imported holdings always count | APP-011H |
+| Export formats for go-live | PDF, Excel (.xlsx), ODS and Markdown. CSV, JSON, PNG and ZIP come later | RPT-013A, 013B; RPT-101 |
 
 ## Still open
 
-1. The official keyed quote provider (WL-P0-009E). The spike's desk research is
+1. The official keyed quote provider (MKT-009E). The spike's desk research is
    done; the real-key probe waits for the owner's provider keys, and the owner
    then chooses.
-2. The CI reviewer's service, spending limit and secret (WL-P1-011).
+2. The CI reviewer's service, spending limit and secret (ENG-106).
 3. The P1 and P2 tickets were rewritten in the 2026-11-13 triage so each stands on
-   its own. Their order is a planner's estimate; WL-P1-020 re-ranks them with the
+   its own. Their order is a planner's estimate; ENG-108 re-ranks them with the
    owner after two weeks of real use. The triage's two priority changes, eight new
    tickets and one proposed closure await the owner (see [ROADMAP.md](ROADMAP.md)).
-4. Whether Kurafolio records transactions at all (WL-P2-002). Six tickets wait on it.
+4. Whether Kurafolio records transactions at all (ANL-102). Six tickets wait on it.
 
-Answered on 2026-11-10: WL-P0-007C's six questions (all recommendations accepted,
-WL-P0-007K folded in); WL-P0-007J option (b); one bundle with the shell chosen
+Answered on 2026-11-10: IMP-007C's six questions (all recommendations accepted,
+IMP-007K folded in); IMP-007J option (b); one bundle with the shell chosen
 from the API version, served by the V2 application; unofficial adapter off by
 default; Gate A for the eighteen MVP tickets.

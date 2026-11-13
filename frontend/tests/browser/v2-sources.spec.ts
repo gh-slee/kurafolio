@@ -1,7 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page, type Route } from "@playwright/test";
 
-// A stateful fake of the V2 source lifecycle API (WL-P0-006). Every value is
+// A stateful fake of the V2 source lifecycle API (PLG-006). Every value is
 // synthetic; no real provider, account or installation is represented.
 const CSRF = "c".repeat(64);
 const OLD = "1".repeat(64);

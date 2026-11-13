@@ -1,4 +1,4 @@
-# UX-P0-001: First-use and empty-state guidance
+# APP-102: First-use and empty-state guidance
 
 Priority: **P0**
 
@@ -24,7 +24,7 @@ Provide an explicit no-published-report state and prepare/review/confirm sequenc
 
 ## Dependencies and boundaries
 
-Existing owner initialization and default parser workflow. UX-P0-003 owns form restructuring, not this ticket.
+Existing owner initialization and default parser workflow. IMP-104 owns form restructuring, not this ticket.
 
 All features run deterministically in code. Use isolated synthetic data. Keep
 unknowns, explicit confirmation, original evidence and frozen editions. No private

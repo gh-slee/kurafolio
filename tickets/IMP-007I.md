@@ -1,0 +1,58 @@
+---
+id: IMP-007I
+title: Serve the first page of an empty import review
+priority: P0
+status: done
+type: bug
+parent: IMP-007
+depends_on: []
+resources: [ingestion-schema-sql]
+risk: medium
+size: XS
+agent_tier: standard
+gate: owner
+gate_approval: "owner 2026-10-31, IMP-007 spec r7 (covers all child tickets)"
+review: independent
+branch: ticket/wl-p0-007i-serve-the-first-page-of-an-empty-import
+pr: https://github.com/gh-slee/kurafolio/pull/35
+spec: docs/specs/wealth-ledger-v2/P0/WL-P0-007.md
+updated: 2026-11-09
+---
+
+# IMP-007I: Serve the first page of an empty import review
+
+## Goal
+
+`read_preview_v1` refuses the first page of a review document that has no rows. The r7
+`ReviewContent.rows` array has no minimum, so an empty review is valid, but the function
+returns `import_stale` because its start position (0) is not below the row count (0).
+The owner then cannot open the review at all. The first page should be empty with no
+next cursor.
+
+## Acceptance criteria
+
+- [x] With no cursor and zero rows, `read_preview_v1` returns `ok` with an empty `rows` array and a null `next`.
+- [x] A cursor positioned at or beyond the row count still returns `import_stale`.
+- [x] `test_review_read_preview_serves_an_empty_review_document` passes without `@unittest.expectedFailure`.
+- [ ] Opt-in PostgreSQL suite and full suite pass; docs/web-v2-imports.md stays accurate.
+
+## Plan
+
+- [x] Limit the `start_at>=total` refusal in `READ_PREVIEW_DDL` to requests that carry a cursor.
+- [x] Remove the expected-failure marker from the reviewer test.
+- [ ] Run the PG and full suites; open the PR.
+
+## Handoff
+
+- State: Fixed. `READ_PREVIEW_DDL` refuses a start position at or past the row count only when the request carries a cursor, so an empty review returns an empty first page with no next cursor. The reviewer test no longer expects failure and now also checks that a valid cursor past the end of an empty review is still `import_stale`. docs/web-v2-imports.md describes both cases.
+- Next step: None for this ticket. The owner merged PR #35 (2026-11-09T22:05Z) with required CI passing. The independent review this ticket asked for was not performed before merge; a post-merge review is still advisable before IMP-007D grants roles that can call these functions.
+- Verify: `KURAFOLIO_INGESTION_TEST=1 PYTHONPATH=src python -m unittest tests.test_postgres_migration -k read_preview`
+- Gotchas: None found.
+- Open questions: None.
+
+## Log
+
+- 2026-11-09 claude/opus-5.5: filed from the IMP-007H review (finding H-1).
+- 2026-11-09 claude/opus-5.5: claimed; fixed the first-page check and removed the expected-failure marker.
+- 2026-11-09 claude/opus-5.5: 108 opt-in PG tests pass; opened PR #35; status in_review pending independent review.
+- 2026-11-09 claude/opus-5.5: owner merged PR #35 with CI passing; status set to done. No independent review was recorded before merge.

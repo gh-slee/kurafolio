@@ -200,7 +200,7 @@ export function connectionLabel(status: ConnectionStatus): Message {
 
 /**
  * Sources that Import Data may offer: an enabled file capability with an
- * enabled connection. WL-P0-011D reads the same catalog and connections.
+ * enabled connection. APP-011D reads the same catalog and connections.
  */
 export function importableSources(
   catalog: CatalogItem[],

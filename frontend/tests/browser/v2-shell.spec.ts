@@ -12,7 +12,7 @@ const destinations = [
   ["/app/profile", "Profile"],
 ] as const;
 
-// A signed-in synthetic member; WL-P0-011B covers the identity pages.
+// A signed-in synthetic member; APP-011B covers the identity pages.
 async function mockSession(page: Page) {
   await page.route("**/api/v2/me", (route) =>
     route.fulfill({
@@ -92,8 +92,8 @@ test("V2 routes preserve the eight destinations and nested Exposures", async ({
     ).toHaveCount(0);
   }
 
-  // WL-P0-011 bans these shipped concepts from the V2 shell and Home.
-  // Home content itself is WL-P0-012D, which owns the per-locale check.
+  // APP-011 bans these shipped concepts from the V2 shell and Home.
+  // Home content itself is ANL-012D, which owns the per-locale check.
   await page.goto("/app");
   const shell = page.locator("body");
   for (const banned of [

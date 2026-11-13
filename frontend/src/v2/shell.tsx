@@ -188,7 +188,7 @@ function ShellLayout({ me, onSignOut, signingOut }: { me: Me } & SignOut) {
     setMenuOpen(false);
   }
 
-  // Until WL-P0-008 provides the positions read contract, the shell has no
+  // Until ANL-008 provides the positions read contract, the shell has no
   // holdings to show. Source-led pages therefore always offer to enable a
   // source; the navigation keeps them reachable either way.
   function placeholder(label: Message, sourceLed: boolean) {

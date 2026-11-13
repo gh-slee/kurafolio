@@ -1,4 +1,4 @@
-# UX-P2-001: Benchmarks and risk
+# ANL-108: Benchmarks and risk
 
 Priority: **P2**
 
@@ -22,7 +22,7 @@ Add user-selected licensed benchmark data, matched currency/period and risk calc
 
 ## Dependencies and boundaries
 
-UX-P1-002; licensed dated benchmark/reference sources.
+ANL-104; licensed dated benchmark/reference sources.
 
 All features run deterministically in code. Use isolated synthetic data. Keep
 unknowns, explicit confirmation, original evidence and frozen editions. No private

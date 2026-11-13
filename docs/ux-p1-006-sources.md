@@ -1,4 +1,4 @@
-# UX-P1-006: Source capabilities and extension UX
+# PLG-104: Source capabilities and extension UX
 
 Priority: **P1**
 

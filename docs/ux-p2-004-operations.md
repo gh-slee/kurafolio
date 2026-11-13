@@ -1,4 +1,4 @@
-# UX-P2-004: Operations and account security UX
+# OPS-105: Operations and account security UX
 
 Priority: **P2**
 

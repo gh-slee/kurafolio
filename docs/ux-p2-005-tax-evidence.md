@@ -1,4 +1,4 @@
-# UX-P2-005: Cost and tax evidence exports
+# RPT-102: Cost and tax evidence exports
 
 Priority: **P2**
 
@@ -22,7 +22,7 @@ Improve dated acquisition/disposal and income evidence exports first. Treat juri
 
 ## Dependencies and boundaries
 
-UX-P1-001/003; complete tax-specific evidence and separate legal/tax requirements.
+ANL-103/ANL-105; complete tax-specific evidence and separate legal/tax requirements.
 
 All features run deterministically in code. Use isolated synthetic data. Keep
 unknowns, explicit confirmation, original evidence and frozen editions. No private

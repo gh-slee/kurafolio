@@ -1,0 +1,90 @@
+---
+id: IMP-007F
+title: Add the dedicated import worker and trusted launcher
+priority: P0
+status: ready
+type: feature
+parent: IMP-007
+depends_on: [IMP-007B, IMP-007D, IMP-007L]
+resources: [v2-import-worker]
+risk: critical
+size: L
+agent_tier: frontier
+gate: owner
+gate_approval: "owner 2026-10-31, IMP-007 spec r7 (covers all child tickets)"
+review: independent
+branch: 
+pr: 
+spec: docs/specs/wealth-ledger-v2/P0/WL-P0-007.md
+updated: 2026-11-13
+---
+
+# IMP-007F: Add the dedicated import worker and trusted launcher
+
+## Goal
+
+Run normalization in a dedicated worker that leases members, launches the parser in an isolated child, and finishes or cleans up through the SQL functions.
+
+## Context
+
+- Frozen r7 contract bundle (local only until ENG-016): `work/wl-p0-007/r7/` in the primary checkout, notably `spec.md`, `sql-appendix.md`, `sql-inventory.json`, `contract-appendix.md` and `acceptance.md`.
+- r7 `runner.md` and `r7-native-policy.md` (local).
+- The detailed draft spec is in the local planning package `docs/specs/wealth-ledger-v2/P0/WL-P0-007.md` until ENG-016 publishes it. If it is not in your checkout, work from this ticket and ask the owner.
+
+### Where to start
+
+- SQL fragments and the function inventory: `src/kurafolio/persistence/ingestion_schema.py`. Existing providers and operator commands: `src/kurafolio/persistence/migration.py`, `source_migration.py`, `migrations/`, `scripts/postgres.py`.
+- Python reference checks and DTO codecs: `src/kurafolio/ingestion/` (`approval.py`, `codec.py`, `contracts.py`, `cursors.py`, `reconciliation.py`).
+- V2 HTTP application and DTO style: `src/kurafolio/web_v2/api.py`, `web_v2/schemas.py`.
+- Tests to extend: `tests/test_postgres_migration.py`, `tests/test_ingestion_*.py`, `tests/test_web_v2_api.py`, `tests/test_web_v2_sources.py`; vectors in `tests/fixtures/ingestion/oracle.json`.
+- Public status and boundaries: [web-v2-imports.md](../docs/web-v2-imports.md). Product intent: [PRODUCT_CONTEXT.md](PRODUCT_CONTEXT.md).
+- Real-PostgreSQL tests need the explicit isolated environment; a skipped test is not acceptance. Use the claim's `isolation_id` and `port_base`.
+
+### What to build
+
+Two processes, in two pull requests if that keeps each review small (worker first, launcher second; say so in the Handoff).
+
+1. The import worker. A long-running process with its own restricted database role. It loops: claim work with `claim_plan_v1`, do it, report through the worker SQL functions, repeat. The kinds of work are normalize (run the parser on received bytes), prepare (build the preview after decisions) and cleanup (remove what a finished, cancelled or expired set left behind). It renews its lease at least every 10 seconds; a lease lasts 60 seconds on the database clock. A worker whose lease has lapsed must not publish a result: every SQL call carries the fence it was given and the database refuses a stale one.
+2. The launcher. A separate small service that starts the parser in a throw-away container and returns its output. The worker talks to it over a private authenticated channel. The worker has no Docker socket; the launcher has no database credentials. The parser container has no network, a read-only root, no private mounts, and CPU, memory, process and output limits. Only operator-pinned images run; nothing is pulled automatically.
+
+Rules that reviewers will check:
+
+- Received bytes live in memory or tmpfs for at most 120 seconds and are never written to the database, a queue or a log. If they are lost before the parser result is admitted, the member becomes `reupload_required`.
+- Cancel, restart and recovery touch only containers this launcher started, matched by exact ID and its own labels. No kill-all, no prune, no adoption by name.
+- A cleanup that cannot prove the raw bytes and the container are gone keeps the storage reservation and reports the failure. It never frees capacity it cannot prove is free.
+- The owner's machine is an Apple Silicon Mac with Docker Desktop (owner decision 2026-11-11). The worker and launcher must run there inside the OPS-021 compose stack. Docker Desktop runs containers in a Linux VM, so record separately which controls are effective there and which are only proven on native Linux in CI.
+- Contracts: `runner.md`, `protocol-appendix.md`, `wire-contracts.json` and `r7-native-policy.md` in the r7 bundle. The client half already exists in `src/kurafolio/ingestion/runner_client.py`; `src/kurafolio/ingestion/discovery.py` and `mapping.py` hold the checks the worker applies to parser output.
+
+## Acceptance criteria
+
+- [ ] Worker uses only worker SQL functions and a fenced lease.
+- [ ] Parser child runs with effective Linux containment; residual limits are documented.
+- [ ] Crash at each step leaves a recoverable state; retry books each event once.
+- [ ] Given the example Wealthsimple holdings file and the example exchange orders file uploaded through the IMP-007E routes (or their SQL functions if 007E is not merged), the worker brings each set to a preview without a human step, and a confirmation then books the facts.
+- [ ] A worker that stops renewing its lease cannot publish: a second worker takes the work after the lease expires and the first worker's late result is refused.
+- [ ] The parser container is shown, by a test that tries each one, to have no network, no write access outside its scratch space and no access to the host socket; exceeding the memory, process, output or time limit ends it and the member is reported failed, not hung.
+- [ ] After a set is cancelled, expires or is committed, no received bytes and no container of that set remain, and the storage reservation is released exactly once.
+- [ ] The worker and launcher start and stop with one documented command each, with secrets read from files.
+- [ ] The documentation states which containment controls were verified on Docker Desktop for Apple Silicon and which only on Linux.
+
+## Plan
+
+- [ ] Worker loop and lease renewal.
+- [ ] Launcher and containment.
+- [ ] Fault-injection tests.
+- [ ] Docs.
+
+## Handoff
+
+- State: Not started.
+- Next step: Read `runner.md` and `protocol-appendix.md` in the r7 bundle, then `src/kurafolio/ingestion/runner_client.py` and the worker function tests in `tests/test_postgres_migration.py` (`test_claim_*`, `test_finish_*`, `test_cleanup_*`). Write the worker loop against the SQL functions with a fake launcher first; add the real launcher second.
+- Verify: `KURAFOLIO_INGESTION_TEST=1 PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -p 'test_postgres_migration.py' -v` and `PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -p 'test_ingestion_*.py' -v`; environment setup in [postgres-foundation.md](../docs/postgres-foundation.md) and [web-v2-imports.md](../docs/web-v2-imports.md)
+- Gotchas: None recorded.
+- Open questions: None.
+
+## Log
+
+- 2026-11-05 planner: created in the initial backlog plan.
+- 2026-11-10 planner: owner re-confirmed this ticket for the V2 MVP on 2026-11-10; released (status ready), added starting files and verify commands.
+- 2026-11-10 planner: added the dependency on IMP-007L: the worker cannot prepare a review without the prepare-lease functions.
+- 2026-11-13 planner: added a plain description of the two processes, the rules from the approved r7 contract, and six acceptance criteria, including the owner's platform decision of 2026-11-11. Scope is unchanged.

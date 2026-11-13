@@ -97,7 +97,7 @@ describe("V2 invitation status", () => {
 });
 
 describe("V2 identity catalogs", () => {
-  it("defines the same WL-P0-011B keys and placeholders in every locale", () => {
+  it("defines the same APP-011B keys and placeholders in every locale", () => {
     const keys = (locale: keyof typeof catalogs) =>
       Object.keys(catalogs[locale]).filter((key) =>
         key.startsWith("wlP0011b."),

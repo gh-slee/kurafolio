@@ -47,15 +47,16 @@ an `epic`. Split along file and contract boundaries so children can run in paral
 ## 3. One Markdown file per ticket
 
 Create `tickets/<ID>.md` for every existing and new item, done ones included so
-dependencies resolve. Use stable IDs such as `<PREFIX>-P0-001`, with an optional
-letter suffix for children (`-007A`). Use this front matter, using only these
+dependencies resolve. Use stable IDs of the form `<AREA>-001`, where the prefix names
+the part of the product, with an optional letter suffix for children (`-007A`). Keep the
+priority out of the ID, so re-ranking never renames a ticket. Use this front matter, using only these
 keys and values:
 
 ```yaml
 ---
-id: ABC-P0-001
+id: ABC-001
 title: Short imperative title
-priority: P0            # P0 | P1 | P2 (authoritative even if the ID prefix differs)
+priority: P0            # P0 | P1 | P2
 status: ready           # backlog | ready | in_progress | paused | in_review | blocked | done | superseded
 type: feature           # epic | feature | bug | chore | docs | review | decision | research
 parent:                 # optional epic id

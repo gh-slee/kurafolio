@@ -52,9 +52,9 @@ class PublicationPolicyTests(unittest.TestCase):
             self.assertTrue(guard.path_allowed(path), path)
 
     def test_ticket_backlog_is_flat_markdown_only(self):
-        for path in ('tickets/README.md', 'tickets/ROADMAP.md', 'tickets/WL-P0-007A.md'):
+        for path in ('tickets/README.md', 'tickets/ROADMAP.md', 'tickets/IMP-007A.md'):
             self.assertTrue(guard.path_allowed(path), path)
-        for path in ('tickets/sub/WL-P0-001.md', 'tickets/WL-P0-001.json', 'tickets/AGENTS.override.md',
+        for path in ('tickets/sub/ETF-001.md', 'tickets/ETF-001.json', 'tickets/AGENTS.override.md',
                      'tickets/.hidden.md', 'tickets/claim.log'):
             self.assertFalse(guard.path_allowed(path), path)
 

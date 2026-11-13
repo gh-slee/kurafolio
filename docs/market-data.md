@@ -1,7 +1,7 @@
 # Market data for stocks, ETFs and bonds
 
 This guide is for the operator of a Kurafolio V2 instance. It covers the quote
-adapter contract added by WL-P0-009A: how an instance gets prices for the
+adapter contract added by MKT-009A: how an instance gets prices for the
 securities its users hold, what happens when a source fails, and how to turn on
 the optional unofficial market-data adapter.
 
@@ -10,7 +10,7 @@ sends no market-data request, and every quote reports `no_provider`. Pages then
 value holdings from the market values inside the imported file.
 
 The refresh schedule, the stored price table and the Refresh route belong to
-WL-P0-009B. That process is the component that reads the configuration below.
+MKT-009B. That process is the component that reads the configuration below.
 Until it is merged, the contract can be used only from code and tests.
 
 ## How quotes work
@@ -85,7 +85,7 @@ refresh process. It holds no credentials. Unknown keys are rejected.
 
 A provider that needs an API key reads it from its own private file, never from
 this file or from the repository. The official keyed provider is chosen in
-WL-P0-009E.
+MKT-009E.
 
 ## The optional unofficial adapter
 
@@ -93,7 +93,7 @@ No verified free official source covers Toronto-listed securities yet, so the
 first V2 release includes an optional adapter for the unofficial Yahoo Finance
 chart endpoint (`query1.finance.yahoo.com/v8/finance/chart/`). The owner
 approved it on 2026-11-12 after the spike recorded in
-[WL-P0-009A](../tickets/WL-P0-009A.md). Its registered name is
+[MKT-009A](../tickets/MKT-009A.md). Its registered name is
 `unofficial-yahoo-chart`.
 
 What it does:

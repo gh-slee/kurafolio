@@ -1,0 +1,58 @@
+---
+id: IMP-007K
+title: Release raw upload slots held by cancelled or expired members
+priority: P0
+status: superseded
+type: bug
+parent: IMP-007
+depends_on: [IMP-007B]
+resources: [ingestion-schema-sql]
+risk: high
+size: S
+agent_tier: frontier
+gate: owner
+gate_approval: "owner 2026-10-31, IMP-007 spec r7 (covers all child tickets)"
+review: independent
+branch: 
+pr: 
+spec: docs/specs/wealth-ledger-v2/P0/WL-P0-007.md
+updated: 2026-11-10
+---
+
+# IMP-007K: Release raw upload slots held by cancelled or expired members
+
+## Goal
+
+`reserve_member_v1` takes the user's single concurrent raw slot. The slot is released
+only by `finish_member_v1` when a worker proves child cleanup. If the set is cancelled
+or expires while a member's lease is still offered (raw reception, or before any worker
+claimed it), `cancel_set_v1` and the expiry path in `cancel_set_v1`/`decide_set_v1`
+cancel the lease, no worker ever finishes it, and `_purge_v1` releases only storage.
+The slot then stays held forever, and every later upload by that user returns
+`import_busy`. r7 requires release "only after exact child/payload cleanup is verified",
+so the fix belongs in cleanup, not in cancel.
+
+## Acceptance criteria
+
+- [ ] Terminal cleanup releases each raw slot still held by a fenced member attempt exactly once, after it proves that attempt has no live child or raw buffer.
+- [ ] A slot already released by `finish_member_v1` is never released again.
+- [ ] Opt-in PostgreSQL tests cover cancel during reception, cancel before claim, expiry before claim, and cancel after a finished attempt.
+
+## Plan
+
+- [ ] Owner decides whether this folds into IMP-007C (`cleanup_set_v1`) or lands on its own.
+- [ ] Record per-attempt slot ownership so release is provably once.
+- [ ] Implement, test and document.
+
+## Handoff
+
+- State: Superseded. Folded into IMP-007C by owner decision on 2026-11-10; its three acceptance criteria are carried there.
+- Next step: None.
+- Verify: Not applicable.
+- Gotchas: None recorded.
+- Open questions: None.
+
+## Log
+
+- 2026-11-09 claude/opus-5.5: filed from the IMP-007H review (finding H-3).
+- 2026-11-10 planner: folded into IMP-007C by owner decision on 2026-11-10.
