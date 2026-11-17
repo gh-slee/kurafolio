@@ -55,30 +55,58 @@ shows whether text drifted, not who approved it. When a gated section changes af
 approval, `next` and `claim` refuse the ticket until the owner approves the new hash.
 Context, Build plan, Plan, Handoff, Log and front matter may change without a new
 approval, unless the change alters what a gated section means; then that section is
-updated and approved again.
+updated and approved again. Changing `agent_tier`, `risk`, `review`, `depends_on` or
+`resources` of an approved ticket also needs the owner's confirmation in its Log.
+At Gate B the owner checks that every change to `gate_approval` or `spec_approved`,
+including clearing `spec_approved`, quotes the owner's words in the Log.
+
+**Approvals and plans live on `main`.** A ticket is built from its copy on `main`.
+`spec_approved` and the Build plan reach `main` through a merged pull request before
+the build is claimed. A build branch must not change gated sections:
+`python3 scripts/tickets.py spec <ID> --base origin/main` shows whether it did, and
+reviewers run it on the pull request head. A linked document that sets expected values
+is part of the spec: link it at a commit, and treat a change to it as a change to the
+tickets that rely on it.
+
+**Planning.** One planning session at a time works the `next --plan` queue. It
+writes Build plans for one or more tickets on its own branch from `origin/main`,
+without claiming them, and opens one docs pull request. It edits only the Context,
+Build plan, Plan and Decisions needed of the tickets it plans, which is the planning
+exception to "edit only your own ticket file". A change it proposes to a gated section
+is marked in the pull request for the owner's approval. Each plan starts with the
+`main` commit it was written from, so a plan that predates a later dependency change
+is visible. The tickets become buildable when the owner merges the pull request.
 
 **Design before build.** For a `standard`-tier ticket, a frontier-tier planning
 session writes the Build plan after the ticket's dependencies have merged, from the
 merged code rather than from earlier plans. `python3 scripts/tickets.py next --plan`
-lists ready tickets that still need one. A builder follows the Build plan. When the
+lists ready tickets that still need one, including frontier tickets a planner may
+choose to plan. A builder follows the Build plan. When the
 plan or spec is silent on behaviour, data or an interface, the builder records the
-question under Decisions needed, sets `status: blocked` and stops instead of
-guessing. Until the pilot (ENG-116) shows the gate can be enforced, `next` still
+question under Decisions needed, sets `status: blocked`, pushes the branch, tells the
+owner and stops instead of guessing; the claim stays. Until the pilot (ENG-116) shows the gate can be enforced, `next` still
 offers a standard ticket without a Build plan and marks it `no build plan`. A
 frontier ticket may be planned and built in the same session; an `any`-tier ticket
 needs no Build plan.
 
 **Traceability.** Tests name the acceptance IDs they verify, in a test name,
 docstring or comment; `tickets.py spec <ID>` counts the test files that mention each
-ID. Independent QA reports a verdict for every ID, including `[review]` ones. At
-merge the ticket Log records the implementing model, the reviewing model, the number
-of review repair rounds and anything the spec or Build plan failed to say, so the
-next planning session learns from evidence.
+ID. Independent QA reports a verdict for every ID, including `[review]` ones. In the
+pull request's final commit before the owner's review, the implementer adds one
+outcome line to the ticket Log: the implementing model, the reviewing model, the
+number of review repair rounds and anything the spec or Build plan failed to say. It
+updates that line if review leads to further repairs, so the next planning session
+learns from evidence.
 
 **Scale to risk.** A small low-risk ticket can be a goal, a few requirements and its
 criteria. Financial, authentication, migration and concurrency tickets carry
 independent expected values, negative cases and rollback in their Requirements or
 Build plan, as the evidence rules below require.
+
+**Statuses.** Ticket statuses map to the execution states below: `backlog` is
+NOT_READY, `ready` is READY, a live claim is CLAIMED, `in_progress` is IN_PROGRESS,
+`in_review` is IN_REVIEW, `blocked` is BLOCKED, `paused` is PAUSED_QUOTA and `done`
+is DONE.
 
 **Transition.** Tickets without `spec_approved` keep working under their existing
 `gate_approval`, as before this rule. They gain Requirements, acceptance IDs and an

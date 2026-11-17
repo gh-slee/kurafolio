@@ -344,6 +344,35 @@ class SpecTest(unittest.TestCase):
         self.assertIn('This fenced heading is example text', sections['Requirements'])
         self.assertIn('Acceptance criteria', sections)
 
+    def test_fences_close_only_on_a_matching_marker(self):
+        """AC-ENG-112-05: nested and mixed fences keep their headings as content."""
+        nested = SPEC_BODY.replace('```markdown\n## Requirements', '````markdown\n```\n## Plan\n```\n## Requirements')
+        nested = nested.replace('not a section.\n```\n', 'not a section.\n````\n')
+        sections = tickets.spec_sections(nested)
+        self.assertIn('## Plan', sections['Requirements'])
+        self.assertIn('Build it', sections['Plan'])
+        self.assertEqual(tickets.spec_hash(nested), tickets.spec_hash(nested.replace('Build it.', 'Build it now.')))
+        tilde = SPEC_BODY.replace('```markdown', '~~~markdown').replace('not a section.\n```', 'not a section.\n```\n~~~')
+        sections = tickets.spec_sections(tilde)
+        self.assertIn('Acceptance criteria', sections)
+        self.assertIn('AC-SPC-001-01', sections['Acceptance criteria'])
+        inline = SPEC_BODY.replace('## Context', '```x``` is inline code\n\n## Context')
+        self.assertIn('Context', tickets.spec_sections(inline))
+
+    def test_all_checkbox_styles_and_bare_carriage_returns_are_normalised(self):
+        """AC-ENG-112-04."""
+        for tick in ('* [x]', '+ [X]', '1. [x]', '2) [x]'):
+            plain = tick.replace('[x]', '[ ]').replace('[X]', '[ ]')
+            body = SPEC_BODY.replace('- [ ] AC-SPC-001-02', plain + ' AC-SPC-001-02')
+            self.assertEqual(tickets.spec_hash(body.replace(plain, tick)), tickets.spec_hash(body), tick)
+        self.assertEqual(tickets.spec_hash(SPEC_BODY.replace('\n', '\r')), SPEC_EXPECTED)
+
+    def test_duplicate_gated_section_is_reported(self):
+        """AC-ENG-112-04: a second gated heading cannot slip text past the approval."""
+        body = SPEC_BODY.replace('## Build plan', '## Acceptance criteria\n\n- [ ] AC-SPC-001-03: Extra.\n\n## Build plan')
+        self.assertEqual(tickets.duplicate_gated_sections(body), ['Acceptance criteria'])
+        self.assertEqual(tickets.duplicate_gated_sections(SPEC_BODY), [])
+
     def test_acceptance_ids_and_review_flags(self):
         self.assertEqual(tickets.acceptance_ids('SPC-001', SPEC_BODY),
                          [('AC-SPC-001-01', False), ('AC-SPC-001-02', True)])
@@ -384,6 +413,35 @@ class SpecWorkflowTest(unittest.TestCase):
         code, _, err = run(self.repo, 'claim', 'SPC-001', '--agent', 'codex/test')
         self.assertEqual(code, 2)
         self.assertIn('spec changed since approval', err)
+
+    def test_takeover_of_a_drifted_spec_is_refused(self):
+        """AC-ENG-112-04: a stale claim cannot be taken over on unapproved text."""
+        self.write('SPC-001', SPEC_BODY, approved=SPEC_EXPECTED)
+        env = {**os.environ, 'GIT_AUTHOR_NAME': 't', 'GIT_AUTHOR_EMAIL': 't@example.invalid',
+               'GIT_COMMITTER_NAME': 't', 'GIT_COMMITTER_EMAIL': 't@example.invalid'}
+        for cmd in (['add', '.'], ['commit', '-q', '-m', 'init']):
+            subprocess.run(['git', '-C', str(self.repo), *cmd], check=True, env=env, capture_output=True)
+        self.assertEqual(run(self.repo, 'claim', 'SPC-001', '--agent', 'codex/test')[0], 0)
+        self.write('SPC-001', SPEC_BODY.replace('then 0.030', 'then 0.040'), approved=SPEC_EXPECTED)
+        with mock.patch.object(tickets, 'STALE_MINUTES', -1):
+            code, _, err = run(self.repo, 'takeover', 'SPC-001', '--agent', 'claude/test', '--reason', 'limit')
+        self.assertEqual(code, 2)
+        self.assertIn('spec changed since approval', err)
+
+    def test_spec_compares_with_a_base_ref(self):
+        """AC-ENG-112-03."""
+        self.write('SPC-001', SPEC_BODY)
+        env = {**os.environ, 'GIT_AUTHOR_NAME': 't', 'GIT_AUTHOR_EMAIL': 't@example.invalid',
+               'GIT_COMMITTER_NAME': 't', 'GIT_COMMITTER_EMAIL': 't@example.invalid'}
+        for cmd in (['add', '.'], ['commit', '-q', '-m', 'init']):
+            subprocess.run(['git', '-C', str(self.repo), *cmd], check=True, env=env, capture_output=True)
+        code, out, _ = run(self.repo, 'spec', 'SPC-001', '--base', 'main')
+        self.assertIn('Base main: gated sections unchanged', out)
+        self.write('SPC-001', SPEC_BODY.replace('then 0.030', 'then 0.040'))
+        code, out, _ = run(self.repo, 'spec', 'SPC-001', '--base', 'main')
+        self.assertIn('Base main: gated sections CHANGED', out)
+        code, out, _ = run(self.repo, 'spec', 'SPC-001', '--base', 'no-such-ref')
+        self.assertIn('no copy there', out)
 
     def test_spec_counts_test_mentions(self):
         """AC-ENG-112-03."""

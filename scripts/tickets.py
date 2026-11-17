@@ -41,8 +41,9 @@ PRIVATE_PATH = re.compile(r'/(?:Users|home)/[A-Za-z0-9_.-]+/')
 # by the owner's approval; everything else may change without a new approval.
 GATED_SECTIONS = ('Goal', 'Requirements', 'Acceptance criteria')
 SPEC_HASH_RE = re.compile(r'^sha256:[0-9a-f]{64}$')
-FENCE_RE = re.compile(r'^\s*(```|~~~)')
-TICK_RE = re.compile(r'^(\s*[-*] )\[[xX]\]')
+FENCE_RE = re.compile(r'^ {0,3}(`{3,}|~{3,})(.*)$')
+TICK_RE = re.compile(r'^(\s*(?:[-*+]|\d+[.)]) )\[[xX]\]')
+HEADING_RE = re.compile(r'^##[ \t]+(.+?)[ \t]*$')
 TEST_DIRS = ('tests', 'frontend/tests')
 STALE_MINUTES = int(os.environ.get('KURAFOLIO_TICKET_STALE_MINUTES', '120'))
 CLAIM_FILE = Path('work') / 'agent-claim.json'
@@ -88,27 +89,52 @@ def parse_ticket(path: Path, text: str | None = None) -> dict:
 
 # ---------------------------------------------------------------- spec
 
+def _lines(text: str) -> list[str]:
+    return text.replace('\r\n', '\n').replace('\r', '\n').split('\n')
+
+
+def _heading_lines(body: str):
+    """Yield (line, heading name or None), skipping headings inside fenced code.
+
+    A fence opens with three or more backticks or tildes and closes only with the same
+    character, at least as many, and nothing else on the line (CommonMark rules).
+    """
+    fence: str | None = None
+    for line in _lines(body):
+        m = FENCE_RE.match(line)
+        if fence is None:
+            if m and not (m.group(1)[0] == '`' and '`' in m.group(2)):
+                fence = m.group(1)
+                yield line, None
+                continue
+            h = HEADING_RE.match(line)
+            yield line, (h.group(1) if h else None)
+        else:
+            if m and m.group(1)[0] == fence[0] and len(m.group(1)) >= len(fence) and not m.group(2).strip():
+                fence = None
+            yield line, None
+
+
 def spec_sections(body: str) -> dict[str, str]:
     """Split a ticket body on level-2 headings, ignoring headings inside fenced code."""
     sections: dict[str, list[str]] = {}
     current: list[str] | None = None
-    fenced = False
-    for line in body.replace('\r\n', '\n').split('\n'):
-        if FENCE_RE.match(line):
-            fenced = not fenced
-        elif not fenced:
-            m = re.match(r'^## (.+?)\s*$', line)
-            if m:
-                name = m.group(1)
-                current = None if name in sections else sections.setdefault(name, [])  # first wins
-                continue
+    for line, name in _heading_lines(body):
+        if name is not None:
+            current = None if name in sections else sections.setdefault(name, [])  # first wins
+            continue
         if current is not None:
             current.append(line)
     return {name: '\n'.join(lines) for name, lines in sections.items()}
 
 
+def duplicate_gated_sections(body: str) -> list[str]:
+    names = [name for _, name in _heading_lines(body) if name in GATED_SECTIONS]
+    return sorted({n for n in names if names.count(n) > 1})
+
+
 def _normalise(text: str) -> str:
-    lines = [TICK_RE.sub(r'\1[ ]', line.rstrip()) for line in text.replace('\r\n', '\n').split('\n')]
+    lines = [TICK_RE.sub(r'\1[ ]', line.rstrip()) for line in _lines(text)]
     while lines and not lines[0]:
         lines.pop(0)
     while lines and not lines[-1]:
@@ -215,6 +241,8 @@ def validate(tickets: dict[str, dict]) -> list[str]:
             errors.append(f'{where}: blocked tickets need a "## Decisions needed" section')
         if t.get('spec_approved') and not SPEC_HASH_RE.match(str(t['spec_approved'])):
             errors.append(f'{where}: spec_approved must be "sha256:" followed by 64 lowercase hex digits')
+        for name in duplicate_gated_sections(body):
+            errors.append(f'{where}: gated section "## {name}" appears more than once')
         if t.get('gate') == 'owner' and t.get('status') in ('in_progress', 'in_review', 'done') and not t.get('gate_approval'):
             errors.append(f'{where}: owner-gated ticket is {t["status"]} without gate_approval')
         if t.get('status') == 'done':
@@ -453,7 +481,8 @@ def cmd_spec(root: Path, args) -> int:
     current = spec_hash(body)
     approved = t.get('spec_approved') or ''
     sections = spec_sections(body)
-    print(f'Ticket:        {args.id}')
+    branch = git(root, 'rev-parse', '--abbrev-ref', 'HEAD', check=False) or 'unknown'
+    print(f'Ticket:        {args.id} (copy in this checkout, branch {branch})')
     print(f'Current hash:  {current}')
     print(f'Approved hash: {approved or "(none)"}')
     if not approved:
@@ -463,6 +492,17 @@ def cmd_spec(root: Path, args) -> int:
     else:
         state = 'CHANGED since approval: the owner must approve the new text before work continues'
     print(f'State:         {state}')
+    if args.base:
+        other = git(root, 'show', f'{args.base}:{TICKET_DIR}/{args.id}.md', check=False)
+        if not other:
+            print(f'Base {args.base}: no copy there (new ticket, or the ref is missing)')
+        else:
+            base_hash = spec_hash(parse_ticket(Path(f'{args.id}.md'), other + '\n')['_body'])
+            print(f'Base {args.base}: ' + ('gated sections unchanged' if base_hash == current else
+                                          f'gated sections CHANGED (base hash {base_hash})'))
+    dupes = duplicate_gated_sections(body)
+    if dupes:
+        print('Duplicate gated sections: ' + ', '.join(dupes))
     missing = [name for name in GATED_SECTIONS if not sections.get(name, '').strip()]
     if missing:
         print('Missing gated sections: ' + ', '.join(missing))
@@ -520,6 +560,8 @@ def cmd_claim(root: Path, args, takeover: bool = False) -> int:
         if not is_stale(existing) and not args.owner_approved:
             raise TicketError(f'claim by {existing.get("agent")} is live (heartbeat {existing.get("heartbeat")}); '
                               f'wait until it is older than {STALE_MINUTES} min or pass --owner-approved')
+        if spec_drift(t) and not args.force:
+            raise TicketError('spec changed since approval; the owner must approve the new text before work resumes')
     else:
         if existing:
             raise TicketError(f'already claimed by {existing.get("agent")}; '
@@ -772,6 +814,7 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument('--plan', action='store_true', help='list ready tickets that still need a build plan')
     s = sub.add_parser('spec', help='spec hash, approval state, build plan and acceptance IDs of a ticket')
     s.add_argument('id')
+    s.add_argument('--base', help='also compare the gated sections with this ref, e.g. origin/main')
     for name in ('show', 'resume'):
         s = sub.add_parser(name)
         s.add_argument('id')

@@ -108,11 +108,14 @@ Use [the spec workflow](docs/spec-development.md) for exact-revision human Gate 
 serialized reservations, bounded PM/Architect/Developer/independent-QA handoffs and
 human Gate B. The ticket is the spec: Goal, Requirements and Acceptance criteria are
 gated by the owner-approved hash in `spec_approved`, and a frontier-tier session
-writes the Build plan before a `standard`-tier build. Before building, run
+writes the Build plan before a `standard`-tier build (warned, not yet enforced; see
+ENG-116). Approvals and plans take effect when merged to `main`. Before building, run
 `python3 scripts/tickets.py spec <ID>`; never build a spec that changed since
-approval. When the spec or Build plan is silent on behaviour, data or an interface,
-set the ticket to `blocked` with the question instead of guessing. When asked to plan,
-use `python3 scripts/tickets.py next --plan`. Repository skills under `.agents/skills/kurafolio-*` are guidance
+approval, and never change gated sections on a build branch. When the spec or Build
+plan is silent on behaviour, data or an interface, set the ticket to `blocked` with the
+question, push and tell the owner instead of guessing. When asked to plan, use
+`python3 scripts/tickets.py next --plan` and the planning rules in
+[tickets/README.md](tickets/README.md#writing-a-ticket-as-a-spec). Repository skills under `.agents/skills/kurafolio-*` are guidance
 for explicit role assignments or an authorized SDD workflow. Discovery alone does
 not authorize implementation or dispatch agents. Developer self-tests are not
 independent QA. Read current source and task-specific references; future plans do
