@@ -2,7 +2,7 @@
 id: IMP-007D
 title: Add the operator 0004 ingestion migration provider and grants
 priority: P0
-status: ready
+status: done
 type: feature
 parent: IMP-007
 depends_on: [IMP-007B, IMP-007C, IMP-007L, IMP-007J]
@@ -13,10 +13,10 @@ agent_tier: frontier
 gate: owner
 gate_approval: "owner 2026-10-31, IMP-007 spec r7 (covers all child tickets)"
 review: independent
-branch: 
-pr: 
+branch: ticket/wl-p0-007d-add-the-operator-0004-ingestion-migratio
+pr: 60
 spec: docs/specs/wealth-ledger-v2/P0/WL-P0-007.md
-updated: 2026-11-10
+updated: 2026-11-13
 ---
 
 # IMP-007D: Add the operator 0004 ingestion migration provider and grants
@@ -42,27 +42,31 @@ Install the ingestion schema through an explicit operator migration `0004` with 
 
 ## Acceptance criteria
 
-- [ ] `0004` installs only on an explicit operator command and verifies the SQL inventory.
-- [ ] Runtime and worker roles receive exactly the r7 grants; PUBLIC has none.
-- [ ] Upgrade from 0003 and fresh install produce identical inventories; restore keeps unaccepted authority inactive.
+- [x] `0004` installs only on an explicit operator command and verifies the SQL inventory.
+- [x] Runtime and worker roles receive exactly the r7 grants; PUBLIC has none.
+- [x] Upgrade from 0003 and fresh install produce identical inventories; restore keeps unaccepted authority inactive.
 
 ## Plan
 
-- [ ] Draft provider and inventory check.
-- [ ] Grant matrix tests.
-- [ ] Upgrade and restore tests.
-- [ ] Docs update in web-v2-imports.md.
+- [x] Draft provider and inventory check.
+- [x] Grant matrix tests.
+- [x] Upgrade and restore tests.
+- [x] Docs update in web-v2-imports.md.
 
 ## Handoff
 
-- State: Not started.
-- Next step: Read the files under "Where to start", then begin the first Plan item.
+- State: Merged in PR #60. The operator can upgrade an initialized 0003 instance, verify the installed grants and restore a receipt-bound backup into an isolated database.
+- Next step: IMP-007F integrates the worker. Service activation remains subject to the runtime and launcher checks.
 - Verify: `KURAFOLIO_INGESTION_TEST=1 PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -p 'test_postgres_migration.py' -v` and `PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -p 'test_ingestion_*.py' -v`; environment setup in [postgres-foundation.md](../docs/postgres-foundation.md) and [web-v2-imports.md](../docs/web-v2-imports.md)
-- Gotchas: None recorded.
-- Open questions: None.
+- Limits: The sealed r7 upgrade contract requires an initialized 0003 predecessor. The fresh-install test builds that predecessor in a new database before upgrading.
+- Restore verification covered two independent empty targets. Unix socket binding was tested with a mock. Concurrent writes during snapshot export and service activation were outside the verified cases.
 
 ## Log
 
 - 2026-11-05 planner: created in the initial backlog plan.
 - 2026-11-10 planner: owner re-confirmed this ticket for the V2 MVP on 2026-11-10; released (status ready), added starting files and verify commands.
 - 2026-11-10 planner: added dependencies on IMP-007L (0004 verifies the full function inventory, which 007L extends) and IMP-007J (its own text requires the rate-limit decision before grants).
+- 2026-11-12 codex: claimed the ticket on the merged IMP-007L closeout baseline.
+- 2026-11-13 codex: added the operator command, verified installed definitions and grants, and exercised transactional refusal in isolated PostgreSQL.
+- 2026-11-13 independent review: Verified the migration and grants. Restore review identified endpoint binding, historical evidence, preflight privileges, and recovery issues. The repairs require a focused retest.
+- 2026-11-13 codex: Independent QA and architecture retested the repairs. The owner merged PR #60 after its CI passed.

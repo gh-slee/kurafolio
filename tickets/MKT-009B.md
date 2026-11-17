@@ -58,7 +58,7 @@ The operator can change each value in configuration. The intervals never go belo
 ### Scope
 
 - In scope: the store and its migration, the refresh process and its command, the two routes, the wiring into the analysis service, configuration, tests, operator documentation.
-- Out of scope: FX rates and the currency list (MKT-009C), historical backfill and the daily curve (MKT-009D), an official keyed provider (MKT-009E), ETF holdings (ETF-010A), any page change beyond what ANL-012B already expects.
+- Out of scope: FX rates and the currency list (MKT-009C), historical backfill and the daily curve (MKT-009D), an official keyed provider (MKT-101), ETF holdings (ETF-010A), any page change beyond what ANL-012B already expects.
 
 ### Implementation notes
 

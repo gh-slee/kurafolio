@@ -2,7 +2,7 @@
 id: MKT-009E
 title: Choose and add an official keyed quote provider for stocks, ETFs and bonds
 priority: P0
-status: ready
+status: superseded
 type: feature
 parent: MKT-009
 depends_on: [MKT-009A]
@@ -16,12 +16,15 @@ review: independent
 branch:
 pr:
 spec:
-updated: 2026-11-11
+updated: 2026-11-16
 ---
 
 # MKT-009E: Choose and add an official keyed quote provider for stocks, ETFs and bonds
 
 ## Goal
+
+Superseded by MKT-101 on 2026-11-16. The owner will supply the provider keys later and did not want go-live to wait for them. The desk research, the test plan and the probe were written under this ticket and are on its branch, not on `main`; MKT-101 continues on that branch and carries the remaining scope, the acceptance criteria and the provider decision. The text below is kept for history.
+
 
 The first release can fetch stock and ETF prices only through the optional unofficial adapter, which can break without notice and has unclear terms. The owner approved a pluggable approach in which the instance operator supplies their own API key for a documented provider. Which provider is not chosen, because the published comparisons disagree and none confirmed Toronto listings. Test the candidates, let the owner choose, and add the adapter.
 
@@ -80,8 +83,8 @@ The first release can fetch stock and ETF prices only through the optional unoff
 
 ## Handoff
 
-- State: Not started. Owner approved Gate A on 2026-11-11. Waits on MKT-009A.
-- Next step: Read the merged MKT-009A interface, then write the spike test plan and run it.
+- State: Closed as superseded. Work done under this ticket: documented terms for five providers, the test plan, the probe script and its test, on the branch `ticket/wl-p0-009e-choose-and-add-an-official-keyed-quote-p`.
+- Next step: None here. Continue in MKT-101.
 - Verify: the new unit test module.
 - Gotchas: This ticket does not block the daily curve or the currency list; the other children work with any enabled adapter and with the fake.
 - Open questions: See Decisions needed.
@@ -90,3 +93,4 @@ The first release can fetch stock and ETF prices only through the optional unoff
 
 - 2026-11-11 planner: split out of MKT-009; carries its provider decision (OD-04).
 - 2026-11-11 planner: owner approved Gate A for this ticket on 2026-11-11 and released it (status ready).
+- 2026-11-16 planner: superseded by MKT-101 at the owner's request of 2026-11-16: the keys come later, and go-live no longer waits for this ticket. The stale claim of claude-code/opus-5.5 is released.

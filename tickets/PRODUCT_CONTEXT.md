@@ -176,6 +176,13 @@ colours or wording are copied.
 | When a page offers "Enable a source" | Each plugin declares its asset classes; the offer appears only when no enabled source declares that class and there are no holdings of it. Imported holdings always count | APP-011H |
 | Export formats for go-live | PDF, Excel (.xlsx), ODS and Markdown. CSV, JSON, PNG and ZIP come later | RPT-013A, 013B; RPT-101 |
 
+## Owner answers recorded on 2026-11-16
+
+| Topic | Decision | Consequence |
+|---|---|---|
+| Official quote provider | The owner supplies provider keys later; go-live does not wait for them | MKT-009E is closed and continued as MKT-101 (P1). OPS-015 no longer depends on it |
+| Ticket IDs | An area prefix and a number, with no priority in the ID and no `WL-` prefix | [ID_MAP.md](ID_MAP.md); this reverses the "ticket IDs stay" line of the rename ticket ENG-024 |
+
 ## Still open
 
 1. The official keyed quote provider (MKT-009E). The spike's desk research is

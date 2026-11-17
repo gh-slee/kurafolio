@@ -6,111 +6,115 @@ on-demand exports. The current CLI and Web app stay usable throughout. This page
 orders the work. Each ticket file holds its own scope, acceptance and handoff;
 `python3 scripts/tickets.py list` is the live status.
 
-Updated 2026-11-13 (triage; see the next two sections). Phases describe sequencing, not approval. Tickets with
-`gate: owner` still need the owner's approval before work starts. The sections from "Phases" onward
-are the history of earlier planning passes; where they disagree with the triage, the triage is current.
+Updated 2026-11-16 (triage of 2026-11-13, brought up to date; see the next two sections). Phases describe
+sequencing, not approval. Tickets with `gate: owner` still need the owner's approval before work starts. The
+sections from "Phases" onward are the history of earlier planning passes; where they disagree with the
+triage, the triage is current.
 
-## Where things stand (2026-11-13)
+## Where things stand (2026-11-16)
 
-- The board holds 118 tickets: 41 done or superseded, 77 open (35 P0, 23 P1, 19 P2).
+- The board holds 119 tickets: 44 done or superseded, 75 open (33 P0, 23 P1, 19 P2). No ticket is claimed.
 - A user can register, sign in, manage invitations and enable sources in the V2 shell
   (APP-011A, 011B, 011C, 011G). No V2 screen shows an import or a value yet.
-- The import database functions are complete (IMP-007A, B, C, I, J, L). IMP-007D, the migration that
-  installs them, is being worked and is the single ticket every other MVP ticket waits on.
-- The quote adapter contract is merged (MKT-009A). MKT-009E, the official provider, is half done and
-  waits for the owner to supply provider keys for the probe.
-- The project is renamed (ENG-024) and the import SQL tests run in CI (ENG-022).
+- The import database functions are complete and IMP-007D, the migration that installs them, is merged.
+  That was the ticket everything else waited on: the import routes, the worker, positions and the
+  preferences API can now start in parallel.
+- The quote adapter contract is merged (MKT-009A). The official price provider is no longer part of
+  go-live: MKT-009E is closed and its remaining work is MKT-101 (P1), which waits for the owner's provider keys.
+- The full test suite now runs cleanly in sandboxed agent sessions (ENG-102).
 
 ## Triage of 2026-11-13
 
 What changed on the board is in each ticket's Log. In short: board drift fixed (ENG-017 done, ENG-019
 superseded, epics and stale handoffs corrected, OPS-015 now depends on real tickets instead of epics that
 nothing closes); IMP-007E, 007F and 007G gained the concrete routes, rules and cases from the approved
-contract; every thin P1 and P2 ticket was rewritten to stand on its own; eight tickets were added
-(ETF-102, IMP-101, AUTH-102, OPS-101, OPS-102, ENG-108, AUTH-103, ETF-103); PLG-102 moved to P2 and ENG-111 to P1.
+contract; every thin P1 and P2 ticket was rewritten to stand on its own; eight tickets were added (OPS-101,
+OPS-102, AUTH-102, AUTH-103, IMP-101, ETF-102, ETF-103, ENG-108); the API connector PLG-102 moved to P2 and
+dependency scanning ENG-111 to P1.
 
 Ticket IDs changed the same day from `WL-P<priority>-<number>` to `<AREA>-<number>`: the area prefix says
 which part of the product a ticket belongs to, and the priority lives only in the `priority` field. The
 original V2 plan tickets kept their numbers (`WL-P0-007D` is `IMP-007D`). [ID_MAP.md](ID_MAP.md) has the
 prefixes and every old ID.
 
-### Step 1: a V2 MVP the owner can use (11 tickets)
+### Step 1: a V2 MVP the owner can use (10 tickets left)
 
 The owner's flow works end to end: register, enable plugins, import, see Stock/Bond, Crypto and Total.
 
 | Order | Ticket | What it delivers | Tier | Waits on |
 |---|---|---|---|---|
-| 1 | IMP-007D | Installs the import functions on an instance | frontier | in progress |
-| 2 | IMP-007E | The import routes the browser calls | frontier | 007D |
-| 2 | IMP-007F | The worker that parses uploaded files in isolation | frontier | 007D |
-| 2 | ANL-008 | Positions from accepted imports, with the owner's rules | frontier | 007D |
-| 3 | APP-011D | Import Data page: upload, review, confirm, history | standard | 007E |
-| 3 | ANL-012A | One analysis contract for securities, crypto and total | frontier | 008 |
-| 4 | ANL-012B | Stock/Bond page and the shared toolbar | standard | 012A |
-| 4 | OPS-021 | One-command deployment; its pull request says "ready to use" | frontier | 007E, 007F, 012A |
-| 5 | ANL-012C | Crypto page | standard | 012B |
-| 5 | IMP-007G | Independent acceptance of imports (36 cases) | frontier | 007E, 007F |
-| 6 | ANL-012D | Total page and Home | standard | 012C |
+| 1 | IMP-007E | The import routes the browser calls | frontier | claimable now |
+| 1 | IMP-007F | The worker that parses uploaded files in isolation | frontier | claimable now |
+| 1 | ANL-008 | Positions from accepted imports, with the owner's rules | frontier | claimable now |
+| 2 | APP-011D | Import Data page: upload, review, confirm, history | standard | IMP-007E |
+| 2 | ANL-012A | One analysis contract for securities, crypto and total | frontier | ANL-008 |
+| 3 | ANL-012B | Stock/Bond page and the shared toolbar | standard | ANL-012A |
+| 3 | OPS-021 | One-command deployment; its pull request says "ready to use" | frontier | IMP-007E, IMP-007F, ANL-012A |
+| 4 | ANL-012C | Crypto page | standard | ANL-012B |
+| 4 | IMP-007G | Independent acceptance of imports (36 cases) | frontier | IMP-007E, IMP-007F |
+| 5 | ANL-012D | Total page and Home | standard | ANL-012C |
 
 Tickets with the same order number share no resource and can run at the same time. In the MVP,
 securities are valued from the import's own market values or the optional unofficial adapter, Bitcoin
 from the live price, in CAD, USD and TWD.
 
-### Step 2: V2 go-live (17 more tickets)
+### Step 2: V2 go-live (16 more tickets)
 
 OPS-015 is the go-live gate. Its `depends_on` is this list.
 
 | Order | Ticket | What it delivers | Tier | Waits on |
 |---|---|---|---|---|
-| any | APP-011E, then 011F | Language, time zone and currency saved per user; Settings and Profile pages | frontier, standard | 007D frees the migration lock |
-| any | IMP-007N | A failing cleanup no longer starves other imports | frontier | 007D frees the SQL lock |
-| any | IMP-007M | Decision: retrying an upload whose previous attempt is stuck | frontier | 007D frees the SQL lock; then the owner |
-| any | MKT-009E | Official price provider with the operator's own key | frontier | owner supplies keys; then the owner chooses |
-| 1 | MKT-009B | Stored prices, scheduled and manual refresh | frontier | 012A |
-| 1 | APP-011H | Pages offer "Enable a source" only when it applies | standard | 012A |
-| 1 | RPT-013A | Downloads rendered on demand: PDF, Excel, ODS, Markdown | frontier | 012A |
-| 2 | MKT-009C | Twelve display currencies with daily rates | frontier | 009B |
-| 2 | ETF-010A | Fund holdings stored and refreshed for held funds | frontier | 009B |
-| 2 | RPT-013B | Download panel on every analysis page | standard | 013A, 012B |
-| 2 | ENG-023 | Real end-to-end browser suite in CI | frontier | 011D, 007F, 012B |
-| 3 | MKT-009D | Daily value line, with estimated days marked | frontier | 009B, 009C |
-| 3 | ETF-010B, then 012E | Exposure analysis and the Exposures page | frontier, standard | 010A, 012A; then 012B |
-| 3 | OPS-014 | Fresh-start guide from the old application | standard | 021, 012D |
+| any | APP-011E, then APP-011F | Language, time zone and currency saved per user; Settings and Profile pages | frontier, standard | claimable now |
+| any | IMP-007N | A failing cleanup no longer starves other imports | frontier | claimable now |
+| any | IMP-007M | Decision: retrying an upload whose previous attempt is stuck | frontier | after IMP-007N (same lock); then the owner |
+| 1 | MKT-009B | Stored prices, scheduled and manual refresh | frontier | ANL-012A |
+| 1 | APP-011H | Pages offer "Enable a source" only when it applies | standard | ANL-012A |
+| 1 | RPT-013A | Downloads rendered on demand: PDF, Excel, ODS, Markdown | frontier | ANL-012A |
+| 2 | MKT-009C | Twelve display currencies with daily rates | frontier | MKT-009B |
+| 2 | ETF-010A | Fund holdings stored and refreshed for held funds | frontier | MKT-009B |
+| 2 | RPT-013B | Download panel on every analysis page | standard | RPT-013A, ANL-012B |
+| 2 | ENG-023 | Real end-to-end browser suite in CI | frontier | APP-011D, IMP-007F, ANL-012B |
+| 3 | MKT-009D | Daily value line, with estimated days marked | frontier | MKT-009B, MKT-009C |
+| 3 | ETF-010B, then ANL-012E | Exposure analysis and the Exposures page | frontier, standard | ETF-010A, ANL-012A; then ANL-012B |
+| 3 | OPS-014 | Fresh-start guide from the old application | standard | OPS-021, ANL-012D |
 | 4 | OPS-015 | Release acceptance on the owner's platform; closes the epics | frontier | all of the above |
+
+At go-live, live prices for stocks, ETFs and bonds come from the optional unofficial adapter, or from the
+imported file's own values where it is off. The official provider follows in MKT-101.
 
 ENG-016 (publish the planning package) is P0 without an approval. The tickets no longer need it to be
 workable; OPS-015 needs the golden cases it contains. The owner decides whether to approve or drop it.
 
 ### Step 3: after go-live
 
-P1, in recommended order. All are `backlog` until the owner approves each one.
+P1, in recommended order. All are `backlog` until the owner approves each one, except where noted.
 
 | Group | Tickets | Why this order |
 |---|---|---|
-| Before inviting anyone else | OPS-101 security review, ENG-111 dependency scanning (now P1), OPS-102 access from other devices, AUTH-102 user administration and the registration switch, APP-011I invitation status | The instance holds several people's financial records |
+| Before inviting anyone else | OPS-101 security review, ENG-111 dependency scanning, OPS-102 access from other devices, AUTH-102 user administration and the registration switch, APP-011I invitation status (approved) | The instance holds several people's financial records |
 | Learn from real use | ENG-108 feedback review, IMP-101 recovering from a wrong import, CORE-101 time zone contract | The owner's use decides the rest |
+| Prices | MKT-101 official quote provider (approved; blocked on the owner's provider keys) | Replaces reliance on the unofficial adapter |
 | Deeper analysis | ETF-101 look up any ETF, ANL-107 holding detail, ANL-101 why the value changed, ANL-106 targets and drift, ETF-102 fund overlap, RPT-101 more export formats | Each needs only data that exists at go-live |
 | Reach other users | PLG-101 contributor guide and harness, OPS-104 published images | Other households can install it and add their broker |
-| Agent workflow, any time | ENG-107 flaky test (claimable now), ENG-102 (stale claim), ENG-105 faster CI, ENG-103 and ENG-104 board check and owner inbox, ENG-106 CI reviewer, ENG-101 path check | They speed up everything else |
+| Agent workflow, any time | ENG-107 flaky test (claimable now), ENG-105 faster CI, ENG-103 and ENG-104 board check and owner inbox, ENG-106 CI reviewer, ENG-101 path check | They speed up everything else |
 
 P2:
 
 | Group | Tickets | Note |
 |---|---|---|
-| One decision gates six tickets | ANL-102, then ANL-103, ANL-104, ANL-105, ANL-108, RPT-102 | Whether to record transactions: contributions, rate of return, income, benchmarks, tax evidence |
-| More institutions | PLG-103 (epic), PLG-102 API connector (moved from P1) | After PLG-101 |
+| One decision gates five tickets | ANL-102, then ANL-103, ANL-104, ANL-105, ANL-108, RPT-102 | Whether to record transactions: contributions, rate of return, income, benchmarks, tax evidence |
+| More institutions | PLG-103 (epic), PLG-102 API connector | After PLG-101 |
 | Smaller enhancements | ETF-103 fund costs, APP-109 hide balances and phone polish, ANL-109 goal scenarios, APP-101 French, OPS-105 status page, AUTH-103 two-factor sign-in, OPS-103 demo instance | Independent of each other |
 | Housekeeping | ENG-110 lint gate, IMP-103 retire old import paths, RPT-020 legacy archive (optional) | |
 | Proposed for closure | IMP-102 folder-watch imports | No request on record |
 
 ### What only the owner can do now
 
-1. Supply the provider keys for MKT-009E, or tell an agent where they are. Its Handoff has the steps.
+1. Supply the provider keys for MKT-101 when convenient. Its Handoff has the steps.
 2. Approve or drop ENG-016.
-3. Say whether ENG-102's stale claim may be taken over; it has uncommitted work in its worktree.
-4. Approve ENG-105 (faster CI) and its two decisions, now that several branches are open at once.
-5. Answer ENG-106's three questions if a CI reviewer is wanted.
-6. Confirm or reverse the two priority changes of this triage (PLG-102 to P2, ENG-111 to P1), the
+3. Approve ENG-105 (faster CI) and its two decisions, now that several agents can start at once.
+4. Answer ENG-106's three questions if a CI reviewer is wanted.
+5. Confirm or reverse the two priority changes of the triage (PLG-102 to P2, ENG-111 to P1), the
    proposal to close IMP-102, and the eight new tickets.
 
 ## Phases
