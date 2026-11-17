@@ -37,6 +37,13 @@ REQUIRED = ('id', 'title', 'priority', 'status', 'type', 'risk', 'size', 'agent_
             'gate', 'review', 'depends_on', 'resources', 'updated')
 SECTIONS = ('## Goal', '## Acceptance criteria', '## Plan', '## Handoff')
 PRIVATE_PATH = re.compile(r'/(?:Users|home)/[A-Za-z0-9_.-]+/')
+# The ticket is the spec (docs/spec-development.md). Only these sections are covered
+# by the owner's approval; everything else may change without a new approval.
+GATED_SECTIONS = ('Goal', 'Requirements', 'Acceptance criteria')
+SPEC_HASH_RE = re.compile(r'^sha256:[0-9a-f]{64}$')
+FENCE_RE = re.compile(r'^\s*(```|~~~)')
+TICK_RE = re.compile(r'^(\s*[-*] )\[[xX]\]')
+TEST_DIRS = ('tests', 'frontend/tests')
 STALE_MINUTES = int(os.environ.get('KURAFOLIO_TICKET_STALE_MINUTES', '120'))
 CLAIM_FILE = Path('work') / 'agent-claim.json'
 
@@ -77,6 +84,85 @@ def parse_ticket(path: Path, text: str | None = None) -> dict:
     meta['_body'] = text[end + 5:]
     meta['_path'] = path
     return meta
+
+
+# ---------------------------------------------------------------- spec
+
+def spec_sections(body: str) -> dict[str, str]:
+    """Split a ticket body on level-2 headings, ignoring headings inside fenced code."""
+    sections: dict[str, list[str]] = {}
+    current: list[str] | None = None
+    fenced = False
+    for line in body.replace('\r\n', '\n').split('\n'):
+        if FENCE_RE.match(line):
+            fenced = not fenced
+        elif not fenced:
+            m = re.match(r'^## (.+?)\s*$', line)
+            if m:
+                name = m.group(1)
+                current = None if name in sections else sections.setdefault(name, [])  # first wins
+                continue
+        if current is not None:
+            current.append(line)
+    return {name: '\n'.join(lines) for name, lines in sections.items()}
+
+
+def _normalise(text: str) -> str:
+    lines = [TICK_RE.sub(r'\1[ ]', line.rstrip()) for line in text.replace('\r\n', '\n').split('\n')]
+    while lines and not lines[0]:
+        lines.pop(0)
+    while lines and not lines[-1]:
+        lines.pop()
+    return '\n'.join(lines)
+
+
+def spec_hash(body: str) -> str:
+    """SHA-256 over the gated sections; ticks, whitespace and other sections do not count."""
+    sections = spec_sections(body)
+    canonical = ''.join(f'## {name}\n{_normalise(sections.get(name, ""))}\n' for name in GATED_SECTIONS)
+    return 'sha256:' + hashlib.sha256(canonical.encode('utf-8')).hexdigest()
+
+
+def acceptance_ids(tid: str, body: str) -> list[tuple[str, bool]]:
+    """Acceptance IDs (AC-<ticket>-NN) in order, each with its [review] flag."""
+    text = spec_sections(body).get('Acceptance criteria', '')
+    found: list[tuple[str, bool]] = []
+    for line in text.split('\n'):
+        for ac in re.findall(r'\bAC-' + re.escape(tid) + r'-\d{2}\b', line):
+            if ac not in [a for a, _ in found]:
+                found.append((ac, '[review]' in line))
+    return found
+
+
+def has_build_plan(body: str) -> bool:
+    return bool(spec_sections(body).get('Build plan', '').strip())
+
+
+def spec_drift(t: dict) -> bool:
+    """True when an approved spec's gated sections no longer match the approval."""
+    approved = t.get('spec_approved')
+    return bool(approved) and approved != spec_hash(t.get('_body', ''))
+
+
+def test_mentions(root: Path, ids: list[str]) -> dict[str, int]:
+    counts = {i: 0 for i in ids}
+    if not ids:
+        return counts
+    for top in TEST_DIRS:
+        base = root / top
+        if not base.is_dir():
+            continue
+        for dirpath, dirnames, filenames in os.walk(base):
+            dirnames[:] = [d for d in dirnames if d not in ('node_modules', '__pycache__') and not d.startswith('.')]
+            for name in filenames:
+                try:
+                    text = (Path(dirpath) / name).read_text(encoding='utf-8')
+                except (UnicodeDecodeError, OSError):
+                    continue
+                for i in ids:
+                    if i in text:
+                        counts[i] += 1
+    return counts
 
 
 def ticket_paths(root: Path) -> list[Path]:
@@ -127,6 +213,8 @@ def validate(tickets: dict[str, dict]) -> list[str]:
                 errors.append(f'{where}: missing section "{heading}"')
         if t.get('status') == 'blocked' and not re.search(r'^## Decisions needed\s*$', body, re.M):
             errors.append(f'{where}: blocked tickets need a "## Decisions needed" section')
+        if t.get('spec_approved') and not SPEC_HASH_RE.match(str(t['spec_approved'])):
+            errors.append(f'{where}: spec_approved must be "sha256:" followed by 64 lowercase hex digits')
         if t.get('gate') == 'owner' and t.get('status') in ('in_progress', 'in_review', 'done') and not t.get('gate_approval'):
             errors.append(f'{where}: owner-gated ticket is {t["status"]} without gate_approval')
         if t.get('status') == 'done':
@@ -280,6 +368,8 @@ def availability(t: dict, tickets: dict, claims: dict, locks: Path) -> tuple[boo
         return False, 'waiting on ' + ','.join(d for d in t['depends_on'] if tickets[d]['status'] not in ('done', 'superseded'))
     if not gate_ok(t):
         return False, 'needs owner gate approval'
+    if spec_drift(t):
+        return False, 'spec changed since approval'
     for res in t.get('resources') or []:
         holder = resource_holder(locks, res)
         if holder and holder.get('ticket') != tid:
@@ -334,15 +424,59 @@ def cmd_next(root: Path, args) -> int:
     claims = all_claims(locks)
     found = 0
     for t in sorted(tickets.values(), key=lambda t: (t['priority'], t['status'] not in ACTIVE, t['id'])):
-        if not tier_ok(t, args.tier):
+        if args.plan:
+            # Planning queue: specs that a frontier session should design before a build.
+            if t['agent_tier'] == 'any' or has_build_plan(t.get('_body', '')):
+                continue
+        elif not tier_ok(t, args.tier):
             continue
         ok, why = availability(t, tickets, claims, locks)
         if ok:
+            if args.plan:
+                why = 'needs a build plan'
+            elif t['agent_tier'] == 'standard' and not has_build_plan(t.get('_body', '')):
+                why += '; no build plan'
             found += 1
             print(f'{t["id"]:<12} {t["priority"]} {t["agent_tier"]:<9} {t["risk"]:<8} {why:<28} {t["title"]}')
     if not found:
-        print('No claimable ticket for this tier. Run "list" to see blockers.')
+        print('No ticket needs a build plan.' if args.plan else
+              'No claimable ticket for this tier. Run "list" to see blockers.')
     return 0
+
+
+def cmd_spec(root: Path, args) -> int:
+    tickets = load_tickets(root)
+    t = tickets.get(args.id)
+    if not t:
+        raise TicketError(f'unknown ticket {args.id}')
+    body = t.get('_body', '')
+    current = spec_hash(body)
+    approved = t.get('spec_approved') or ''
+    sections = spec_sections(body)
+    print(f'Ticket:        {args.id}')
+    print(f'Current hash:  {current}')
+    print(f'Approved hash: {approved or "(none)"}')
+    if not approved:
+        state = 'not approved by hash' + ('; legacy approval: ' + str(t['gate_approval']) if t.get('gate_approval') else '')
+    elif approved == current:
+        state = 'MATCHES the approved spec'
+    else:
+        state = 'CHANGED since approval: the owner must approve the new text before work continues'
+    print(f'State:         {state}')
+    missing = [name for name in GATED_SECTIONS if not sections.get(name, '').strip()]
+    if missing:
+        print('Missing gated sections: ' + ', '.join(missing))
+    print('Build plan:    ' + ('present' if has_build_plan(body) else 'missing'))
+    ids = acceptance_ids(args.id, body)
+    if not ids:
+        print(f'Acceptance IDs: none (expected AC-{args.id}-01 and so on)')
+    else:
+        counts = test_mentions(root, [i for i, _ in ids])
+        print('Acceptance IDs:')
+        for ac, review in ids:
+            note = 'review-only' if review else (f'{counts[ac]} test file(s)' if counts[ac] else 'no test mentions it yet')
+            print(f'  {ac}  {note}')
+    return 1 if approved and approved != current else 0
 
 
 def cmd_show(root: Path, args) -> int:
@@ -635,6 +769,9 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument('--all', action='store_true', help='include done/superseded')
     s = sub.add_parser('next', help='claimable tickets for your capability tier')
     s.add_argument('--tier', choices=TIERS, default='frontier')
+    s.add_argument('--plan', action='store_true', help='list ready tickets that still need a build plan')
+    s = sub.add_parser('spec', help='spec hash, approval state, build plan and acceptance IDs of a ticket')
+    s.add_argument('id')
     for name in ('show', 'resume'):
         s = sub.add_parser(name)
         s.add_argument('id')
@@ -663,7 +800,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.cmd == 'takeover':
             return cmd_claim(root, args, takeover=True)
-        return {'check': cmd_check, 'list': cmd_list, 'next': cmd_next, 'show': cmd_show,
+        return {'check': cmd_check, 'list': cmd_list, 'next': cmd_next, 'show': cmd_show, 'spec': cmd_spec,
                 'resume': cmd_resume, 'claim': cmd_claim, 'heartbeat': cmd_heartbeat,
                 'release': cmd_release, 'cleanup': cmd_cleanup}[args.cmd](root, args)
     except TicketError as exc:
