@@ -427,6 +427,10 @@ class SpecWorkflowTest(unittest.TestCase):
             code, _, err = run(self.repo, 'takeover', 'SPC-001', '--agent', 'claude/test', '--reason', 'limit')
         self.assertEqual(code, 2)
         self.assertIn('spec changed since approval', err)
+        with mock.patch.object(tickets, 'STALE_MINUTES', -1):
+            code, _, err = run(self.repo, 'takeover', 'SPC-001', '--agent', 'claude/test', '--reason', 'owner',
+                               '--force')
+        self.assertEqual(code, 0, err)
 
     def test_spec_compares_with_a_base_ref(self):
         """AC-ENG-112-03."""
@@ -441,7 +445,10 @@ class SpecWorkflowTest(unittest.TestCase):
         code, out, _ = run(self.repo, 'spec', 'SPC-001', '--base', 'main')
         self.assertIn('Base main: gated sections CHANGED', out)
         code, out, _ = run(self.repo, 'spec', 'SPC-001', '--base', 'no-such-ref')
-        self.assertIn('no copy there', out)
+        self.assertIn('Base no-such-ref: unknown ref', out)
+        self.write('SPC-002', SPEC_BODY)
+        code, out, _ = run(self.repo, 'spec', 'SPC-002', '--base', 'main')
+        self.assertIn('Base main: no copy there (a new ticket)', out)
 
     def test_spec_counts_test_mentions(self):
         """AC-ENG-112-03."""

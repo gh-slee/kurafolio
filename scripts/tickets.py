@@ -494,8 +494,10 @@ def cmd_spec(root: Path, args) -> int:
     print(f'State:         {state}')
     if args.base:
         other = git(root, 'show', f'{args.base}:{TICKET_DIR}/{args.id}.md', check=False)
-        if not other:
-            print(f'Base {args.base}: no copy there (new ticket, or the ref is missing)')
+        if not git(root, 'rev-parse', '--verify', '--quiet', f'{args.base}^{{commit}}', check=False):
+            print(f'Base {args.base}: unknown ref')
+        elif not other:
+            print(f'Base {args.base}: no copy there (a new ticket)')
         else:
             base_hash = spec_hash(parse_ticket(Path(f'{args.id}.md'), other + '\n')['_body'])
             print(f'Base {args.base}: ' + ('gated sections unchanged' if base_hash == current else
