@@ -17,6 +17,8 @@ priority, user journeys and first-use/normal/empty/partial/stale/error/permissio
 states. Assess size and risk separately from priority. Write a bounded spec with
 unique acceptance IDs, negative cases, requirement/source traceability and an
 independent expected-result plan; request Architect review before human Gate A.
+For a ticket, the spec is the ticket's gated Goal, Requirements and Acceptance
+criteria (IDs `AC-<ticket>-NN`), and it may cite only tracked documents.
 Preserve the investment-tracking boundary: no general ledger expansion. Preserve
 explicit overlap policy, coverage and unknown semantics; proposed destinations and
 future providers require acceptance, not an assumption that they already exist.

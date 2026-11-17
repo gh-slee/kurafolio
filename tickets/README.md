@@ -30,8 +30,14 @@ python3 scripts/tickets.py claim ENG-018 --agent opencode/deepseek-flash --workt
 `claim` creates or attaches `work/worktrees/<ticket-id>` on the ticket branch. Do
 all work there, never in the primary checkout. Then:
 
-1. Read the ticket's **Handoff** section first, then Goal and Acceptance criteria.
-   Read only the docs the ticket links, plus AGENTS.md.
+1. Read the ticket's **Handoff** section first, then Goal, Requirements, Acceptance
+   criteria and Build plan. The ticket is the spec ([Writing a ticket as a spec](#writing-a-ticket-as-a-spec)).
+   Read only the docs the ticket links, plus AGENTS.md. Run
+   `python3 scripts/tickets.py spec <ID>`: if it reports the spec changed since
+   approval, do not build; tell the owner. If the Build plan or the spec is silent on
+   behaviour, data or an interface you need, write the question under Decisions
+   needed, set `status: blocked`, commit, push, tell the owner and stop. Keep the
+   claim. Do not guess.
 2. Set `status: in_progress` and `updated:`, add a Log line, and commit.
 3. Work through the Plan checkboxes. After each meaningful step, update Handoff,
    commit (WIP commits are fine on a ticket branch; the owner squashes them at
@@ -46,7 +52,12 @@ all work there, never in the primary checkout. Then:
    PR description becomes its body. Because only the owner merges, the ticket reads
    `done` on `main` only after the merge. While the PR is open, its branch copy
    and the live claim show it as under review. If review requests changes, keep
-   the claim and set `status: in_review` until the repair is pushed.
+   the claim and set `status: in_review` until the repair is pushed. In the same
+   final commit, add one outcome line to the Log: the implementing model, the
+   reviewing model, the number of review repair rounds, and anything the spec or Build
+   plan failed to say (or "nothing missing"); update it if review leads to more
+   repairs. Before handing over, run `python3 scripts/tickets.py spec <ID> --base origin/main`:
+   a build must not change the gated sections.
 6. Work on one ticket per session, so the session's context holds only that
    ticket. Until the PR is merged, use the session only for that ticket: review
    repairs, CI fixes and the owner's questions about it. Do not claim a second
@@ -170,20 +181,76 @@ gate_approval:          # set only when the owner approved, e.g. "owner 2026-11-
 review: self            # self | independent
 branch:                 # set when work starts
 pr:
-spec:                   # optional link to a detailed spec
+spec:                   # optional link to a tracked document this ticket depends on
+spec_approved:          # set only when the owner approved the spec text: sha256:<hash from "tickets.py spec">
 updated: 2026-11-05
 ---
 ```
 
-The body must contain these sections, in this order:
+The body must contain `## Goal`, `## Acceptance criteria`, `## Plan` and `## Handoff`;
+`check` enforces these. A ticket written as a spec uses all of these, in this order:
 
-- `## Goal`: the user outcome in two to five sentences.
-- `## Acceptance criteria`: checkboxes that can be verified.
+- `## Goal` (gated): the user outcome in two to five sentences.
+- `## Context`: background, current behaviour, links and files to start from.
+- `## Requirements` (gated): scope, non-goals, and the rules and invariants the
+  result must keep.
+- `## Acceptance criteria` (gated): verifiable checkboxes, each starting with an ID
+  `AC-<ticket>-NN`. Add `[review]` after the ID when only a reviewer can judge it.
+- `## Build plan`: the design a builder follows (below).
 - `## Plan`: checkbox steps small enough for one session each.
 - `## Decisions needed`: required when `status: blocked`. Each question gives options
   and a recommendation. Only the owner answers.
 - `## Handoff`: the resume point (format below).
 - `## Log`: append-only dated lines, `YYYY-MM-DD agent: what happened`.
+
+Older tickets without Requirements or acceptance IDs stay valid until they are
+migrated (ENG-113).
+
+### Writing a ticket as a spec
+
+The full rules are in [spec-development.md](../docs/spec-development.md#the-ticket-is-the-spec).
+In short:
+
+- **The ticket is the spec.** Anything a builder needs is in the ticket or in a
+  tracked document it links. Never rely on an untracked or ignored file.
+- **Gated sections.** Goal, Requirements and Acceptance criteria are what the owner
+  approves. `python3 scripts/tickets.py spec <ID>` prints their hash. When the owner
+  approves the text, record their words in `gate_approval` and the hash in
+  `spec_approved`. Changing a gated section afterwards makes the ticket unclaimable
+  until the owner approves the new hash. Ticks, Context, Build plan, Plan, Handoff
+  and Log can change freely.
+- **Approvals and plans live on `main`.** Build a ticket from its copy on `main`;
+  `spec_approved` and the Build plan arrive there through a merged pull request.
+  Changing `agent_tier`, `risk`, `review`, `depends_on` or `resources` of an approved
+  ticket needs the owner's confirmation in its Log.
+- **Build plan.** A frontier-tier planning session writes it once the ticket's
+  dependencies have merged, from the merged code. `python3 scripts/tickets.py next --plan`
+  lists tickets that need one. `next` marks a `standard` ticket without one
+  `no build plan`; a builder skips it and reports it as needing planning unless the
+  owner says to build it. Only one planning session works at a time. It
+  plans one or more tickets on its own branch from `origin/main` without claiming
+  them, edits only their Context, Build plan, Plan and Decisions needed (the planning
+  exception to the rule below), marks any proposed change to a gated section for the
+  owner, records the plan PR in each ticket's Log and opens one docs pull request.
+  Template:
+
+```markdown
+## Build plan
+
+- Based on: the `main` commit this plan was written from.
+- Files: `path/to/file.py`: what changes. `path/to/new.tsx` (new): what it holds.
+- Interfaces: the signatures and data shapes the code must use, from merged code.
+- Tests: `tests/test_x.py`, one case per acceptance ID:
+  | AC | Case | Expected |
+  |---|---|---|
+  | 01 | Given 0.010 and 0.020 BTC | 0.03000000 BTC |
+- Do not touch: paths, contracts and behaviour outside this ticket.
+- Stop and ask if: the conditions that need a planner or owner decision.
+```
+
+- **Traceability.** Name the acceptance ID in each test that verifies it (test name,
+  docstring or comment). `spec <ID>` counts the test files that mention each ID.
+  Reviewers give a verdict per ID.
 
 ### Handoff format
 
@@ -209,7 +276,11 @@ Keep it current. Overwrite it at each checkpoint; the Log keeps history.
   catches duplicate IDs and broken dependencies after a merge.
 - **Gates:** `gate: owner` tickets need `gate_approval` before work starts. Only the
   owner grants it, in conversation with an agent, and the agent records the date and
-  scope. Never infer approval from priority, a roadmap or a passed test.
+  scope. Never infer approval from priority, a roadmap or a passed test. For a
+  ticket written as a spec, also record the approved hash in `spec_approved`, and
+  only when the owner approved that exact text. Any change to `gate_approval` or
+  `spec_approved`, including clearing it, quotes the owner's words in the Log; the
+  script cannot tell who approved, so the owner checks this at review.
 - **Reviews:** `review: independent` means a different agent session than the
   implementer reviews the diff against the acceptance criteria. The same session
   cannot self-certify. Using a different model is welcome but does not by itself
@@ -251,7 +322,9 @@ Keep it current. Overwrite it at each checkpoint; the Log keeps history.
 |---|---|
 | `check` | Validate every ticket file (fields, enums, dependencies, cycles, sections, privacy). Runs in the test suite. |
 | `list [--priority P0] [--status ready] [--all]` | Board with live claims. |
-| `next [--tier any\|standard\|frontier]` | Claimable or resumable tickets for your tier. |
+| `next [--tier any\|standard\|frontier]` | Claimable or resumable tickets for your tier. Standard tickets without a Build plan are marked. |
+| `next --plan` | Ready tickets above the `any` tier that still need a Build plan. |
+| `spec ID [--base REF]` | Spec hash, approval state, Build plan presence and each acceptance ID with its test mentions; with `--base`, whether the gated sections differ from that ref. Exits 1 when the spec changed since approval. |
 | `show ID` / `resume ID` | Ticket text (newest copy from its branch), claim and git state. |
 | `claim ID --agent NAME [--worktree]` | Atomic claim plus resource locks; writes `work/agent-claim.json` in the worktree. |
 | `heartbeat ID [--note TEXT]` | Refresh the claim from the owning worktree. |

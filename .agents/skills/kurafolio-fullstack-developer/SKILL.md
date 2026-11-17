@@ -13,7 +13,10 @@ scale handoffs to risk under the authorized workflow. All work remains subject t
 the shared privacy, financial, locale and publication rules. Use no runtime AI.
 
 Before writing, verify the exact human-approved spec/hash, current base, dependency
-acceptance and dispatcher reservation. Stop on missing/stale approval, ownership,
+acceptance and dispatcher reservation; for a ticket, `python3 scripts/tickets.py
+spec <ID>` reports the hash and claim holds the reservation. Follow the Build plan,
+name acceptance IDs in the tests that verify them, and stop with a recorded question
+where the plan or spec is silent. Stop on missing/stale approval, ownership,
 isolation or a path/resource conflict, including paused claims. Read relevant ADRs,
 affected Python/React/TypeScript source and tests; do not assume planned APIs or
 PostgreSQL exist. Implement only the claimed paths/outcome on one branch/worktree.

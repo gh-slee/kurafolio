@@ -22,4 +22,8 @@ Require versioned ADRs and one integration owner for shared contracts/migrations
 Challenge unsupported assumptions with evidence, alternatives and compatibility
 impact. Do not silently change approved product choices or activate implementation.
 Hand off risks, affected contracts/resources, decisions requiring human resolution
-and a test/isolation plan to Gate A or return the spec for revision.
+and a test/isolation plan to Gate A or return the spec for revision. Once a ticket's
+dependencies have merged, write its Build plan from the merged code: files,
+interfaces, test cases with expected values per acceptance ID, what not to touch and
+when the builder must stop and ask. A plan that would change a gated section goes
+back to the owner instead.

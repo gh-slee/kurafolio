@@ -10,8 +10,9 @@ installed or required.
 ## Tracked tickets and parallel agents
 
 The public backlog lives in [tickets/](../tickets/README.md). A ticket file is the
-public-safe record of a spec's status, scope, acceptance, gate approval, branch, PR
-and resumable handoff. `python3 scripts/tickets.py claim` is the serialized
+spec for one unit of work ([the ticket is the spec](#the-ticket-is-the-spec)) and the
+public-safe record of its status, gate approval, branch, PR and resumable handoff.
+`python3 scripts/tickets.py claim` is the serialized
 reservation: it atomically locks the ticket and its exclusive resources in the
 shared Git directory, so concurrent agents in other worktrees or other agent
 products are refused. Detailed private evidence may still live under ignored
@@ -22,13 +23,106 @@ A stale heartbeat is evidence that a writer stopped, not a free pass. Before
 [Pause, transfer and resume](#pause-transfer-and-resume). The claim records the
 former and new owner.
 
+## The ticket is the spec
+
+Each ticket in `tickets/` is the spec for one bounded unit of work. Shared contracts,
+ADRs, golden cases and product decisions live in tracked documents that the ticket
+links. A ticket must not depend on an untracked or ignored file: content that an
+agent on another machine cannot read is not part of the spec.
+
+| Section | Written by | Gated | Holds |
+|---|---|---|---|
+| `## Goal` | PM | yes | The user outcome and why it matters |
+| `## Context` | PM, Architect | no | Background, current behaviour, links, files to start from |
+| `## Requirements` | PM, Architect | yes | Scope, non-goals, rules and invariants the result must keep |
+| `## Acceptance criteria` | PM | yes | Verifiable criteria, each with an ID `AC-<ticket>-NN`; `[review]` marks one only a reviewer can judge |
+| `## Build plan` | Architect | no | The design a builder follows: files, interfaces, test cases with expected values, what not to touch, when to stop and ask |
+| `## Plan` | Any role | no | Checkbox steps, each small enough for one session |
+| `## Decisions needed` | Any role; the owner answers | no | Open questions with options and a recommendation |
+| `## Handoff`, `## Log` | Any role | no | Resume point and history |
+
+**Revision and hash.** A ticket's spec revision is the commit that last changed a
+gated section. Its content hash is SHA-256 over the three gated sections after
+normalising line endings, trailing whitespace, surrounding blank lines and checkbox
+ticks; headings inside fenced code are content, not sections.
+`python3 scripts/tickets.py spec <ID>` prints it.
+
+**Gate A on a ticket.** When the owner approves a spec, the agent records the owner's
+words in `gate_approval` and the approved hash in `spec_approved: sha256:<hash>`.
+Neither value may be written without the owner's explicit approval of that text. The
+owner's merge of the commit that records them is the durable evidence: the script
+shows whether text drifted, not who approved it. When a gated section changes after
+approval, `next` and `claim` refuse the ticket until the owner approves the new hash.
+Context, Build plan, Plan, Handoff, Log and front matter may change without a new
+approval, unless the change alters what a gated section means; then that section is
+updated and approved again. Changing `agent_tier`, `risk`, `review`, `depends_on` or
+`resources` of an approved ticket also needs the owner's confirmation in its Log.
+At Gate B the owner checks that every change to `gate_approval` or `spec_approved`,
+including clearing `spec_approved`, quotes the owner's words in the Log.
+
+**Approvals and plans live on `main`.** A ticket is built from its copy on `main`.
+`spec_approved` and the Build plan reach `main` through a merged pull request before
+the build is claimed. A build branch must not change gated sections:
+`python3 scripts/tickets.py spec <ID> --base origin/main` shows whether it did, and
+reviewers run it on the pull request head. A linked document that sets expected values
+is part of the spec: link it at a commit, and treat a change to it as a change to the
+tickets that rely on it.
+
+**Planning.** One planning session at a time works the `next --plan` queue. It
+writes Build plans for one or more tickets on its own branch from `origin/main`,
+without claiming them, and opens one docs pull request. It edits only the Context,
+Build plan, Plan and Decisions needed of the tickets it plans, which is the planning
+exception to "edit only your own ticket file". A change it proposes to a gated section
+is marked in the pull request for the owner's approval. Each plan starts with the
+`main` commit it was written from, so a plan that predates a later dependency change
+is visible. The tickets become buildable when the owner merges the pull request.
+
+**Design before build.** For a `standard`-tier ticket, a frontier-tier planning
+session writes the Build plan after the ticket's dependencies have merged, from the
+merged code rather than from earlier plans. `python3 scripts/tickets.py next --plan`
+lists ready tickets that still need one, including frontier tickets a planner may
+choose to plan. A builder follows the Build plan. When the
+plan or spec is silent on behaviour, data or an interface, the builder records the
+question under Decisions needed, sets `status: blocked`, pushes the branch, tells the
+owner and stops instead of guessing; the claim stays. Until the pilot (ENG-116) shows the gate can be enforced, `next` still
+offers a standard ticket without a Build plan and marks it `no build plan`; a
+builder skips it and reports it as needing planning unless the owner says to build it. A
+frontier ticket may be planned and built in the same session; an `any`-tier ticket
+needs no Build plan.
+
+**Traceability.** Tests name the acceptance IDs they verify, in a test name,
+docstring or comment; `tickets.py spec <ID>` counts the test files that mention each
+ID. Independent QA reports a verdict for every ID, including `[review]` ones. In the
+pull request's final commit before the owner's review, the implementer adds one
+outcome line to the ticket Log: the implementing model, the reviewing model, the
+number of review repair rounds and anything the spec or Build plan failed to say. It
+updates that line if review leads to further repairs, so the next planning session
+learns from evidence.
+
+**Scale to risk.** A small low-risk ticket can be a goal, a few requirements and its
+criteria. Financial, authentication, migration and concurrency tickets carry
+independent expected values, negative cases and rollback in their Requirements or
+Build plan, as the evidence rules below require.
+
+**Statuses.** Ticket statuses map to the execution states below: `backlog` is
+NOT_READY, `ready` is READY, a live claim is CLAIMED, `in_progress` is IN_PROGRESS,
+`in_review` is IN_REVIEW, `blocked` is BLOCKED, `paused` is PAUSED_QUOTA and `done`
+is DONE.
+
+**Transition.** Tickets without `spec_approved` keep working under their existing
+`gate_approval`, as before this rule. They gain Requirements, acceptance IDs and an
+approved hash when migrated (ENG-113); the owner confirms each migrated hash.
+
 ## Evidence and roles
 
 A spec records ID, revision, content SHA-256, outcome, scope/non-goals, priority,
 size, risk/rationale, dependencies, decisions/ADRs, paths/contracts/exclusive
 resources, financial/locale invariants, acceptance and negative cases, independent
 expected values, verification owners and rollback. Priority, size, risk, review
-state and execution state are separate fields. Links must identify accessible
+state and execution state are separate fields. In a ticket, ID, priority, size,
+risk, dependencies and resources are front-matter fields; outcome, scope, invariants
+and acceptance are the gated sections; decisions, paths, contracts, expected values
+and rollback sit in Requirements or the Build plan. Links must identify accessible
 sources; private approvals/evidence stay local and are never pasted into public
 records. Requirements and plans express intent; source/tests establish capability;
 Issues record remote execution, and PRs record reviewed implementation.
@@ -47,7 +141,11 @@ Role guidance lives in exactly four repository skill files:
 [Architect](../.agents/skills/kurafolio-software-architect/SKILL.md),
 [Developer](../.agents/skills/kurafolio-fullstack-developer/SKILL.md),
 [QA](../.agents/skills/kurafolio-qa-automation/SKILL.md).
-Use an explicitly assigned role or an authorized SDD workflow. Discovering these
+In the ticket workflow, a frontier-tier planning session takes the PM and Architect
+roles, writing the gated sections and later the Build plan; a builder at the
+ticket's `agent_tier` takes the Developer role; a fresh-context reviewer takes QA;
+the owner holds Gate A and Gate B. Which model fills each tier is decided separately
+(ENG-115). Use an explicitly assigned role or an authorized SDD workflow. Discovering these
 files does not launch four agents. Delegate only with explicit authorization;
 scale independent review to risk. A low-risk text edit need not run four concurrent
 roles; financial/auth/migration changes require relevant independent review. A
@@ -61,6 +159,8 @@ APPROVED, REJECTED or SUPERSEDED. Agent-authored human approval fields stay null
 until there is actual human evidence. Gate A records reviewer, revision, content
 hash, approval reference/time, outcome, financial semantics, dependencies,
 applicable ADR/open decisions, risks, negative/independent test plan and rollback.
+For a ticket, `gate_approval` and `spec_approved` are this record, and
+`python3 scripts/tickets.py spec <ID>` recomputes the hash.
 Recompute the hash before readiness. Any material spec change increments revision
 and changes hash, invalidates approval/READY, and returns for human review. A
 historical approval for another revision or scope is insufficient.
