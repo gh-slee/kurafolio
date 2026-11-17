@@ -1,0 +1,96 @@
+---
+id: MKT-009E
+title: Choose and add an official keyed quote provider for stocks, ETFs and bonds
+priority: P0
+status: superseded
+type: feature
+parent: MKT-009
+depends_on: [MKT-009A]
+resources: [provider-adapter-contract]
+risk: medium
+size: M
+agent_tier: frontier
+gate: owner
+gate_approval: "owner 2026-11-11, post-MVP scope as written in this ticket"
+review: independent
+branch:
+pr:
+spec:
+updated: 2026-11-16
+---
+
+# MKT-009E: Choose and add an official keyed quote provider for stocks, ETFs and bonds
+
+## Goal
+
+Superseded by MKT-101 on 2026-11-16. The owner will supply the provider keys later and did not want go-live to wait for them. The desk research, the test plan and the probe were written under this ticket and are on its branch, not on `main`; MKT-101 continues on that branch and carries the remaining scope, the acceptance criteria and the provider decision. The text below is kept for history.
+
+
+The first release can fetch stock and ETF prices only through the optional unofficial adapter, which can break without notice and has unclear terms. The owner approved a pluggable approach in which the instance operator supplies their own API key for a documented provider. Which provider is not chosen, because the published comparisons disagree and none confirmed Toronto listings. Test the candidates, let the owner choose, and add the adapter.
+
+## Context
+
+### Current behaviour
+
+- MKT-009A defines the adapter interface, a fake provider and the unofficial adapter (off by default).
+- Findings of 2026-11-10, from secondary sources and not verified ([PRODUCT_CONTEXT.md](PRODUCT_CONTEXT.md)): Alpha Vantage about 25 requests a day; Twelve Data about 800 a day with a delay reported as 15 minutes or four hours; Finnhub about 60 calls a minute with disputed real-time status. Free tiers are generally licensed for personal use.
+
+### Expected behaviour
+
+- A spike report in the PR and in the operator guide: for each candidate, tested with a real key outside the repository, the result for latest quote and daily history of two Toronto-listed ETFs, two US-listed ETFs, one stock on each market and one bond or bond ETF; the observed delay; the documented rate limit and licence terms, quoted from the provider's own pages with the date read.
+- The owner picks one provider from the report. Only then is its adapter written.
+- The adapter implements the MKT-009A interface, reads the key from an operator secret file, and reports its delay class truthfully.
+- When both this adapter and the unofficial one are enabled, the operator sets the order; a listing the first cannot serve falls through to the next, and each stored price names its source.
+- The operator guide explains how to get a key, where to put it, the request budget for a typical portfolio at the default intervals, and that opening an instance to the public may need a paid licence.
+
+### Scope
+
+- In scope: the spike, the report, one adapter, provider ordering, tests with recorded synthetic responses, documentation.
+- Out of scope: the store and scheduler (MKT-009B), a second official provider, paid real-time data.
+
+### Implementation notes
+
+- Never commit a key, a real account identifier or a response that contains one. Recorded responses hold public market data only and are trimmed to the fields used.
+- The spike needs network access and a key the owner or the agent's operator creates; if the agent cannot get one, it reports that and stops after writing the test plan.
+- Budget arithmetic belongs in the report: listings times refreshes per day against the free limit, for 10, 30 and 100 distinct listings.
+
+## Acceptance criteria
+
+- [ ] The spike report covers at least two providers with the listed instruments and quotes each provider's limits and licence from its own pages with the date.
+- [ ] The owner's choice is recorded in this ticket's Log before adapter code is merged.
+- [ ] Given recorded responses, then latest quote and daily history for a Toronto-listed and a US-listed symbol return the oracle values with currency, "as of" time and delay class.
+- [ ] Given no key file, then the adapter is inactive and no request leaves the instance.
+- [ ] Given a rate-limit response, then the adapter stops for the period the provider states and the store keeps the last valid price marked stale.
+- [ ] Given two enabled providers in a set order, then a listing unknown to the first is served by the second and the stored price names the second.
+- [ ] No key appears in logs, errors, the repository or test fixtures.
+
+### Tests
+
+- Unit tests with recorded synthetic responses for success, unknown symbol, rate limit and malformed body.
+- A test that fails if any test opens a network connection.
+
+## Plan
+
+- [x] Owner Gate A for the spike.
+- [ ] Spike and report.
+- [ ] Owner chooses the provider.
+- [ ] Adapter, ordering and tests.
+- [ ] Operator documentation.
+
+## Decisions needed
+
+1. Which provider. Asked after the spike report, not before. Recommendation will be in the report.
+
+## Handoff
+
+- State: Closed as superseded. Work done under this ticket: documented terms for five providers, the test plan, the probe script and its test, on the branch `ticket/wl-p0-009e-choose-and-add-an-official-keyed-quote-p`.
+- Next step: None here. Continue in MKT-101.
+- Verify: the new unit test module.
+- Gotchas: This ticket does not block the daily curve or the currency list; the other children work with any enabled adapter and with the fake.
+- Open questions: See Decisions needed.
+
+## Log
+
+- 2026-11-11 planner: split out of MKT-009; carries its provider decision (OD-04).
+- 2026-11-11 planner: owner approved Gate A for this ticket on 2026-11-11 and released it (status ready).
+- 2026-11-16 planner: superseded by MKT-101 at the owner's request of 2026-11-16: the keys come later, and go-live no longer waits for this ticket. The stale claim of claude-code/opus-5.5 is released.

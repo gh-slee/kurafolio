@@ -29,7 +29,7 @@ the open items below are kept for history and map to tickets as listed in the ro
 
 ## V2 backend development
 
-- [ ] **WL-P0-007 V2 CSV acceptance**: evidence, review, transport and storage
+- [ ] **IMP-007 V2 CSV acceptance**: evidence, review, transport and storage
   fragments, the transition and head guards, the single accepted write and the
   authenticated confirm function have independent review. The private quota and
   transient-purge helpers, the cancel and decision functions, and the read
@@ -73,24 +73,24 @@ its own problem, scope, dependencies, acceptance criteria and validation record.
 
 | ID | Priority | Status | Ticket |
 |---|---|---|---|
-| UX-P0-001 | P0 | Implemented and merged (PR #13) | [First-use guidance](docs/ux-p0-001-first-run.md) |
-| UX-P0-002 | P0 | Implemented and merged (PR #13) | [Evidence status and next actions / FUT-002](docs/ux-p0-002-status.md) |
-| UX-P0-003 | P0 | Implemented and merged (PR #13) | [Understandable import/recovery](docs/ux-p0-003-imports.md) |
-| UX-P1-001 | P1 | Planned | [Activity, contributions, transfers](docs/ux-p1-001-activity.md) |
-| UX-P1-002 | P1 | Planned | [Eligible returns and attribution](docs/ux-p1-002-performance.md) |
-| UX-P1-003 | P1 | Planned | [Income, fees, corporate actions](docs/ux-p1-003-income.md) |
-| UX-P1-004 | P1 | Planned | [Targets and ETF overlap / FUT-004](docs/ux-p1-004-allocation.md) |
-| UX-P1-005 | P1 | Planned | [Analysis workbench/drill-down](docs/ux-p1-005-analysis.md) |
-| UX-P1-006 | P1 | Planned | [Source capabilities and extensions](docs/ux-p1-006-sources.md) |
-| UX-P1-007 | P1 | Planned | [Pull-only distribution / WEB-008](docs/ux-p1-007-distribution.md) |
-| UX-P2-001 | P2 | Planned | [Benchmarks/risk](docs/ux-p2-001-risk.md) |
-| UX-P2-002 | P2 | Planned | [Goals/scenarios](docs/ux-p2-002-goals.md) |
-| UX-P2-003 | P2 | Planned | [Mobile/balance privacy](docs/ux-p2-003-mobile.md) |
-| UX-P2-004 | P2 | Planned | [Operations/account security UX](docs/ux-p2-004-operations.md) |
-| UX-P2-005 | P2 | Planned | [Cost/tax evidence exports](docs/ux-p2-005-tax-evidence.md) |
+| APP-102 | P0 | Implemented and merged (PR #13) | [First-use guidance](docs/ux-p0-001-first-run.md) |
+| APP-103 | P0 | Implemented and merged (PR #13) | [Evidence status and next actions / FUT-002](docs/ux-p0-002-status.md) |
+| IMP-104 | P0 | Implemented and merged (PR #13) | [Understandable import/recovery](docs/ux-p0-003-imports.md) |
+| ANL-103 | P1 | Planned | [Activity, contributions, transfers](docs/ux-p1-001-activity.md) |
+| ANL-104 | P1 | Planned | [Eligible returns and attribution](docs/ux-p1-002-performance.md) |
+| ANL-105 | P1 | Planned | [Income, fees, corporate actions](docs/ux-p1-003-income.md) |
+| ANL-106 | P1 | Planned | [Targets and ETF overlap / FUT-004](docs/ux-p1-004-allocation.md) |
+| ANL-107 | P1 | Planned | [Analysis workbench/drill-down](docs/ux-p1-005-analysis.md) |
+| PLG-104 | P1 | Planned | [Source capabilities and extensions](docs/ux-p1-006-sources.md) |
+| OPS-104 | P1 | Planned | [Pull-only distribution / WEB-008](docs/ux-p1-007-distribution.md) |
+| ANL-108 | P2 | Planned | [Benchmarks/risk](docs/ux-p2-001-risk.md) |
+| ANL-109 | P2 | Planned | [Goals/scenarios](docs/ux-p2-002-goals.md) |
+| APP-109 | P2 | Planned | [Mobile/balance privacy](docs/ux-p2-003-mobile.md) |
+| OPS-105 | P2 | Planned | [Operations/account security UX](docs/ux-p2-004-operations.md) |
+| RPT-102 | P2 | Planned | [Cost/tax evidence exports](docs/ux-p2-005-tax-evidence.md) |
 
 Sequence: P0-001, P0-002 and P0-003 are merged in `0b62a8a` (PR #13).
-Next consider the separately scoped UX-P1-001 activity/contribution evidence track. Cross-linked existing
+Next consider the separately scoped ANL-103 activity/contribution evidence track. Cross-linked existing
 roadmap items are the same work, not duplicate implementations. Do not implement
 financial-return features before their evidence/flow/valuation prerequisites.
 
@@ -103,8 +103,8 @@ migration is a separate explicit operation.
 
 | ID | Status | Scope |
 |---|---|---|
-| FUT-002 | Web status merged; broader projection pending | UX-P0-002 adds frozen-edition evidence/actions and separate scoped live jobs without writes or quote queries. Numeric BTC gaps, complete coverage intervals and finer funding classifications remain unavailable where not exposed by the saved DTO; do not infer them. Broader unified/CLI status remains planned |
-| FUT-003 | Partially implemented | Web frozen CSV/JSON datasets and supported date ranges exist (WEB-005); broader unified CLI/range exports and a local report index remain. Preserve revisions/unknowns and tracking scopes; see UX-P1-005 |
+| FUT-002 | Web status merged; broader projection pending | APP-103 adds frozen-edition evidence/actions and separate scoped live jobs without writes or quote queries. Numeric BTC gaps, complete coverage intervals and finer funding classifications remain unavailable where not exposed by the saved DTO; do not infer them. Broader unified/CLI status remains planned |
+| FUT-003 | Partially implemented | Web frozen CSV/JSON datasets and supported date ranges exist (WEB-005); broader unified CLI/range exports and a local report index remain. Preserve revisions/unknowns and tracking scopes; see ANL-107 |
 | FUT-004 | Not implemented | ETF shared-company/weighted overlap: define denominators/formulas, reuse official evidence/identities and disclose dates, parsing coverage and unknown weights |
 | FUT-005 | Not implemented | Separate quantity, market-price and FX effects on value; define interaction allocation and identify splits/scope/mixed dates/missing quotes; quantity effects are not contributions |
 
@@ -175,7 +175,7 @@ See [adapter design](docs/source-adapters.md), [SDK/install acceptance](docs/par
 and [the original implementation blueprint](docs/source-adapters.md#implementation-blueprint-planned-src-002-through-src-004).
 
 The existing parser cutover is implemented and merged. Further source-capability UX
-is tracked by UX-P1-006; new real institutions require format-specific fixtures and
+is tracked by PLG-104; new real institutions require format-specific fixtures and
 tests. Deployment/adoption requires a fixed reviewed version and separate operator evidence.
 Pull-only multi-architecture distribution remains WEB-008; no image release is implied.
 
@@ -215,12 +215,12 @@ published. Daily financial imports never commit or push source code.
   immutable scoped revisions, SQL precision/RLS/FKs, atomic receipts/outbox, leased
   jobs and explicit operator migrations. See [scope and opt-in acceptance](docs/postgres-foundation.md).
   This does not switch the current app backend or complete the full product V2.
-- [x] **WL-P0-005 — optional V2 identity backend**: protected
+- [x] **AUTH-005 — optional V2 identity backend**: protected
   first setup, single administrator, invitation lifecycle, isolated sessions and
   restore quarantine, merged through [PR #19](https://github.com/gh-slee/kurafolio/pull/19).
   [Operator/API scope](docs/web-v2-identity.md). Merged-main CI passed. Backend only; setup/invitation UI
-  remains WL-P0-011. Existing Web/CLI stay on SQLite; no financial cutover is activated.
-- [x] **WL-P0-006 — optional V2 source capabilities**: independently accepted
+  remains APP-011. Existing Web/CLI stay on SQLite; no financial cutover is activated.
+- [x] **PLG-006 — optional V2 source capabilities**: independently accepted
   implementation merged through [PR #22](https://github.com/gh-slee/kurafolio/pull/22):
   inert reviewed catalogs, per-user exact-version enablement, reusable FILE_IMPORT
   connections, restricted SQL functions, nonbooking transport and test-only native

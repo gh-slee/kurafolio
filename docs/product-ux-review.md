@@ -24,11 +24,11 @@ set of advanced controls.
 | Area | Implemented | Remaining boundary / evidence |
 |---|---|---|
 | Identity and portfolios | Host-initialized owner, sign-in, isolated portfolios and settings | One owner per instance; no browser registration or household roles. `web/auth.py`, `App.tsx`. |
-| First report | Default parser upload, mappings, preview/approval, jobs and publication | First-use guidance and staged context/reference explanation are merged (UX-P0-001/003); richer source-capability UX remains planned. `components/imports.tsx`. |
+| First report | Default parser upload, mappings, preview/approval, jobs and publication | First-use guidance and staged context/reference explanation are merged (APP-102/IMP-104); richer source-capability UX remains planned. `components/imports.tsx`. |
 | Daily analysis | Overview, searchable/sortable holdings, history, BTC, classifications, ETF company rankings | Frozen saved editions, not live quotes. Display totals support CAD/USD/TWD; native securities remain CAD/USD. `components/analysis.tsx`. |
 | Reports | Full saved analysis reader; ODS/Markdown/PDF and CSV/JSON/ZIP exports | Editions at one date are not separate observations. `report-reader.tsx`, `web/report_document.py`. |
 | Financial evidence | BTC totals/events/openings, cash flows and coverage declarations | Bull funding origins/transfer matching and complete combined period returns remain incomplete. `financial.tsx`, `web-financial-records.md`. |
-| Sources | Two real built-in v2 parsers; pinned external registry/SDK; installed synthetic third-parser acceptance | Not universal CSV support. No broker authentication, marketplace or automatic plugin installation. Generic preview fallbacks and staged recovery are merged (UX-P0-003). `source_builtin.py`, `source_registry.py`, browser parser publication tests. |
+| Sources | Two real built-in v2 parsers; pinned external registry/SDK; installed synthetic third-parser acceptance | Not universal CSV support. No broker authentication, marketplace or automatic plugin installation. Generic preview fallbacks and staged recovery are merged (IMP-104). `source_builtin.py`, `source_registry.py`, browser parser publication tests. |
 | Operations | Dedicated persistent volume, full private backup, empty-target restore, explicit legacy adoption | Prebuilt pull-only distribution and broader host acceptance remain WEB-008. Host commands are still required. |
 | Presentation | Three locales, dark/light/system, keyboard paths, chart data tables, synthetic accessibility tests | P0 empty/loading/recovery coverage is merged; remaining UX-P1/P2 work stays scoped separately. No full visual-system replacement is included in this first slice. |
 
@@ -43,14 +43,14 @@ for the source baseline; this historical assessment does not reopen completed P0
 
 | Page / journey | Finding | Follow-up |
 |---|---|---|
-| Sign-in and first portfolio | Anonymous startup can look like an expired session; portfolio loading can briefly resemble an empty account. Creating a ledger needs an explanation of what is created. | UX-P0-001 |
-| Empty portfolio | A short upload CTA omits source requirements, baseline choice, reports and later contribution backfill. Absence of a report must not look like a zero balance. | UX-P0-001 |
-| Overview | Evidence rail and saved-value wording are useful. Read-only actionable status should connect missing evidence to next steps without burying values under repeated warnings. | UX-P0-002, UX-P1-005 |
-| Import and jobs | Exact confirmation and mapping guards exist. Technical terms, source context, price references and recovery states need staged explanations. | UX-P0-003 |
-| Holdings and exposure | Useful sorting/filtering and whole-portfolio ETF look-through already exist. Currency treatment, drill-down and target/overlap views need consistent scope. | UX-P1-004, UX-P1-005 |
-| History and reports | Frozen editions and grouped observations exist; value growth must remain distinct from returns. Add compatible range controls and eligibility explanations. | UX-P1-002, UX-P1-005 |
-| Bitcoin and financial records | Quantity declarations, unknown costs and event links are implemented; users still need a cohesive activity/contribution view. | UX-P1-001, UX-P0-002 |
-| Settings and operations | Language/cost policy/password settings exist; parser capabilities and backup/restore discoverability remain weak. | UX-P1-006, UX-P2-004 |
+| Sign-in and first portfolio | Anonymous startup can look like an expired session; portfolio loading can briefly resemble an empty account. Creating a ledger needs an explanation of what is created. | APP-102 |
+| Empty portfolio | A short upload CTA omits source requirements, baseline choice, reports and later contribution backfill. Absence of a report must not look like a zero balance. | APP-102 |
+| Overview | Evidence rail and saved-value wording are useful. Read-only actionable status should connect missing evidence to next steps without burying values under repeated warnings. | APP-103, ANL-107 |
+| Import and jobs | Exact confirmation and mapping guards exist. Technical terms, source context, price references and recovery states need staged explanations. | IMP-104 |
+| Holdings and exposure | Useful sorting/filtering and whole-portfolio ETF look-through already exist. Currency treatment, drill-down and target/overlap views need consistent scope. | ANL-106, ANL-107 |
+| History and reports | Frozen editions and grouped observations exist; value growth must remain distinct from returns. Add compatible range controls and eligibility explanations. | ANL-104, ANL-107 |
+| Bitcoin and financial records | Quantity declarations, unknown costs and event links are implemented; users still need a cohesive activity/contribution view. | ANL-103, APP-103 |
+| Settings and operations | Language/cost policy/password settings exist; parser capabilities and backup/restore discoverability remain weak. | PLG-104, OPS-105 |
 
 ## Market reference, not a demand survey
 
@@ -80,24 +80,24 @@ Tickets are separately scoped; a roadmap entry does not itself ship a feature.
 
 | ID | Priority | Ticket | Status |
 |---|---|---|---|
-| UX-P0-001 | P0 | [First-use and empty-state guidance](ux-p0-001-first-run.md) | Implemented and merged (PR #13) |
-| UX-P0-002 | P0 | [Evidence status and next actions](ux-p0-002-status.md) | Implemented and merged (PR #13) |
-| UX-P0-003 | P0 | [Understandable import and recovery](ux-p0-003-imports.md) | Implemented and merged (PR #13) |
-| UX-P1-001 | P1 | [Activity, contributions and transfers](ux-p1-001-activity.md) | Planned |
-| UX-P1-002 | P1 | [Eligible performance and attribution](ux-p1-002-performance.md) | Planned |
-| UX-P1-003 | P1 | [Income, fees and corporate actions](ux-p1-003-income.md) | Planned |
-| UX-P1-004 | P1 | [Targets and ETF overlap](ux-p1-004-allocation.md) | Planned |
-| UX-P1-005 | P1 | [Analysis workbench and drill-down](ux-p1-005-analysis.md) | Planned |
-| UX-P1-006 | P1 | [Source capabilities and extension UX](ux-p1-006-sources.md) | Planned |
-| UX-P1-007 | P1 | [Pull-only self-host installation](ux-p1-007-distribution.md) | Planned / WEB-008 |
-| UX-P2-001 | P2 | [Benchmarks and risk](ux-p2-001-risk.md) | Planned |
-| UX-P2-002 | P2 | [Goals and scenarios](ux-p2-002-goals.md) | Planned |
-| UX-P2-003 | P2 | [Mobile and balance privacy](ux-p2-003-mobile.md) | Planned |
-| UX-P2-004 | P2 | [Operations and account security UX](ux-p2-004-operations.md) | Planned |
-| UX-P2-005 | P2 | [Cost and tax evidence exports](ux-p2-005-tax-evidence.md) | Planned |
+| APP-102 | P0 | [First-use and empty-state guidance](ux-p0-001-first-run.md) | Implemented and merged (PR #13) |
+| APP-103 | P0 | [Evidence status and next actions](ux-p0-002-status.md) | Implemented and merged (PR #13) |
+| IMP-104 | P0 | [Understandable import and recovery](ux-p0-003-imports.md) | Implemented and merged (PR #13) |
+| ANL-103 | P1 | [Activity, contributions and transfers](ux-p1-001-activity.md) | Planned |
+| ANL-104 | P1 | [Eligible performance and attribution](ux-p1-002-performance.md) | Planned |
+| ANL-105 | P1 | [Income, fees and corporate actions](ux-p1-003-income.md) | Planned |
+| ANL-106 | P1 | [Targets and ETF overlap](ux-p1-004-allocation.md) | Planned |
+| ANL-107 | P1 | [Analysis workbench and drill-down](ux-p1-005-analysis.md) | Planned |
+| PLG-104 | P1 | [Source capabilities and extension UX](ux-p1-006-sources.md) | Planned |
+| OPS-104 | P1 | [Pull-only self-host installation](ux-p1-007-distribution.md) | Planned / WEB-008 |
+| ANL-108 | P2 | [Benchmarks and risk](ux-p2-001-risk.md) | Planned |
+| ANL-109 | P2 | [Goals and scenarios](ux-p2-002-goals.md) | Planned |
+| APP-109 | P2 | [Mobile and balance privacy](ux-p2-003-mobile.md) | Planned |
+| OPS-105 | P2 | [Operations and account security UX](ux-p2-004-operations.md) | Planned |
+| RPT-102 | P2 | [Cost and tax evidence exports](ux-p2-005-tax-evidence.md) | Planned |
 
 P0-001, P0-002 and P0-003 are merged. The next separately scoped capability track
-is UX-P1-001 activity/contribution evidence.
+is ANL-103 activity/contribution evidence.
 Performance depends on contribution/transfer and valuation evidence; income and
 corporate-action models need their own contracts. Track distributions through
 WEB-008 rather than pretending a currently available public image exists.

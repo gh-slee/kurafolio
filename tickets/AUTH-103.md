@@ -1,0 +1,92 @@
+---
+id: AUTH-103
+title: Offer two-factor sign-in with an authenticator app
+priority: P2
+status: backlog
+type: feature
+parent:
+depends_on: [AUTH-102]
+resources: [identity-api, identity-contract, frontend-identity-ui, migration-order, postgres-schema]
+risk: high
+size: M
+agent_tier: frontier
+gate: owner
+gate_approval:
+review: independent
+branch:
+pr:
+spec:
+updated: 2026-11-13
+---
+
+# AUTH-103: Offer two-factor sign-in with an authenticator app
+
+## Goal
+
+A password is the only thing between an attacker and a user's financial records. Once an instance is reachable from other devices (OPS-102), a second factor is the standard protection. Let each user turn on time-based one-time codes from an authenticator app, with recovery codes, and let the administrator see who has it on.
+
+## Context
+
+### Background
+
+- Split out of OPS-105 on 2026-11-13.
+- Depends on AUTH-102 because a user who loses their device needs the administrator's reset path.
+
+### Scope
+
+- In scope: enrolment with a QR code and a confirmation code, the second step at sign-in, single-use recovery codes, turning it off with password and code, the administrator's view of who has it on and a reset of one user's second factor, tests.
+- Out of scope: passkeys or hardware keys (a later ticket), codes by e-mail or text message, forcing it on for all users, single sign-on.
+
+### Implementation notes
+
+- Design: read [DESIGN.md](../DESIGN.md), [PRODUCT.md](../PRODUCT.md) and [ui-design-workflow.md](../docs/ui-design-workflow.md) first. Keep the existing identity: flat bordered panels, the theme variables in `frontend/src/styles.css`, the existing button, field and status-tag primitives, no new fonts, shadows or colours. A new section goes in the "deeper analysis" part of the page skeleton, below the holdings table, and never above the value and chart. Put the date, currency and unit next to each figure, and show an unknown or partial figure as such instead of a reassuring total. Wording is factual and calm and never reads as trading advice.
+- Standard time-based codes (RFC 6238), six digits, 30-second step, one step of clock tolerance. A code is accepted once.
+- The shared secret is stored encrypted, shown only during enrolment, and never returned again. Recovery codes are stored hashed.
+- The second step has its own rate limit and lockout, separate from the password step, and neither reveals whether the password was right before the second step is passed or refused.
+- Turning it on, off or resetting it ends the user's other sessions and writes an audit record.
+- After a restore from backup, second factors follow the same quarantine as passwords.
+- Use a maintained library already compatible with the dependency inventory, or the standard library; add nothing without `scripts/dependency_inventory.py --require-declared` passing.
+
+### Where to start
+
+- [web-v2-identity.md](../docs/web-v2-identity.md); `src/kurafolio/web_v2/auth.py`, `api.py`; `src/kurafolio/persistence/identity_schema.py`.
+- The Profile page from APP-011F and the Users page from AUTH-102.
+
+## Acceptance criteria
+
+- [ ] Given a user enrols and confirms a code, then the next sign-in asks for a code after the password.
+- [ ] Given a correct password and a wrong code five times, then the second step locks for a period and the password step still gives no extra information.
+- [ ] Given a recovery code, then it works once and is then spent.
+- [ ] Given a code just used, then using it again within its time step is refused.
+- [ ] Given the administrator resets a user's second factor, then that user signs in with the password alone and is asked to enrol again; the action is audited.
+- [ ] The secret never appears in a response after enrolment, in a log, or in an export.
+- [ ] Lockout, session revocation and backup-restore behaviour each have a test.
+- [ ] en-CA, zh-TW, zh-CN; the enrolment page works without a camera by showing the secret as text.
+
+### Tests
+
+- Opt-in PostgreSQL tests for storage and isolation.
+- HTTP tests with a fixed clock.
+- A browser spec for enrolment and sign-in against a mocked `/api/v2`.
+
+## Plan
+
+- [ ] Owner Gate A.
+- [ ] Threat model reviewed before code.
+- [ ] Migration and SQL functions.
+- [ ] Routes.
+- [ ] Profile and sign-in pages.
+- [ ] Independent security review.
+
+## Handoff
+
+- State: Not started. Backlog until the owner approves Gate A.
+- Next step: After the gate and AUTH-102, write a one-page threat model (lost device, stolen database, replay, lockout abuse) and have it reviewed.
+- Verify: `PYTHONPATH=src .venv/bin/python -m unittest tests.test_web_v2_api -v` with the opt-in identity environment from [web-v2-identity.md](../docs/web-v2-identity.md); the opt-in PostgreSQL migration tests; `npm --prefix frontend run build`; `npm --prefix frontend test`; `npm --prefix frontend run check:source`; `npm --prefix frontend run test:e2e`
+- Gotchas: Real-PostgreSQL tests need the explicit isolated environment; a skipped test is not acceptance. Use the claim's `isolation_id` and `port_base`. Synthetic data only. Tests use a fixed clock; never sleep for a time step.
+- Open questions: None.
+
+## Log
+
+- 2026-11-13 planner: created in the 2026-11-13 triage by splitting the second-factor evaluation out of OPS-105.
+- 2026-11-13 planner: added the design-system note (DESIGN.md, PRODUCT.md, page skeleton) so UI work follows the existing design direction.

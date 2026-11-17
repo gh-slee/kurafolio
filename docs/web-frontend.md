@@ -51,7 +51,7 @@ Exposures route, the phone menu and the three interface locales. The routes
 are placeholders built from shared loading, empty and error states in
 `frontend/src/v2/page-state.tsx`; page tickets replace the content but keep
 those states. Stock/Bond, Exposures and Crypto offer "Enable a source" until
-the WL-P0-008 positions contract lets the shell detect holdings. All eight
+the ANL-008 positions contract lets the shell detect holdings. All eight
 destinations stay in the navigation either way.
 
 ### V2 sign-in, setup and invitations
@@ -76,7 +76,7 @@ host commands ([V2 identity](web-v2-identity.md)).
 
 The registration API answers an expired, revoked or used invitation and a
 taken username with the same code after submit, so the page names both
-causes in one message. WL-P0-011I tracks telling them apart.
+causes in one message. APP-011I tracks telling them apart.
 
 The browser specs intercept `/api/v2` with a stateful synthetic fake. The
 SQLite fixture serves the bundle only at `/` and `/login`, so

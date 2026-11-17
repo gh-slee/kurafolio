@@ -23,7 +23,7 @@ import sys
 from pathlib import Path
 
 TICKET_DIR = 'tickets'
-ID_RE = re.compile(r'^[A-Z][A-Z0-9]*-P[0-2]-\d{3}[A-Z]?$')
+ID_RE = re.compile(r'^[A-Z][A-Z0-9]*-\d{3}[A-Z]?$')  # <AREA>-<number>[letter]; see tickets/ID_MAP.md
 PRIORITIES = ('P0', 'P1', 'P2')
 STATUSES = ('backlog', 'ready', 'in_progress', 'paused', 'in_review', 'blocked', 'done', 'superseded')
 ACTIVE = ('in_progress', 'paused', 'in_review')
@@ -37,7 +37,7 @@ REQUIRED = ('id', 'title', 'priority', 'status', 'type', 'risk', 'size', 'agent_
             'gate', 'review', 'depends_on', 'resources', 'updated')
 SECTIONS = ('## Goal', '## Acceptance criteria', '## Plan', '## Handoff')
 PRIVATE_PATH = re.compile(r'/(?:Users|home)/[A-Za-z0-9_.-]+/')
-STALE_MINUTES = int(os.environ.get('WL_TICKET_STALE_MINUTES', '120'))
+STALE_MINUTES = int(os.environ.get('KURAFOLIO_TICKET_STALE_MINUTES', '120'))
 CLAIM_FILE = Path('work') / 'agent-claim.json'
 
 
@@ -168,7 +168,7 @@ def repo_root(start: Path) -> Path:
 
 
 def lock_dir(root: Path) -> Path:
-    override = os.environ.get('WL_TICKET_LOCK_DIR')
+    override = os.environ.get('KURAFOLIO_TICKET_LOCK_DIR')
     if override:
         base = Path(override)
     else:
@@ -466,7 +466,7 @@ def _owned(root: Path, locks: Path, tid: str) -> dict:
     if not claim:
         raise TicketError(f'{tid} has no live claim')
     cf = local_claim_file(root)
-    token = os.environ.get('WL_TICKET_TOKEN')
+    token = os.environ.get('KURAFOLIO_TICKET_TOKEN')
     if not token and cf.exists():
         local = json.loads(cf.read_text(encoding='utf-8'))
         token = local.get('token') if local.get('ticket') == tid else None

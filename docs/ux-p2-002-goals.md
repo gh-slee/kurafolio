@@ -1,4 +1,4 @@
-# UX-P2-002: Goals and scenarios
+# ANL-109: Goals and scenarios
 
 Priority: **P2**
 
@@ -22,7 +22,7 @@ Offer opt-in user-entered contribution/allocation goals and assumption-based wha
 
 ## Dependencies and boundaries
 
-Explicit scenario model, UX-P1-001 contribution semantics.
+Explicit scenario model, ANL-103 contribution semantics.
 
 All features run deterministically in code. Use isolated synthetic data. Keep
 unknowns, explicit confirmation, original evidence and frozen editions. No private

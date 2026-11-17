@@ -1,4 +1,4 @@
-# UX-P2-003: Mobile and balance privacy
+# APP-109: Mobile and balance privacy
 
 Priority: **P2**
 

@@ -23,8 +23,8 @@ Git directory itself, so it works from the primary checkout or any worktree.
 git fetch origin
 python3 scripts/tickets.py cleanup
 python3 scripts/tickets.py next --tier standard
-python3 scripts/tickets.py resume WL-P0-018
-python3 scripts/tickets.py claim WL-P0-018 --agent opencode/deepseek-flash --worktree
+python3 scripts/tickets.py resume ENG-018
+python3 scripts/tickets.py claim ENG-018 --agent opencode/deepseek-flash --worktree
 ```
 
 `claim` creates or attaches `work/worktrees/<ticket-id>` on the ticket branch. Do
@@ -109,12 +109,12 @@ elsewhere unless the owner says otherwise.
 ## Picking up interrupted work
 
 A claim carries a heartbeat. If the heartbeat is older than
-`WL_TICKET_STALE_MINUTES` (default 120), the previous agent is presumed stopped,
+`KURAFOLIO_TICKET_STALE_MINUTES` (default 120), the previous agent is presumed stopped,
 for example by a 5-hour or weekly usage limit.
 
 ```bash
-python3 scripts/tickets.py resume WL-P0-007A     # ticket from its branch, claim, git state
-python3 scripts/tickets.py takeover WL-P0-007A --agent codex/gpt-5.5 --worktree --reason "previous agent hit usage limit"
+python3 scripts/tickets.py resume IMP-007A     # ticket from its branch, claim, git state
+python3 scripts/tickets.py takeover IMP-007A --agent codex/gpt-5.5 --worktree --reason "previous agent hit usage limit"
 ```
 
 Before you take over, confirm that no process is still writing in that worktree. Then:
@@ -129,12 +129,32 @@ Never take over a live (non-stale) claim unless the owner tells you to
 
 ## Ticket file format
 
-File name equals ID: `tickets/WL-P0-007A.md`. The ID prefix shows the priority the
-ticket was created with. The `priority` field is authoritative if it changes later.
+File name equals ID: `tickets/IMP-007A.md`. An ID is an area prefix, a three-digit
+number and, for the child of an epic, a letter: `<AREA>-<number>[letter]`. The area says
+which part of the product the ticket belongs to. The ID never carries the priority; the
+`priority` field does, so re-ranking a ticket never renames it.
+
+| Prefix | Covers |
+|---|---|
+| `CORE` | Domain model and database foundation |
+| `AUTH` | Accounts, sign-in and user administration |
+| `PLG` | Source plugins and institutions |
+| `IMP` | Imports |
+| `MKT` | Prices, exchange rates and currencies |
+| `ANL` | Positions, analysis pages and calculations |
+| `ETF` | Fund look-through and exposure |
+| `RPT` | Downloads and reports |
+| `APP` | App shell, onboarding, sign-in and settings screens, languages |
+| `OPS` | Deployment, release and security operations |
+| `ENG` | Agent workflow, CI, tests and planning |
+
+Tickets created before 2026-11-13 had IDs of the form `WL-P0-007A` or `UX-P1-004`.
+[ID_MAP.md](ID_MAP.md) lists every old ID with its new one; older pull requests and commits
+use the old form.
 
 ```markdown
 ---
-id: WL-P0-018
+id: ENG-018
 title: Make browser and dev-server test ports configurable for parallel agents
 priority: P0            # P0 | P1 | P2
 status: ready           # backlog | ready | in_progress | paused | in_review | blocked | done | superseded
@@ -183,9 +203,10 @@ Keep it current. Overwrite it at each checkpoint; the Log keeps history.
 - **Edit only your own ticket file** in a ticket branch. To change another ticket,
   for example to file a follow-up, create a new ticket file, or note it in your
   Handoff for the owner. This keeps parallel PRs from conflicting.
-- **New tickets:** copy an existing file and use the next free number in that
-  priority. `python3 scripts/tickets.py check` catches duplicate IDs and broken
-  dependencies after a merge.
+- **New tickets:** copy an existing file. Pick the area prefix from the table above, then
+  use the next free number in that area (101 and above; 001 to 024 are the original V2
+  plan), or the next free letter under its epic. `python3 scripts/tickets.py check`
+  catches duplicate IDs and broken dependencies after a merge.
 - **Gates:** `gate: owner` tickets need `gate_approval` before work starts. Only the
   owner grants it, in conversation with an agent, and the agent records the date and
   scope. Never infer approval from priority, a roadmap or a passed test.

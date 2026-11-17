@@ -3309,7 +3309,7 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
         self.assertEqual('f', self.sql("SELECT has_function_privilege('wl007_synthetic_guard_reader',"
             "'wl_ingestion._guard_worker_v1(uuid,text,jsonb)','EXECUTE')"))
 
-    # Independent review of the PR #29 functions (WL-P0-007H). These are
+    # Independent review of the PR #29 functions (IMP-007H). These are
     # reviewer-written negative cases that the developer tests did not cover.
     FOREIGN_T, FOREIGN_P = '30000000-0000-4000-8000-0000000000f1', '30000000-0000-4000-8000-0000000000f2'
     FOREIGN_SET = 'a8000000-0000-4000-8000-000000000001'
@@ -3463,7 +3463,7 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
 
     def test_review_read_preview_serves_an_empty_review_document(self):
         # read_preview_v1: ReviewContent.rows has no minimum, so an empty review is a
-        # valid document. Its first page is empty (WL-P0-007I); a cursor past the
+        # valid document. Its first page is empty (IMP-007I); a cursor past the
         # end is still stale.
         from kurafolio.ingestion.codec import encode
         from kurafolio.persistence import identity_schema

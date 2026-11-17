@@ -1,4 +1,4 @@
-# UX-P1-005: Analysis workbench and drill-down
+# ANL-107: Analysis workbench and drill-down
 
 Priority: **P1**
 
@@ -23,7 +23,7 @@ Keep summary/evidence above layered detail. Add holding/account drill-down and c
 
 ## Dependencies and boundaries
 
-UX-P0-002; existing report reader and source-neutral DTOs.
+APP-103; existing report reader and source-neutral DTOs.
 
 All features run deterministically in code. Use isolated synthetic data. Keep
 unknowns, explicit confirmation, original evidence and frozen editions. No private

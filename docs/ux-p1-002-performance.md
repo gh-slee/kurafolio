@@ -1,4 +1,4 @@
-# UX-P1-002: Eligible performance and attribution
+# ANL-104: Eligible performance and attribution
 
 Priority: **P1**
 
@@ -23,7 +23,7 @@ Expose eligibility first, then implement defined money-weighted/Modified Dietz c
 
 ## Dependencies and boundaries
 
-UX-P1-001; combined-performance track; FUT-005; compatible historical valuation evidence.
+ANL-103; combined-performance track; FUT-005; compatible historical valuation evidence.
 
 All features run deterministically in code. Use isolated synthetic data. Keep
 unknowns, explicit confirmation, original evidence and frozen editions. No private

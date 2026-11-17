@@ -1,6 +1,6 @@
 """Optional adapter for the unofficial Yahoo Finance chart endpoint.
 
-The owner approved this endpoint on 2026-11-12 (WL-P0-009A). It is not a
+The owner approved this endpoint on 2026-11-12 (MKT-009A). It is not a
 documented public API: it can change or disappear without notice, and whether
 its terms of use allow a given use is the instance operator's responsibility.
 It is off unless the operator sets ``provider: unofficial-yahoo-chart`` and

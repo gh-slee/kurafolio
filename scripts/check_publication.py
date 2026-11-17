@@ -363,7 +363,7 @@ def scan_staged(root: Path) -> dict:
     return finish(result)
 
 
-# Commits made before the Kurafolio rename (WL-P0-024) hold the same reviewed files
+# Commits made before the Kurafolio rename (ENG-024) hold the same reviewed files
 # under their old paths. History scans judge such a path by its current name, but
 # only in a commit that has nothing at the new location yet, so a later commit that
 # reintroduces an old path still fails. The worktree and index must use the current

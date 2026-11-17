@@ -1,4 +1,4 @@
-# UX-P1-007: Pull-only self-host installation
+# OPS-104: Pull-only self-host installation
 
 Priority: **P1**
 

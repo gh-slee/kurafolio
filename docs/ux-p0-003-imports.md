@@ -1,4 +1,4 @@
-# UX-P0-003: Understandable import and recovery
+# IMP-104: Understandable import and recovery
 
 Priority: **P0**
 
@@ -25,7 +25,7 @@ Present source selection, required source details, mapping/references, exact rev
 
 ## Dependencies and boundaries
 
-Existing jobs/recovery contracts and UX-P0-002. No ingestion or valuation-policy redesign.
+Existing jobs/recovery contracts and APP-103. No ingestion or valuation-policy redesign.
 
 All features run deterministically in code. Use isolated synthetic data. Keep
 unknowns, explicit confirmation, original evidence and frozen editions. No private

@@ -395,8 +395,8 @@ for tracking and reports. Existing Web/CLI workspaces remain on SQLite.
   without an executable Plan. After the user confirms the decisions, the READY
   preview passes the existing Plan and accepted-reference checks. The function
   stores the immutable preview and returns the saved result on a
-  valid retry. WL-P0-007F wires these private calls into the worker, and
-  WL-P0-007D verifies the installed functions and grants.
+  valid retry. IMP-007F wires these private calls into the worker, and
+  IMP-007D verifies the installed functions and grants.
 ## Explicit 0004 installation
 
 The operator command installs the schema on a verified PostgreSQL 18

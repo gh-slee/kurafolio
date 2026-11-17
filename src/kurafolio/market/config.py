@@ -13,7 +13,7 @@ from .service import QuoteService
 MAX_CONFIG_BYTES = 4096
 # Provider name -> factory(settings). A factory marked ``unofficial`` starts only
 # when the operator sets accept_unofficial_terms. The Yahoo chart endpoint was
-# approved by the owner on 2026-11-12 (WL-P0-009A decision 1).
+# approved by the owner on 2026-11-12 (MKT-009A decision 1).
 PROVIDERS = {unofficial_yahoo.NAME: unofficial_yahoo.factory}
 
 
