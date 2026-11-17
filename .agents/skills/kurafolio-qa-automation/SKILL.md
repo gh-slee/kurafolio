@@ -15,7 +15,9 @@ the shared privacy, financial, locale and publication rules. Use no runtime AI.
 Start from the exact approved spec and independently derived expected inputs and
 results, not production calculation output. Map acceptance/requirement/golden IDs
 to appropriate unit/property/contract/integration/security/browser/restore layers;
-not every check belongs in E2E. Verify duplicates, snapshot non-additivity,
+not every check belongs in E2E. For a ticket, give a verdict for every
+`AC-<ticket>-NN`, including `[review]` ones, and confirm the Build plan's expected
+values were not changed to fit the code. Verify duplicates, snapshot non-additivity,
 overlap/unknown/FX/country semantics, user isolation, retries/cursors and restore
 only as relevant to scope. PostgreSQL-specific acceptance remains NOT RUN until an
 approved PostgreSQL implementation and isolated environment exist.

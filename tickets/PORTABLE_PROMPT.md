@@ -70,16 +70,27 @@ gate_approval:          # filled only when the owner actually approved: "owner Y
 review: self            # self | independent (a different agent session must review)
 branch:
 pr:
-spec:                   # optional link to a longer spec
+spec:                   # optional link to a tracked document the ticket depends on
+spec_approved:          # sha256:<hash> of the gated sections, set only when the owner approved that text
 updated: YYYY-MM-DD
 ---
 ```
 
-Body sections, in order: `## Goal`, optional `## Context` (links), `## Acceptance
-criteria` (verifiable checkboxes), `## Plan` (checkbox steps, each small enough for
-one session), `## Decisions needed` (required when blocked: numbered questions with
+The ticket is the spec. Body sections, in order: `## Goal` (gated), optional
+`## Context` (links, current behaviour, files to start from), `## Requirements`
+(gated: scope, non-goals, invariants), `## Acceptance criteria` (gated: verifiable
+checkboxes, each with an ID `AC-<ticket>-NN`, `[review]` when only a reviewer can
+judge it), `## Build plan` (written by a frontier-tier planner before a
+standard-tier build: files, interfaces, test cases with expected values, what not to
+touch, when to stop and ask), `## Plan` (checkbox steps, each small enough for one
+session), `## Decisions needed` (required when blocked: numbered questions with
 options and a recommendation), `## Handoff`, `## Log` (append-only dated lines,
-`YYYY-MM-DD tool/model: what happened`).
+`YYYY-MM-DD tool/model: what happened`). The spec hash is SHA-256 over the gated
+sections with line endings, trailing whitespace, surrounding blank lines and
+checkbox ticks normalised and fenced headings ignored. A ticket whose gated sections
+no longer match `spec_approved` is not claimable. Builders stop and record a
+question instead of guessing; at merge the Log records the implementing and
+reviewing models, repair rounds and what the spec failed to say.
 
 `## Handoff` is the resume point and is overwritten at every checkpoint:
 
@@ -105,6 +116,9 @@ Add `scripts/tickets.py`, using only the Python standard library, with these com
   have Decisions needed, owner-gated active tickets have gate_approval, no
   machine-specific home paths or secrets).
 - `list [--priority] [--status] [--all]`: the board, with live claims.
+- `spec ID`: the current and approved spec hash, whether a Build plan exists, and
+  each acceptance ID with the number of test files that mention it.
+- `next --plan`: ready tickets above the `any` tier that still need a Build plan.
 - `next --tier <tier>`: claimable or resumable tickets at or below the tier.
   A ticket is claimable when its status is ready (or active with no live claim),
   its dependencies are done, its gate is satisfied, it is not an epic and none of
