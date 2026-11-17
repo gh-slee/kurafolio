@@ -85,7 +85,8 @@ choose to plan. A builder follows the Build plan. When the
 plan or spec is silent on behaviour, data or an interface, the builder records the
 question under Decisions needed, sets `status: blocked`, pushes the branch, tells the
 owner and stops instead of guessing; the claim stays. Until the pilot (ENG-116) shows the gate can be enforced, `next` still
-offers a standard ticket without a Build plan and marks it `no build plan`. A
+offers a standard ticket without a Build plan and marks it `no build plan`; a
+builder skips it and reports it as needing planning unless the owner says to build it. A
 frontier ticket may be planned and built in the same session; an `any`-tier ticket
 needs no Build plan.
 

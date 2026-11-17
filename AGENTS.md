@@ -98,7 +98,7 @@ agents (any vendor or model) may work at once, one ticket each:
 - Read the ticket's Handoff first. Keep Handoff current, commit and push the ticket
   branch, and run `heartbeat` at every checkpoint, because a usage limit can stop you
   at any time. Resume someone else's stale claim with `resume` and `takeover`.
-- Edit only your own ticket file; file new tickets for follow-ups. `gate: owner`
+- Edit only your own ticket file (a planning session may also edit the Context, Build plan, Plan and Decisions needed of the tickets it plans); file new tickets for follow-ups. `gate: owner`
   tickets need recorded owner approval before work starts. Use the claim's
   `isolation_id` and `port_base` for Docker, PostgreSQL and ports.
 
@@ -108,8 +108,9 @@ Use [the spec workflow](docs/spec-development.md) for exact-revision human Gate 
 serialized reservations, bounded PM/Architect/Developer/independent-QA handoffs and
 human Gate B. The ticket is the spec: Goal, Requirements and Acceptance criteria are
 gated by the owner-approved hash in `spec_approved`, and a frontier-tier session
-writes the Build plan before a `standard`-tier build (warned, not yet enforced; see
-ENG-116). Approvals and plans take effect when merged to `main`. Before building, run
+writes the Build plan before a `standard`-tier build. Until ENG-116 decides on
+enforcement, `next` only marks such tickets `no build plan`: skip them and report them
+as needing planning unless the owner says to build one. Approvals and plans take effect when merged to `main`. Before building, run
 `python3 scripts/tickets.py spec <ID>`; never build a spec that changed since
 approval, and never change gated sections on a build branch. When the spec or Build
 plan is silent on behaviour, data or an interface, set the ticket to `blocked` with the

@@ -225,8 +225,9 @@ In short:
   ticket needs the owner's confirmation in its Log.
 - **Build plan.** A frontier-tier planning session writes it once the ticket's
   dependencies have merged, from the merged code. `python3 scripts/tickets.py next --plan`
-  lists tickets that need one. `standard` tickets should not be built without one;
-  `next` marks them `no build plan`. Only one planning session works at a time. It
+  lists tickets that need one. `next` marks a `standard` ticket without one
+  `no build plan`; a builder skips it and reports it as needing planning unless the
+  owner says to build it. Only one planning session works at a time. It
   plans one or more tickets on its own branch from `origin/main` without claiming
   them, edits only their Context, Build plan, Plan and Decisions needed (the planning
   exception to the rule below), marks any proposed change to a gated section for the
