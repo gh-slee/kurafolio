@@ -183,6 +183,13 @@ colours or wording are copied.
 | Official quote provider | The owner supplies provider keys later; go-live does not wait for them | MKT-009E is closed and continued as MKT-101 (P1). OPS-015 no longer depends on it |
 | Ticket IDs | An area prefix and a number, with no priority in the ID and no `WL-` prefix | [ID_MAP.md](ID_MAP.md); this reverses the "ticket IDs stay" line of the rename ticket ENG-024 |
 
+## Owner answers recorded on 2026-11-17
+
+| Topic | Decision | Consequence |
+|---|---|---|
+| Changes the triage (PR #64) made to six approved tickets | Confirmed as approved | IMP-007E, IMP-007F, IMP-007G, OPS-021, OPS-015 and MKT-101 stay claimable on their current text; each Log records it |
+| Workflow | Make the agentic workflow fully spec-driven | ENG-112 (the ticket is the spec), with ENG-113 to ENG-116 as follow-ups |
+
 ## Still open
 
 1. The official keyed quote provider (MKT-009E). The spike's desk research is

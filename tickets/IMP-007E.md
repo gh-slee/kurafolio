@@ -16,7 +16,7 @@ review: independent
 branch: 
 pr: 
 spec: docs/specs/wealth-ledger-v2/P0/WL-P0-007.md
-updated: 2026-11-13
+updated: 2026-11-17
 ---
 
 # IMP-007E: Add authenticated V2 import HTTP routes
@@ -100,3 +100,4 @@ Rules that reviewers will check:
 - 2026-11-10 planner: owner re-confirmed this ticket for the V2 MVP on 2026-11-10; released (status ready), added starting files and verify commands.
 - 2026-11-10 planner: added the dependency on IMP-007J, whose text requires its decision before routes are wired.
 - 2026-11-13 planner: added the route table, the upload and error rules, and five acceptance criteria, all taken from the approved r7 contract. Scope is unchanged; the ticket no longer depends on a reader finding the route list in the local bundle.
+- 2026-11-17 planner: the owner confirmed in conversation ("Confirm all six") the changes PR #64 made to this ticket after its approval. The approval in gate_approval covers the text as it stands now.
