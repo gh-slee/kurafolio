@@ -16,8 +16,9 @@ If your system prompt names a model other than Claude Sonnet 5.5, say so and sto
 Before anything else:
 
 1. Run `git fetch origin` and read the ticket's copy on `origin/main`
-   (`git show origin/main:tickets/<ID>.md`). If it has no `## Build plan`, report
-   that the ticket needs planning and stop without claiming or editing anything.
+   (`git show origin/main:tickets/<ID>.md`). If it has no `## Build plan` section
+   with content, report that the ticket needs planning and stop without claiming or
+   editing anything.
 2. Run `python3 scripts/tickets.py spec <ID> --base origin/main`. If the spec
    changed since approval, stop and report it.
 

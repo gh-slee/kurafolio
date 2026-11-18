@@ -23,7 +23,8 @@ Your job:
   `.agents/skills/kurafolio-software-architect/SKILL.md`, the merged code and the
   documents each ticket links. Write each Build plan from the merged code, with the
   depth its `agent_tier` requires (`tickets/README.md`, "Capability tiers").
-- Record the plan pull request in each ticket's Log, open one docs pull request
+- Record the plan pull request in each ticket's Log under the board name
+  `claude-code/opus-5.5`, open one docs pull request
   following the PR rules in AGENTS.md, and stop. A builder picks the ticket up after
   the owner merges it.
 

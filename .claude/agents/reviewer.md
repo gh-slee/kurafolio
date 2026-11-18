@@ -26,5 +26,5 @@ repository rules. Do not rely on the builder's reasoning.
 - Give a verdict (pass, fail or not checked) for every acceptance ID, including
   `[review]` ones, then list findings with file and line, and what you could not check.
 
-You do not edit files, commit or push. Return the findings; the builder posts them
-on the PR and in one ticket Log line.
+You do not edit files, commit or push, including through shell commands. Return the
+findings; the builder posts them on the PR and in one ticket Log line.

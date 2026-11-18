@@ -502,6 +502,9 @@ class SpecWorkflowTest(unittest.TestCase):
         listed = [l for l in out.splitlines() if l.startswith('SPC-')]
         self.assertEqual([l.split()[0] for l in listed], ['SPC-001'])
         self.assertIn('no build plan', listed[0])
+        code, out, _ = run(self.repo, 'next', '--plan', '--tier', 'standard')
+        self.assertEqual([l.split()[0] for l in out.splitlines() if l.startswith('SPC-')],
+                         ['SPC-001', 'SPC-002'])
 
     def test_malformed_approval_is_a_validation_error(self):
         """AC-ENG-112-08 (the live board is covered by test_repository_tickets_are_valid)."""

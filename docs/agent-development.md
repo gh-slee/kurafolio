@@ -84,7 +84,7 @@ per role and tool, so routing does not depend on anyone's personal settings:
 |---|---|---|
 | `.claude/agents/planner.md` | Claude Code | Planner |
 | `.claude/agents/builder.md` | Claude Code | Builder |
-| `.claude/agents/reviewer.md` | Claude Code | Reviewer (cannot edit files) |
+| `.claude/agents/reviewer.md` | Claude Code | Reviewer (no edit tools; its instructions forbid writing through the shell) |
 | `.codex/agents/builder.toml` | Codex | Builder |
 
 Each file pins a full model ID and an effort level, never a floating alias, and

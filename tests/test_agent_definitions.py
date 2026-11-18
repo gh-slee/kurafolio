@@ -135,10 +135,14 @@ class AgentDefinitionTests(unittest.TestCase):
         listed = subprocess.run(['git', '-C', str(ROOT), 'ls-files', '-z'], capture_output=True)
         if listed.returncode:
             self.skipTest('not a Git checkout')
-        provider_id = re.compile(r'[A-Za-z0-9_.-]+/deepseek[A-Za-z0-9_.:-]*', re.I)
+        # A provider-qualified ID: a provider prefix before the DeepSeek model name, or
+        # any OpenRouter route. Built from parts so this file does not match itself.
+        provider_id = re.compile(r'[A-Za-z0-9_.-]+/(?:[A-Za-z0-9_.-]+/)*deepseek[A-Za-z0-9_.:-]*'
+                                 r'|\bopen' + r'router/[A-Za-z0-9_./:-]+', re.I)
+        suffixes = {'.md', '.toml', '.py', '.json', '.yml', '.yaml', '.txt', '.ts', '.tsx'}
         for relative in listed.stdout.decode().split('\0'):
             path = ROOT / relative
-            if not relative or not path.is_file() or path.suffix not in {'.md', '.toml', '.py', '.json', '.yml'}:
+            if not relative or not path.is_file() or path.suffix not in suffixes:
                 continue
             text = path.read_text(encoding='utf-8', errors='replace')
             for match in provider_id.finditer(text):

@@ -452,11 +452,10 @@ def cmd_next(root: Path, args) -> int:
     claims = all_claims(locks)
     found = 0
     for t in sorted(tickets.values(), key=lambda t: (t['priority'], t['status'] not in ACTIVE, t['id'])):
-        if args.plan:
+        if not tier_ok(t, args.tier):
+            continue
+        if args.plan and has_build_plan(t.get('_body', '')):
             # Planning queue: every tier needs a Build plan on main before a build (ENG-115).
-            if has_build_plan(t.get('_body', '')):
-                continue
-        elif not tier_ok(t, args.tier):
             continue
         ok, why = availability(t, tickets, claims, locks)
         if ok:
@@ -469,7 +468,7 @@ def cmd_next(root: Path, args) -> int:
             print(f'{t["id"]:<12} {t["priority"]} {t["agent_tier"]:<9} {t["risk"]:<8} {why:<28} {t["title"]}')
     if not found:
         print('No ticket needs a build plan.' if args.plan else
-              'No claimable ticket for this tier. Run "list" to see blockers.')
+              'No claimable ticket. Run "list" to see blockers.')
     return 0
 
 
@@ -825,7 +824,7 @@ def main(argv: list[str] | None = None) -> int:
     for name in ('claim', 'takeover'):
         s = sub.add_parser(name)
         s.add_argument('id')
-        s.add_argument('--agent', required=True, help='e.g. codex/gpt-5.5, claude/opus-5.5, opencode/deepseek-flash')
+        s.add_argument('--agent', required=True, help='board name from AGENTS.md, e.g. claude-code/sonnet-5.5, codex/gpt-6.1-sol, opencode/deepseek-flash')
         s.add_argument('--worktree', action='store_true', help='create/attach the ticket worktree')
         s.add_argument('--worktree-path')
         s.add_argument('--base', default='origin/main')

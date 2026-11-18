@@ -141,7 +141,9 @@ Routing in each tool:
   of the role's work itself. "plan <ID>", or "plan" for the `next --plan` queue,
   runs the `planner` agent. "pick up <ID>" on a ticket without a Build plan runs the
   `planner`, which opens the plan pull request and stops; on a ticket with one, it
-  hands the build to the `builder` agent. "review <ID>" runs the `reviewer` agent
+  hands the build to the `builder` agent. "pick up" without an ID picks only among
+  planned tickets, as the ticket bullets above say; naming an unplanned ticket is
+  how the owner asks for its plan. "review <ID>" runs the `reviewer` agent
   with the ticket, the diff against `origin/main` and these rules. If the agent a
   request needs is not available, for example because the session started before
   its file existed or the file is missing, stop and say so.

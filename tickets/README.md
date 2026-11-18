@@ -26,17 +26,24 @@ Git directory itself, so it works from the primary checkout or any worktree.
 git fetch origin
 python3 scripts/tickets.py cleanup
 python3 scripts/tickets.py next
+git show origin/main:tickets/ENG-018.md
 python3 scripts/tickets.py resume ENG-018
 python3 scripts/tickets.py claim ENG-018 --agent opencode/deepseek-flash --worktree
 ```
+
+Before you claim, check that the ticket's copy on `origin/main` has a Build plan
+with content (`git show origin/main:tickets/<ID>.md`). `next` reads the ticket
+files of the checkout it runs in, so run it on an up-to-date `main`. If there is no
+Build plan, do not claim: report that the ticket needs planning and stop. If you
+already claimed it, `release` it before you stop, so the planner sees it in
+`next --plan`.
 
 `claim` creates or attaches `work/worktrees/<ticket-id>` on the ticket branch. Do
 all work there, never in the primary checkout. Then:
 
 1. Read the ticket's **Handoff** section first, then Goal, Requirements, Acceptance
    criteria and Build plan. The ticket is the spec ([Writing a ticket as a spec](#writing-a-ticket-as-a-spec)).
-   If the copy on `origin/main` has no Build plan, do not build: report that the
-   ticket needs planning and stop. Read only the docs the ticket links, plus AGENTS.md. Run
+   Read only the docs the ticket links, plus AGENTS.md. Run
    `python3 scripts/tickets.py spec <ID>`: if it reports the spec changed since
    approval, do not build; tell the owner. If the Build plan or the spec is silent on
    behaviour, data or an interface you need, write the question under Decisions
@@ -90,7 +97,9 @@ the result is reviewed.
 | `standard` | Normal features with clear contracts; medium risk | Full, as the [template](#writing-a-ticket-as-a-spec) describes | As the ticket's `review` field says |
 | `frontier` | Critical or high-risk finance, SQL/RLS, auth, migration, concurrency and recovery | Full, plus independent expected values, negative cases, rollback and the points where the builder must stop and ask | The reviewer model's independent review is required before the owner's review |
 
-`next` lists every tier; `--tier` only narrows the list to tickets at or below a tier.
+A `frontier` ticket always gets the reviewer model's independent review, even if
+its `review` field says `self`. `next` and `next --plan` list every tier; `--tier`
+only narrows the list to tickets at or below a tier.
 
 ## Running several agents at once
 
