@@ -32,9 +32,53 @@ PUBLIC_DOCS = {
     'ux-p2-003-mobile.md', 'ux-p2-004-operations.md', 'ux-p2-005-tax-evidence.md',
     'getting-started.md', 'product-ux-review.md', 'spec-development.md', 'capability-status.md',
     'canonical-domain.md', 'postgres-foundation.md', 'web-v2-identity.md', 'web-v2-sources.md', 'web-v2-imports.md', 'market-data.md',
-    'btc-reconciliation-plan.md', 'publishing.md', 'development.md',
+    'btc-reconciliation-plan.md', 'publishing.md', 'development.md', 'golden-cases.md',
     'source-adapters.md', 'source-ingestion.md', 'source-projections.md', 'parser-sdk.md', 'i18n-plan.md', 'self-hosted-webapp.md', 'agent-development.md', 'web-operations.md', 'web-imports.md', 'web-frontend.md', 'web-analysis-reports.md', 'web-backups.md', 'web-financial-records.md', 'web-adoption.md', 'web-release-acceptance.md', 'web-legacy-reports.md',
 }
+# Exact reviewed spec copies that tickets cite (ENG-114). The rest of the local
+# planning package and contract bundle stays private: no directory-wide rule.
+PUBLIC_SPEC_DOCS = frozenset(
+    ['docs/specs/imp-007-r7/' + name for name in (
+        'README.md',
+        'spec.md',
+        'sql-appendix.md',
+        'sql-inventory.json',
+        'contract-appendix.md',
+        'acceptance.md',
+        'runner.md',
+        'r7-native-policy.md',
+        'protocol-appendix.md',
+        'wire-contracts.json',
+        'ingestion-api.md',
+        'failure-restore.md',
+        'oracle.json',
+        'reconciliation.md',
+        'decisions.md',
+        'persistence.md',
+        'normalized-evidence.md',
+        'fixture-appendix.md',
+        'codec-schema.json',
+        'frozen-shapes.json',
+        'fixtures/case-matrix.json',
+    )]
+    + ['docs/specs/v2-drafts/' + name + '.md' for name in (
+        'WL-P0-007',
+        'WL-P0-008',
+        'WL-P0-009',
+        'WL-P0-010',
+        'WL-P0-011',
+        'WL-P0-012',
+        'WL-P0-013',
+        'WL-P0-014',
+        'WL-P0-015',
+        'WL-P1-001',
+        'WL-P1-002',
+        'WL-P1-003',
+        'WL-P1-004',
+        'WL-P2-001',
+        'WL-P2-002',
+    )]
+)
 PUBLIC_CONFIG = {
     'company-aliases.json', 'project.example.toml', 'crypto-opening.example.json',
     'bull-opening.example.json', 'source-catalog.example.json', 'fx.example.json', 'publish.example.toml', 'local.example.toml',
@@ -155,7 +199,7 @@ def path_allowed(path: str) -> bool:
             return p.name in {'wealthsimple-holdings.csv', 'bull-orders.csv', 'fx.json', 'btc-price.json'}
         return len(parts) == 3 and parts[1] == 'templates' and p.name in {'btc_events.csv', 'cash_flows.csv'}
     if parts[0] == 'docs':
-        return len(parts) == 2 and p.name in PUBLIC_DOCS
+        return (len(parts) == 2 and p.name in PUBLIC_DOCS) or path in PUBLIC_SPEC_DOCS
     if parts[0] == 'tickets':
         # Tracked agent backlog: flat Markdown only (see tickets/README.md).
         return len(parts) == 2 and p.suffix == '.md' and re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]*\.md', p.name) is not None

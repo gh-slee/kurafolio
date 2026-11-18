@@ -1,0 +1,847 @@
+{
+  "cases": [
+    {
+      "acceptance": [
+        "A07-03",
+        "A07-11"
+      ],
+      "expected": {
+        "active_head_targets": {
+          "x": "x-r1",
+          "y": "y-r1",
+          "z": "z-r1"
+        },
+        "deltas": {
+          "accept_audits": 1,
+          "accept_receipts": 1,
+          "accepted_generation": 1,
+          "financial_outbox": 1,
+          "mapping_generation": 0
+        },
+        "distinct_eligible_source_ids": [
+          "x",
+          "y",
+          "z"
+        ],
+        "fact_revision_keys": [
+          "x-r1",
+          "y-r1",
+          "z-r1"
+        ],
+        "future_008_quantity_btc": "0.03500000",
+        "state": "COMMITTED"
+      },
+      "given": {
+        "facts": {
+          "x": {
+            "kind": "BUY",
+            "quantity_btc": "0.01000000",
+            "source_revision": "x-r1",
+            "status": "completed"
+          },
+          "y": {
+            "kind": "BUY",
+            "quantity_btc": "0.02000000",
+            "source_revision": "y-r1",
+            "status": "completed"
+          },
+          "z": {
+            "kind": "BUY",
+            "quantity_btc": "0.00500000",
+            "source_revision": "z-r1",
+            "status": "completed"
+          }
+        },
+        "members": [
+          [
+            "x",
+            "y"
+          ],
+          [
+            "y",
+            "z"
+          ]
+        ],
+        "preaccepted": []
+      },
+      "id": "O07-01",
+      "when": "One READY preview confirms both members atomically"
+    },
+    {
+      "acceptance": [
+        "A07-02",
+        "A07-21"
+      ],
+      "expected": {
+        "deltas": {
+          "accept_audits": 0,
+          "accept_receipts": 0,
+          "accepted_generation": 0,
+          "financial_outbox": 0,
+          "mapping_generation": 0
+        },
+        "new_fact_revision_keys": [],
+        "parser_calls": 0,
+        "receipt": "accept-op1",
+        "receipt_result_bytes": "EXACT_ORIGINAL_BYTES"
+      },
+      "given": {
+        "new_live_authenticated_session": true,
+        "operation_id": "op1",
+        "preview_expired": true,
+        "receipt": "accept-op1",
+        "request_digest": "same",
+        "source_disabled": true
+      },
+      "id": "O07-02",
+      "when": "Retry op1 with its original digest in the same current realm"
+    },
+    {
+      "acceptance": [
+        "A07-02"
+      ],
+      "expected": {
+        "deltas": {
+          "accept_audits": 1,
+          "accept_receipts": 1,
+          "accepted_generation": 0,
+          "financial_outbox": 0,
+          "mapping_generation": 0
+        },
+        "head_targets": {
+          "x": "x-r1"
+        },
+        "new_fact_revision_keys": [],
+        "result": "committed_no_change",
+        "state": "COMMITTED"
+      },
+      "given": {
+        "accepted": [
+          "x-r1"
+        ],
+        "mapping_changes": false,
+        "new_set_contains": [
+          "x-r1"
+        ]
+      },
+      "id": "O07-03",
+      "when": "Confirm new operation op2 with identical financial evidence"
+    },
+    {
+      "acceptance": [
+        "A07-04"
+      ],
+      "expected": {
+        "active_head_targets": {
+          "x": "x-r1",
+          "y": "y-r1"
+        },
+        "deltas": {
+          "accept_audits": 1,
+          "accept_receipts": 1,
+          "accepted_generation": 1,
+          "financial_outbox": 1,
+          "mapping_generation": 0
+        },
+        "fact_revision_keys": [
+          "x-r1",
+          "y-r1"
+        ],
+        "future_008_quantity_btc": "0.02000000"
+      },
+      "given": {
+        "facts": [
+          {
+            "id": "x",
+            "quantity_btc": "0.01000000",
+            "time": "2026-01-01T12:00:00Z"
+          },
+          {
+            "id": "y",
+            "quantity_btc": "0.01000000",
+            "time": "2026-01-01T12:00:00Z"
+          }
+        ]
+      },
+      "id": "O07-04",
+      "when": "Confirm both stable distinct source IDs"
+    },
+    {
+      "acceptance": [
+        "A07-05"
+      ],
+      "expected": {
+        "deltas": {
+          "accept_audits": 0,
+          "accept_receipts": 0,
+          "accepted_generation": 0,
+          "financial_outbox": 0,
+          "mapping_generation": 0
+        },
+        "new_fact_revision_keys": [],
+        "reason": "identity_ambiguous",
+        "state": "CONFLICT"
+      },
+      "given": {
+        "facts": [
+          {
+            "id": null,
+            "quantity_btc": "0.01000000",
+            "time": "2026-01-01T12:00:00Z"
+          },
+          {
+            "id": null,
+            "quantity_btc": "0.01000000",
+            "time": "2026-01-01T12:00:00Z"
+          }
+        ]
+      },
+      "id": "O07-05",
+      "when": "Attempt READY/confirmation without identity resolution"
+    },
+    {
+      "acceptance": [
+        "A07-06"
+      ],
+      "expected": {
+        "complete_base": "s2",
+        "deltas": {
+          "accept_audits": 1,
+          "accept_receipts": 1,
+          "accepted_generation": 1,
+          "financial_outbox": 1,
+          "mapping_generation": 0
+        },
+        "future_008_interpretation": {
+          "A": "7",
+          "B": "0"
+        },
+        "historical_snapshot_keys": [
+          "s1",
+          "s2"
+        ],
+        "latest": "s2",
+        "new_membership": {
+          "A": "7"
+        },
+        "synthetic_zero_fact_rows": 0
+      },
+      "given": {
+        "complete_base": "s1",
+        "snapshots": {
+          "s1": {
+            "items": {
+              "A": "10",
+              "B": "5"
+            },
+            "status": "complete",
+            "time": "2026-01-01T12:00:00Z"
+          },
+          "s2": {
+            "items": {
+              "A": "7"
+            },
+            "status": "complete",
+            "time": "2026-02-01T12:00:00Z"
+          }
+        }
+      },
+      "id": "O07-06",
+      "when": "Accept s2 in the same account/holdings/all authority domain"
+    },
+    {
+      "acceptance": [
+        "A07-07"
+      ],
+      "expected": {
+        "complete_base": "s1",
+        "deltas": {
+          "accept_audits": 1,
+          "accept_receipts": 1,
+          "accepted_generation": 1,
+          "financial_outbox": 1,
+          "mapping_generation": 0
+        },
+        "explicit_items": {
+          "A": "7"
+        },
+        "latest": "s2",
+        "omitted_B": {
+          "current": null,
+          "last_seen_quantity": "5",
+          "last_seen_snapshot": "s1"
+        },
+        "synthetic_zero_fact_rows": 0
+      },
+      "given": {
+        "complete_base": "s1",
+        "s1": {
+          "A": "10",
+          "B": "5"
+        },
+        "s2": {
+          "items": {
+            "A": "7"
+          },
+          "newer": true,
+          "status": "partial"
+        }
+      },
+      "id": "O07-07",
+      "when": "Accept partial s2"
+    },
+    {
+      "acceptance": [
+        "A07-06",
+        "A07-07"
+      ],
+      "expected_complete": {
+        "complete_base": "s2",
+        "deltas": {
+          "accept_audits": 1,
+          "accept_receipts": 1,
+          "accepted_generation": 1,
+          "financial_outbox": 1,
+          "mapping_generation": 0
+        },
+        "items": {},
+        "latest": "s2",
+        "synthetic_zero_fact_rows": 0
+      },
+      "expected_partial": {
+        "complete_base": "s1",
+        "deltas": {
+          "accept_audits": 1,
+          "accept_receipts": 1,
+          "accepted_generation": 1,
+          "financial_outbox": 1,
+          "mapping_generation": 0
+        },
+        "items": {},
+        "latest": "s2",
+        "omitted_prior_current": "unresolved",
+        "synthetic_zero_fact_rows": 0
+      },
+      "given": {
+        "complete_base": "s1",
+        "incoming": "s2",
+        "incoming_items": {},
+        "latest": "s1"
+      },
+      "id": "O07-08",
+      "when": "Two independent branches, complete empty versus partial empty"
+    },
+    {
+      "acceptance": [
+        "A07-08"
+      ],
+      "expected_correction": {
+        "A": "9",
+        "deltas": {
+          "accept_audits": 1,
+          "accept_receipts": 1,
+          "accepted_generation": 1,
+          "financial_outbox": 1,
+          "mapping_generation": 0
+        },
+        "head": "s3-r2",
+        "history": [
+          "s3-r1",
+          "s3-r2"
+        ]
+      },
+      "expected_older": {
+        "deltas": {
+          "accept_audits": 1,
+          "accept_receipts": 1,
+          "accepted_generation": 1,
+          "financial_outbox": 1,
+          "mapping_generation": 0
+        },
+        "head": "s3-r1",
+        "new_historical": [
+          "s2-r1"
+        ]
+      },
+      "expected_unlinked": {
+        "deltas": {
+          "accept_audits": 0,
+          "accept_receipts": 0,
+          "accepted_generation": 0,
+          "financial_outbox": 0,
+          "mapping_generation": 0
+        },
+        "head": "s3-r1",
+        "state": "CONFLICT"
+      },
+      "given": {
+        "head": "s3-r1",
+        "older": "s2-r1",
+        "s3-r1": {
+          "A": "8",
+          "time": "2026-03-01T12:00:00Z"
+        },
+        "s3-r2": {
+          "A": "9",
+          "parent": "s3-r1"
+        },
+        "same_time_new": "s3-r2"
+      },
+      "id": "O07-09",
+      "when": "Independent older/same-time-unlinked/explicit-correction branches"
+    },
+    {
+      "acceptance": [
+        "A07-08",
+        "A07-12"
+      ],
+      "expected": {
+        "a_b_relation": "equal_instant",
+        "date_a_relation": "incomparable_without_explicit_policy",
+        "invented_midnight": false
+      },
+      "given": {
+        "a": "2026-01-01T12:00:00Z",
+        "b": "2026-01-01T07:00:00-05:00",
+        "date": "2026-01-01"
+      },
+      "id": "O07-10"
+    },
+    {
+      "acceptance": [
+        "A07-09"
+      ],
+      "expected_independent": {
+        "economic_group_count": 2,
+        "future_008_quantity_btc": "0.02000000",
+        "source_revision_keys": [
+          "c1/x-r1",
+          "c2/x-r1"
+        ]
+      },
+      "expected_mirror": {
+        "economic_group_count": 1,
+        "future_008_quantity_btc": "0.01000000",
+        "source_revision_keys": [
+          "c1/x-r1",
+          "c2/x-r1"
+        ]
+      },
+      "expected_unresolved": {
+        "deltas": {
+          "accept_audits": 0,
+          "accept_receipts": 0,
+          "accepted_generation": 0,
+          "financial_outbox": 0,
+          "mapping_generation": 0
+        },
+        "state": "CONFLICT"
+      },
+      "given": {
+        "canonical_account": "account1",
+        "connections": [
+          "c1",
+          "c2"
+        ],
+        "each_quantity_btc": "0.01000000",
+        "records": [
+          "c1/x-r1",
+          "c2/x-r1"
+        ]
+      },
+      "id": "O07-11",
+      "when": "Three separately reset cases with explicit evidence choices"
+    },
+    {
+      "acceptance": [
+        "A07-11"
+      ],
+      "expected": {
+        "contribution_inference": null,
+        "diagnostic_only": [
+          "t",
+          "b",
+          "f"
+        ],
+        "eligible": [
+          "x",
+          "y"
+        ],
+        "future_008_quantity_btc": "0.03000000"
+      },
+      "given": {
+        "records": {
+          "b": {
+            "kind": "BALANCE_OBSERVATION",
+            "quantity_btc": "0.03000000"
+          },
+          "f": {
+            "cad": "2200.00",
+            "kind": "FUNDING"
+          },
+          "t": {
+            "kind": "TRANSFER",
+            "quantity_btc": "0.03000000"
+          },
+          "x": {
+            "kind": "BUY",
+            "quantity_btc": "0.01000000"
+          },
+          "y": {
+            "kind": "BUY",
+            "quantity_btc": "0.02000000"
+          }
+        }
+      },
+      "id": "O07-12"
+    },
+    {
+      "acceptance": [
+        "A07-11"
+      ],
+      "expected_after_each": [
+        {
+          "eligible": false,
+          "head": "x-r1",
+          "history": [
+            "x-r1"
+          ]
+        },
+        {
+          "eligible": true,
+          "head": "x-r2",
+          "history": [
+            "x-r1",
+            "x-r2"
+          ]
+        },
+        {
+          "active": false,
+          "eligible": false,
+          "head": "x-r3",
+          "history": [
+            "x-r1",
+            "x-r2",
+            "x-r3"
+          ]
+        }
+      ],
+      "expected_unlinked_cancel": {
+        "deltas": {
+          "accept_audits": 0,
+          "accept_receipts": 0,
+          "accepted_generation": 0,
+          "financial_outbox": 0,
+          "mapping_generation": 0
+        },
+        "state": "CONFLICT"
+      },
+      "given": {
+        "chain": [
+          {
+            "parent": null,
+            "revision": "x-r1",
+            "status": "pending"
+          },
+          {
+            "parent": "x-r1",
+            "quantity_btc": "0.01000000",
+            "revision": "x-r2",
+            "status": "completed"
+          },
+          {
+            "change": "void",
+            "parent": "x-r2",
+            "revision": "x-r3",
+            "status": "cancelled"
+          }
+        ]
+      },
+      "id": "O07-13"
+    },
+    {
+      "acceptance": [
+        "A07-12",
+        "A07-14",
+        "A07-26",
+        "A07-34"
+      ],
+      "expected": {
+        "cost": null,
+        "explicit_zero": "0.00",
+        "fees": null,
+        "forbidden_canary_occurrences_in_durable_surfaces": 0,
+        "lifecycle": "EXACT_TYPED_GIVEN_VALUES",
+        "raw_blob_writes": 0,
+        "recover_legacy_v1_available_for_new_input": false
+      },
+      "given": {
+        "cost": null,
+        "explicit_zero": "0.00",
+        "fees": null,
+        "forbidden_source_fields": "FORBIDDEN_ROW_ARCHIVE_CANARY_7B",
+        "forbidden_unused_column": "FORBIDDEN_UNUSED_CSV_CANARY_7A",
+        "lifecycle": {
+          "completed_at": "2026-01-01T12:00:00.000000Z",
+          "created_at": "2026-01-01T11:00:00.123400Z",
+          "exchange_rate": {
+            "amount": "70000.0000",
+            "unit": "CAD/BTC"
+          },
+          "index_rate": null,
+          "payin": {
+            "asset": "CAD",
+            "method": "synthetic_method",
+            "quantity": "700.00"
+          },
+          "payin_status": "Completed",
+          "payout": {
+            "asset": "BTC",
+            "method": "synthetic_chain",
+            "quantity": "0.01000000"
+          },
+          "payout_status": "Completed",
+          "sent_at": null,
+          "source_status": "Completed",
+          "source_subtype": "Instant",
+          "source_type": "Buy Bitcoin"
+        }
+      },
+      "id": "O07-14",
+      "when": "Admit minimal stage, delete raw, remap, restart and restore"
+    },
+    {
+      "acceptance": [
+        "A07-12"
+      ],
+      "expected": {
+        "signed_security": "EXACT_PRESERVED_UNSUPPORTED_WHERE_REQUIRED",
+        "sub_sat": "REJECTED",
+        "unknown_cost": null,
+        "whole_sat_count": "1",
+        "zero_cost": "0.00"
+      },
+      "given": {
+        "signed_security": "-3.2500",
+        "sub_sat": "0.000000001",
+        "unknown_cost": null,
+        "whole_sat": "0.00000001",
+        "zero_cost": "0.00"
+      },
+      "id": "O07-15"
+    },
+    {
+      "acceptance": [
+        "A07-20",
+        "A07-22",
+        "A07-24"
+      ],
+      "expected": {
+        "accepted_generation": "4",
+        "all_other_financial_relations": "EXACT_PRESTATE",
+        "deltas": {
+          "accept_audits": 0,
+          "accept_receipts": 0,
+          "accepted_generation": 0,
+          "financial_outbox": 0,
+          "mapping_generation": 0
+        },
+        "head_targets": {
+          "x": "x-r1"
+        },
+        "new_fact_revision_keys": []
+      },
+      "given": {
+        "prestate_accepted_generation": "4",
+        "prestate_heads": {
+          "x": "x-r1"
+        },
+        "selected_members": [
+          "good",
+          "bad"
+        ]
+      },
+      "id": "O07-16",
+      "when": "Fault before COMMIT or required bad member unresolved"
+    },
+    {
+      "acceptance": [
+        "A07-18",
+        "A07-25"
+      ],
+      "expected_by_db_now": {
+        "2026-01-01T23:59:59.999999Z": "unexpired",
+        "2026-01-02T00:00:00.000001Z": "expired",
+        "2026-01-02T00:00:00Z": "expired"
+      },
+      "given": {
+        "expires_at": "2026-01-02T00:00:00Z"
+      },
+      "id": "O07-17"
+    },
+    {
+      "acceptance": [
+        "A07-20"
+      ],
+      "expected_if_accept_commits_first": {
+        "accept_deltas": {
+          "accept_audits": 1,
+          "accept_receipts": 1,
+          "accepted_generation": 1,
+          "financial_outbox": 1,
+          "mapping_generation": 0
+        },
+        "cancel_result": "ALREADY_COMMITTED_WITH_ORIGINAL_RECEIPT",
+        "set_state": "COMMITTED"
+      },
+      "expected_if_cancel_lock_wins": {
+        "accept_deltas": {
+          "accept_audits": 0,
+          "accept_receipts": 0,
+          "accepted_generation": 0,
+          "financial_outbox": 0,
+          "mapping_generation": 0
+        },
+        "late_worker": "REJECTED",
+        "set_state": "CANCELLED"
+      },
+      "given": {
+        "READY": true,
+        "cancel": "cancel1",
+        "operation": "accept1"
+      },
+      "id": "O07-18"
+    },
+    {
+      "acceptance": [
+        "A07-21",
+        "A07-34"
+      ],
+      "expected": {
+        "accepted_bytes_A_equals_dump": true,
+        "accepted_bytes_B_equals_dump": true,
+        "fresh_authenticated_historical_receipt_read": true,
+        "old_session_job_preview_can_write": false,
+        "post_backup_z_present": false,
+        "raw_reconstructed": false,
+        "realm_A_equals_B": false,
+        "realm_A_equals_old": false,
+        "realm_B_equals_old": false
+      },
+      "given": {
+        "initialized_dump": "backup1",
+        "old_realm": "realm1",
+        "post_backup_write": "z-r1"
+      },
+      "id": "O07-19",
+      "when": "Restore into independently empty target A and target B"
+    },
+    {
+      "acceptance": [
+        "A07-28",
+        "A07-36"
+      ],
+      "expected_raw_sizes": {
+        "10485759": "within_limit",
+        "10485760": "within_limit",
+        "10485761": "REJECTED_BEFORE_ADMISSION"
+      },
+      "expected_shared_parallel_admissions": {
+        "different_users_total_six_attempts": 4,
+        "same_user_two_api_processes": 1
+      },
+      "given": {
+        "instance_parallel_max": 4,
+        "raw_max_bytes": 10485760,
+        "user_parallel_max": 1
+      },
+      "id": "O07-20",
+      "release_on_cleanup_failure": false
+    },
+    {
+      "acceptance": [
+        "A07-10"
+      ],
+      "expected": {
+        "distinct_instrument_mappings": 4,
+        "network_collapse": false,
+        "ticker_only_merge": false
+      },
+      "given": {
+        "assets": [
+          {
+            "currency": "USD",
+            "mic": "XNYS",
+            "symbol": "ABC"
+          },
+          {
+            "currency": "CAD",
+            "mic": "XTSE",
+            "symbol": "ABC"
+          },
+          {
+            "network": "bitcoin",
+            "symbol": "BTC"
+          },
+          {
+            "network": "liquid",
+            "symbol": "LBTC"
+          }
+        ]
+      },
+      "id": "O07-21"
+    },
+    {
+      "acceptance": [
+        "A07-11"
+      ],
+      "expected": {
+        "cash_link": "purchase-x",
+        "contribution_inferred": false,
+        "fee_flags": [
+          true,
+          true
+        ],
+        "invented_cost_cad_702": false,
+        "retained_cost_cad": "700.00",
+        "retained_fee_cad": "2.00"
+      },
+      "given": {
+        "cash_flow_boundary": "internal",
+        "cash_leg_of": "purchase-x",
+        "fee_cad": "2.00",
+        "fee_included_in_cost": true,
+        "fee_included_in_leg": true,
+        "purchase_cost_cad": "700.00"
+      },
+      "id": "O07-22",
+      "negative_cases": [
+        {
+          "boundary": "unclassified",
+          "cash_leg_kind": "crypto_transactions",
+          "expected": "REJECT_BEFORE_READY_WITH_ZERO_ACCEPTED_EFFECTS"
+        },
+        {
+          "boundary": "external",
+          "cash_leg_kind": "crypto_transactions",
+          "expected": "REJECT_BEFORE_READY_WITH_ZERO_ACCEPTED_EFFECTS"
+        },
+        {
+          "boundary": "internal",
+          "cash_leg_kind": "holdings",
+          "expected": "REJECT_WRONG_KIND"
+        },
+        {
+          "boundary": "internal",
+          "cash_leg_scope": "foreign",
+          "expected": "REJECT_FOREIGN_SCOPE"
+        }
+      ]
+    }
+  ],
+  "functional_execution": "NOT_RUN",
+  "precision": "All quantities/money are exact strings; expected values are literals, not production-derived.",
+  "scope": "Named keys denote scoped fixture source identities/revisions, not hardcoded production UUIDs. Preaccepted entity mappings and source connections exist unless a case explicitly tests first-use. Deltas count financial ACCEPT effects only, not setup/control receipts. Each branch resets its fixture.",
+  "status": "COORDINATOR_PROPOSED_NOT_INDEPENDENTLY_ACCEPTED",
+  "version": 1
+}

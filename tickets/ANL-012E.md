@@ -16,7 +16,7 @@ review: independent
 branch:
 pr:
 spec:
-updated: 2026-11-12
+updated: 2026-11-18
 ---
 
 # ANL-012E: Build the V2 Exposures page
@@ -26,6 +26,10 @@ updated: 2026-11-12
 Exposures is the approved child of Stock/Bond: top companies through ETFs, and sector, country and region distributions with visible coverage. ETF-010 delivers the exposure data contract; no ticket builds the page.
 
 ## Context
+
+### Spec material
+
+- The "golden exposure fixture" in Acceptance criteria is golden case G11 (owner decision 2026-11-18, recorded in ENG-114). In G11 those four amounts are US 600, TW 500, unknown 80 and cash 20, which sum to the securities denominator of CAD 1,200; the Total of CAD 3,720 also includes direct crypto: [docs/golden-cases.md](../docs/golden-cases.md) (sha256:f7adca063ff68fe0502066608fc6fad6b1f818244679190b3e7cdcf3020e5594).
 
 ### Current behaviour
 
@@ -86,3 +90,4 @@ Exposures is the approved child of Stock/Bond: top companies through ETFs, and s
 - 2026-11-10 planner: created from the UI/UX feature inventory (tickets/UX_FEATURE_INVENTORY.md).
 - 2026-11-11 planner: ETF-010 became an epic; this page now depends on its endpoint child ETF-010B.
 - 2026-11-12 planner: owner approved Gate A on 2026-11-12 and released the ticket (status ready).
+- 2026-11-18 claude-code/opus-5.5 (ENG-114): the owner chose golden case G11 for the "golden exposure fixture" in Acceptance criteria ("Approve all as recommended", 2026-11-18); linked from Context.

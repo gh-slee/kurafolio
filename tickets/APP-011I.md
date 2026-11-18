@@ -15,8 +15,8 @@ gate_approval: "owner 2026-11-12, option 1 (anonymous link check before the form
 review: independent
 branch: ticket/wl-p0-011i-tell-an-invitee-whether-their-invitation
 pr: 
-spec: docs/specs/wealth-ledger-v2/P0/WL-P0-011.md
-updated: 2026-11-12
+spec: docs/specs/v2-drafts/WL-P0-011.md
+updated: 2026-11-18
 ---
 
 # APP-011I: Tell an invitee whether their invitation is still usable
@@ -26,6 +26,11 @@ updated: 2026-11-12
 When someone opens an invitation link that has expired, been revoked or already been used, the registration page tells them which, and shows no form. APP-011B could not do this because the API gives the browser no way to tell these states apart.
 
 ## Context
+
+### Spec material
+
+- The r7 SQL appendix the Handoff refers to: [sql-appendix.md](../docs/specs/imp-007-r7/sql-appendix.md) in [docs/specs/imp-007-r7/](../docs/specs/imp-007-r7/README.md) (index sha256:75a859f65d7ee4564a20220b756b88ff44cf4449644167e2df2a87fd081e7fe7; the index lists the SHA-256 of each file).
+- Background only: the revision 1 planning draft [docs/specs/v2-drafts/WL-P0-011.md](../docs/specs/v2-drafts/WL-P0-011.md) (sha256:c1e6032acd9488898f8a71cb0fd8edc2b8867ae4816d33a43bf4c5b9e26b8636). Where it differs from this ticket, this ticket applies.
 
 ### Current behaviour
 

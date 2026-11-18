@@ -16,7 +16,7 @@ review: independent
 branch:
 pr:
 spec:
-updated: 2026-11-11
+updated: 2026-11-18
 ---
 
 # MKT-009C: Add the display currency list and daily FX rates for it
@@ -26,6 +26,10 @@ updated: 2026-11-11
 The owner wants to switch the whole app to other popular currencies at the latest exchange rate, not only CAD, USD and TWD. Today the rates come from two fixed sources for two pairs. Add a currency list the pages read, and daily rates for every currency on it.
 
 ## Context
+
+### Spec material
+
+- Golden cases G07 and G09, cited in Acceptance criteria: [docs/golden-cases.md](../docs/golden-cases.md) (sha256:f7adca063ff68fe0502066608fc6fad6b1f818244679190b3e7cdcf3020e5594).
 
 ### Current behaviour
 

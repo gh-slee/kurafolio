@@ -16,7 +16,7 @@ review: independent
 branch:
 pr:
 spec:
-updated: 2026-11-11
+updated: 2026-11-18
 ---
 
 # MKT-009B: Store market prices in PostgreSQL and refresh them on a schedule and on demand
@@ -26,6 +26,10 @@ updated: 2026-11-11
 The owner wants the values on the analysis pages to follow the market: the app fetches prices at intervals and when the user presses Refresh, for any security a user holds. MKT-009A gives the adapter that fetches one quote. Nothing stores quotes, decides what to fetch, runs on a timer or lets the pages read the latest price. This ticket adds that.
 
 ## Context
+
+### Spec material
+
+- Golden cases G09, G10 and G19, cited in Implementation notes and Acceptance criteria: [docs/golden-cases.md](../docs/golden-cases.md) (sha256:f7adca063ff68fe0502066608fc6fad6b1f818244679190b3e7cdcf3020e5594).
 
 ### Current behaviour
 

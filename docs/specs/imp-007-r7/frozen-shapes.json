@@ -1,0 +1,3367 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:wealth-ledger:planning:frozen-shapes:1",
+  "$defs": {
+    "decimal_token": {
+      "type": "string",
+      "maxLength": 256,
+      "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+    },
+    "old_AccountKey": {
+      "type": "object",
+      "properties": {
+        "provider": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "account_id": {
+          "type": "string",
+          "maxLength": 4096
+        }
+      },
+      "required": [
+        "provider",
+        "account_id"
+      ],
+      "additionalProperties": false
+    },
+    "old_AssetKey": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "enum": [
+            "security",
+            "cash",
+            "crypto"
+          ]
+        },
+        "symbol": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "currency": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "market": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 4096
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "network": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 4096
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "identifier": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 4096
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "symbol",
+        "currency",
+        "market",
+        "network",
+        "identifier"
+      ],
+      "additionalProperties": false
+    },
+    "old_Money": {
+      "type": "object",
+      "properties": {
+        "amount": {
+          "$ref": "#/$defs/decimal_token"
+        },
+        "currency": {
+          "type": "string",
+          "maxLength": 4096
+        }
+      },
+      "required": [
+        "amount",
+        "currency"
+      ],
+      "additionalProperties": false
+    },
+    "old_RecordKey": {
+      "type": "object",
+      "properties": {
+        "account": {
+          "$ref": "#/$defs/old_AccountKey"
+        },
+        "source_id": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "revision": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "supersedes_revision": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 4096
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "change": {
+          "enum": [
+            "original",
+            "correction",
+            "void"
+          ]
+        }
+      },
+      "required": [
+        "account",
+        "source_id",
+        "revision",
+        "supersedes_revision",
+        "change"
+      ],
+      "additionalProperties": false
+    },
+    "old_Holding": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "$ref": "#/$defs/old_RecordKey"
+        },
+        "as_of": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "asset": {
+          "$ref": "#/$defs/old_AssetKey"
+        },
+        "quantity": {
+          "$ref": "#/$defs/decimal_token"
+        },
+        "market_value": {
+          "$ref": "#/$defs/old_Money"
+        },
+        "cost": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/old_Money"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "kind": {
+          "enum": [
+            "holdings"
+          ]
+        }
+      },
+      "required": [
+        "key",
+        "as_of",
+        "asset",
+        "quantity",
+        "market_value",
+        "cost",
+        "kind"
+      ],
+      "additionalProperties": false
+    },
+    "old_CashFlow": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "$ref": "#/$defs/old_RecordKey"
+        },
+        "occurred_at": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "type": {
+          "enum": [
+            "deposit",
+            "withdrawal",
+            "transfer",
+            "income",
+            "fee"
+          ]
+        },
+        "amount": {
+          "$ref": "#/$defs/old_Money"
+        },
+        "status": {
+          "enum": [
+            "completed",
+            "pending",
+            "cancelled"
+          ]
+        },
+        "boundary": {
+          "enum": [
+            "external",
+            "internal",
+            "unclassified"
+          ]
+        },
+        "transfer_reference": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 4096
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "counterpart_account": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/old_AccountKey"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "counterpart_source_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 4096
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "kind": {
+          "enum": [
+            "cash_flows"
+          ]
+        }
+      },
+      "required": [
+        "key",
+        "occurred_at",
+        "type",
+        "amount",
+        "status",
+        "boundary",
+        "transfer_reference",
+        "counterpart_account",
+        "counterpart_source_id",
+        "kind"
+      ],
+      "additionalProperties": false
+    },
+    "old_CryptoLeg": {
+      "type": "object",
+      "properties": {
+        "account": {
+          "$ref": "#/$defs/old_AccountKey"
+        },
+        "asset": {
+          "$ref": "#/$defs/old_AssetKey"
+        },
+        "quantity": {
+          "$ref": "#/$defs/decimal_token"
+        }
+      },
+      "required": [
+        "account",
+        "asset",
+        "quantity"
+      ],
+      "additionalProperties": false
+    },
+    "old_CryptoTransaction": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "$ref": "#/$defs/old_RecordKey"
+        },
+        "occurred_at": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "type": {
+          "enum": [
+            "purchase",
+            "sale",
+            "transfer",
+            "fee",
+            "swap"
+          ]
+        },
+        "status": {
+          "enum": [
+            "completed",
+            "pending",
+            "cancelled"
+          ]
+        },
+        "legs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/old_CryptoLeg"
+          },
+          "maxItems": 50000
+        },
+        "fees": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/old_Money"
+              },
+              "maxItems": 50000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "acquisition_cost": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/old_Money"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "transfer_reference": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 4096
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "counterpart_source_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 4096
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "counterpart_account": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/old_AccountKey"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "kind": {
+          "enum": [
+            "crypto_transactions"
+          ]
+        }
+      },
+      "required": [
+        "key",
+        "occurred_at",
+        "type",
+        "status",
+        "legs",
+        "fees",
+        "acquisition_cost",
+        "transfer_reference",
+        "counterpart_source_id",
+        "counterpart_account",
+        "kind"
+      ],
+      "additionalProperties": false
+    },
+    "old_Coverage": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "account": {
+          "$ref": "#/$defs/old_AccountKey"
+        },
+        "start": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "end": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "status": {
+          "enum": [
+            "complete",
+            "partial",
+            "unknown"
+          ]
+        },
+        "basis": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "scope_id": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "scope_revision": {
+          "type": "string",
+          "maxLength": 4096
+        }
+      },
+      "required": [
+        "kind",
+        "account",
+        "start",
+        "end",
+        "status",
+        "basis",
+        "scope_id",
+        "scope_revision"
+      ],
+      "additionalProperties": false
+    },
+    "old_SourceEvidence": {
+      "type": "object",
+      "properties": {
+        "raw_sha256": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "effective_at": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "fetched_at": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "source_reference": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "mappings": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "prefixItems": [
+              {
+                "type": "string",
+                "maxLength": 4096
+              },
+              {
+                "type": "string",
+                "maxLength": 4096
+              }
+            ],
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "maxItems": 50000
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 4096
+          },
+          "maxItems": 50000
+        },
+        "id_policy": {
+          "type": "string",
+          "maxLength": 4096
+        }
+      },
+      "required": [
+        "raw_sha256",
+        "effective_at",
+        "fetched_at",
+        "source_reference",
+        "mappings",
+        "warnings",
+        "id_policy"
+      ],
+      "additionalProperties": false
+    },
+    "old_AdapterInfo": {
+      "type": "object",
+      "properties": {
+        "provider_id": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "adapter_id": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "adapter_version": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "export_versions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 4096
+          },
+          "maxItems": 50000
+        },
+        "kinds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 4096
+          },
+          "maxItems": 50000
+        },
+        "api_version": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "provider_id",
+        "adapter_id",
+        "adapter_version",
+        "export_versions",
+        "kinds",
+        "api_version"
+      ],
+      "additionalProperties": false
+    },
+    "old_Detection": {
+      "type": "object",
+      "properties": {
+        "matched": {
+          "type": "boolean"
+        },
+        "export_version": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 4096
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "maxLength": 4096
+        }
+      },
+      "required": [
+        "matched",
+        "export_version",
+        "reason"
+      ],
+      "additionalProperties": false
+    },
+    "old_NormalizedBatch": {
+      "type": "object",
+      "properties": {
+        "adapter": {
+          "$ref": "#/$defs/old_AdapterInfo"
+        },
+        "export_version": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "evidence": {
+          "$ref": "#/$defs/old_SourceEvidence"
+        },
+        "coverage": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/old_Coverage"
+          },
+          "maxItems": 50000
+        },
+        "records": {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/old_Holding"
+                  },
+                  {
+                    "$ref": "#/$defs/old_CashFlow"
+                  }
+                ]
+              },
+              {
+                "$ref": "#/$defs/old_CryptoTransaction"
+              }
+            ]
+          },
+          "maxItems": 50000
+        }
+      },
+      "required": [
+        "adapter",
+        "export_version",
+        "evidence",
+        "coverage",
+        "records"
+      ],
+      "additionalProperties": false
+    },
+    "parser_RevisionContext": {
+      "type": "object",
+      "properties": {
+        "account": {
+          "$ref": "#/$defs/old_AccountKey"
+        },
+        "kind": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "source_id": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "observation_id": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "supersedes_revision": {
+          "type": "string",
+          "maxLength": 4096
+        }
+      },
+      "required": [
+        "account",
+        "kind",
+        "source_id",
+        "observation_id",
+        "supersedes_revision"
+      ],
+      "additionalProperties": false
+    },
+    "parser_ScopeRevisionContext": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "scope_id": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "supersedes_revision": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "account": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/old_AccountKey"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "record_kind": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 4096
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "observation_id": {
+          "type": "string",
+          "maxLength": 4096
+        }
+      },
+      "required": [
+        "kind",
+        "scope_id",
+        "supersedes_revision",
+        "account",
+        "record_kind",
+        "observation_id"
+      ],
+      "additionalProperties": false
+    },
+    "parser_ParseContext": {
+      "type": "object",
+      "properties": {
+        "evidence_at": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "source_reference": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "account_alias": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 4096
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source_timezone": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 4096
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "format_selection": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 4096
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "revisions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/parser_RevisionContext"
+          },
+          "maxItems": 50000
+        },
+        "scope_revisions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/parser_ScopeRevisionContext"
+          },
+          "maxItems": 50000
+        }
+      },
+      "required": [
+        "evidence_at",
+        "source_reference",
+        "account_alias",
+        "source_timezone",
+        "format_selection",
+        "revisions",
+        "scope_revisions"
+      ],
+      "additionalProperties": false
+    },
+    "parser_Diagnostic": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "severity": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "parameters": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "prefixItems": [
+              {
+                "type": "string",
+                "maxLength": 4096
+              },
+              {
+                "type": "string",
+                "maxLength": 4096
+              }
+            ],
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "maxItems": 50000
+        }
+      },
+      "required": [
+        "code",
+        "severity",
+        "parameters"
+      ],
+      "additionalProperties": false
+    },
+    "parser_Evidence": {
+      "type": "object",
+      "properties": {
+        "raw_sha256": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "context": {
+          "$ref": "#/$defs/parser_ParseContext"
+        },
+        "effective_at": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "id_policy": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "mappings": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "prefixItems": [
+              {
+                "type": "string",
+                "maxLength": 4096
+              },
+              {
+                "type": "string",
+                "maxLength": 4096
+              }
+            ],
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "maxItems": 50000
+        },
+        "diagnostics": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/parser_Diagnostic"
+          },
+          "maxItems": 50000
+        },
+        "source_fields": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "prefixItems": [
+              {
+                "type": "string",
+                "maxLength": 4096
+              },
+              {
+                "type": "string",
+                "maxLength": 4096
+              }
+            ],
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "maxItems": 50000
+        }
+      },
+      "required": [
+        "raw_sha256",
+        "context",
+        "effective_at",
+        "id_policy",
+        "mappings",
+        "diagnostics",
+        "source_fields"
+      ],
+      "additionalProperties": false
+    },
+    "parser_Account": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "$ref": "#/$defs/old_AccountKey"
+        },
+        "account_type": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "label": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "role": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "masked_identifier": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 4096
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "key",
+        "account_type",
+        "label",
+        "role",
+        "masked_identifier"
+      ],
+      "additionalProperties": false
+    },
+    "parser_Membership": {
+      "type": "object",
+      "properties": {
+        "scope_id": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "revision": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "accounts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/old_AccountKey"
+          },
+          "maxItems": 50000
+        },
+        "status": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "basis": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "supersedes_revision": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 4096
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "scope_id",
+        "revision",
+        "accounts",
+        "status",
+        "basis",
+        "supersedes_revision"
+      ],
+      "additionalProperties": false
+    },
+    "parser_Coverage": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "account": {
+          "$ref": "#/$defs/old_AccountKey"
+        },
+        "start": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "end": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "status": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "basis": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "scope_id": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "revision": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "supersedes_revision": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 4096
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "observation_id": {
+          "type": "string",
+          "maxLength": 4096
+        }
+      },
+      "required": [
+        "kind",
+        "account",
+        "start",
+        "end",
+        "status",
+        "basis",
+        "scope_id",
+        "revision",
+        "supersedes_revision",
+        "observation_id"
+      ],
+      "additionalProperties": false
+    },
+    "parser_Snapshot": {
+      "type": "object",
+      "properties": {
+        "source_id": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "revision": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "as_of": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "accounts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/old_AccountKey"
+          },
+          "maxItems": 50000
+        },
+        "supersedes_revision": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 4096
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "source_id",
+        "revision",
+        "as_of",
+        "accounts",
+        "supersedes_revision"
+      ],
+      "additionalProperties": false
+    },
+    "parser_Position": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "$ref": "#/$defs/old_RecordKey"
+        },
+        "observation_id": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "as_of": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "asset": {
+          "$ref": "#/$defs/old_AssetKey"
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "instrument_type": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "exchange": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "quantity": {
+          "$ref": "#/$defs/decimal_token"
+        },
+        "market_value": {
+          "$ref": "#/$defs/old_Money"
+        },
+        "unit_price": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/old_Money"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "cost_native": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/old_Money"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "cost_cad": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/old_Money"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "unrealized": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/old_Money"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "revision_reason": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 4096
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source_fields": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "prefixItems": [
+              {
+                "type": "string",
+                "maxLength": 4096
+              },
+              {
+                "type": "string",
+                "maxLength": 4096
+              }
+            ],
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "maxItems": 50000
+        },
+        "kind": {
+          "type": "string",
+          "maxLength": 4096
+        }
+      },
+      "required": [
+        "key",
+        "observation_id",
+        "as_of",
+        "asset",
+        "name",
+        "instrument_type",
+        "exchange",
+        "quantity",
+        "market_value",
+        "unit_price",
+        "cost_native",
+        "cost_cad",
+        "unrealized",
+        "revision_reason",
+        "source_fields",
+        "kind"
+      ],
+      "additionalProperties": false
+    },
+    "parser_Reference": {
+      "type": "object",
+      "properties": {
+        "account": {
+          "$ref": "#/$defs/old_AccountKey"
+        },
+        "kind": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "source_id": {
+          "type": "string",
+          "maxLength": 4096
+        }
+      },
+      "required": [
+        "account",
+        "kind",
+        "source_id"
+      ],
+      "additionalProperties": false
+    },
+    "parser_AssetAmount": {
+      "type": "object",
+      "properties": {
+        "asset": {
+          "$ref": "#/$defs/old_AssetKey"
+        },
+        "quantity": {
+          "$ref": "#/$defs/decimal_token"
+        },
+        "method": {
+          "type": "string",
+          "maxLength": 4096
+        }
+      },
+      "required": [
+        "asset",
+        "quantity",
+        "method"
+      ],
+      "additionalProperties": false
+    },
+    "parser_Rate": {
+      "type": "object",
+      "properties": {
+        "amount": {
+          "$ref": "#/$defs/decimal_token"
+        },
+        "unit": {
+          "type": "string",
+          "maxLength": 4096
+        }
+      },
+      "required": [
+        "amount",
+        "unit"
+      ],
+      "additionalProperties": false
+    },
+    "parser_Lifecycle": {
+      "type": "object",
+      "properties": {
+        "created_at": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "completed_at": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 64
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sent_at": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 64
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source_type": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "source_subtype": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "source_status": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "payin_status": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "payout_status": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "payin": {
+          "$ref": "#/$defs/parser_AssetAmount"
+        },
+        "payout": {
+          "$ref": "#/$defs/parser_AssetAmount"
+        },
+        "exchange_rate": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/parser_Rate"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "index_rate": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/parser_Rate"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "created_at",
+        "completed_at",
+        "sent_at",
+        "source_type",
+        "source_subtype",
+        "source_status",
+        "payin_status",
+        "payout_status",
+        "payin",
+        "payout",
+        "exchange_rate",
+        "index_rate"
+      ],
+      "additionalProperties": false
+    },
+    "parser_Fee": {
+      "type": "object",
+      "properties": {
+        "account": {
+          "$ref": "#/$defs/old_AccountKey"
+        },
+        "asset": {
+          "$ref": "#/$defs/old_AssetKey"
+        },
+        "quantity": {
+          "$ref": "#/$defs/decimal_token"
+        },
+        "included_in_leg": {
+          "type": "boolean"
+        },
+        "included_in_cost": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "account",
+        "asset",
+        "quantity",
+        "included_in_leg",
+        "included_in_cost"
+      ],
+      "additionalProperties": false
+    },
+    "parser_CashFlow": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "$ref": "#/$defs/old_RecordKey"
+        },
+        "occurred_at": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "type": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "direction": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "amount": {
+          "$ref": "#/$defs/old_Money"
+        },
+        "status": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "boundary": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "transfer_reference": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 4096
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "counterpart": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/parser_Reference"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "cash_leg_of": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/parser_Reference"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "lifecycle": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/parser_Lifecycle"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "revision_reason": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 4096
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source_fields": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "prefixItems": [
+              {
+                "type": "string",
+                "maxLength": 4096
+              },
+              {
+                "type": "string",
+                "maxLength": 4096
+              }
+            ],
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "maxItems": 50000
+        },
+        "kind": {
+          "type": "string",
+          "maxLength": 4096
+        }
+      },
+      "required": [
+        "key",
+        "occurred_at",
+        "type",
+        "direction",
+        "amount",
+        "status",
+        "boundary",
+        "transfer_reference",
+        "counterpart",
+        "cash_leg_of",
+        "lifecycle",
+        "revision_reason",
+        "source_fields",
+        "kind"
+      ],
+      "additionalProperties": false
+    },
+    "parser_CryptoTransaction": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "$ref": "#/$defs/old_RecordKey"
+        },
+        "occurred_at": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "type": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "status": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "legs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/old_CryptoLeg"
+          },
+          "maxItems": 50000
+        },
+        "acquisition_cost": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/old_Money"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "acquisition_cost_cad": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/old_Money"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "fees": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/parser_Fee"
+              },
+              "maxItems": 50000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "lifecycle": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/parser_Lifecycle"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "transfer_reference": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 4096
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "counterpart": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/parser_Reference"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "revision_reason": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 4096
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source_fields": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "prefixItems": [
+              {
+                "type": "string",
+                "maxLength": 4096
+              },
+              {
+                "type": "string",
+                "maxLength": 4096
+              }
+            ],
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "maxItems": 50000
+        },
+        "kind": {
+          "type": "string",
+          "maxLength": 4096
+        }
+      },
+      "required": [
+        "key",
+        "occurred_at",
+        "type",
+        "status",
+        "legs",
+        "acquisition_cost",
+        "acquisition_cost_cad",
+        "fees",
+        "lifecycle",
+        "transfer_reference",
+        "counterpart",
+        "revision_reason",
+        "source_fields",
+        "kind"
+      ],
+      "additionalProperties": false
+    },
+    "parser_NormalizedBatch": {
+      "type": "object",
+      "properties": {
+        "adapter": {
+          "$ref": "#/$defs/old_AdapterInfo"
+        },
+        "export_version": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "evidence": {
+          "$ref": "#/$defs/parser_Evidence"
+        },
+        "accounts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/parser_Account"
+          },
+          "maxItems": 50000
+        },
+        "membership": {
+          "$ref": "#/$defs/parser_Membership"
+        },
+        "snapshots": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/parser_Snapshot"
+          },
+          "maxItems": 50000
+        },
+        "coverage": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/parser_Coverage"
+          },
+          "maxItems": 50000
+        },
+        "records": {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/parser_Position"
+                  },
+                  {
+                    "$ref": "#/$defs/parser_CashFlow"
+                  }
+                ]
+              },
+              {
+                "$ref": "#/$defs/parser_CryptoTransaction"
+              }
+            ]
+          },
+          "maxItems": 50000
+        }
+      },
+      "required": [
+        "adapter",
+        "export_version",
+        "evidence",
+        "accounts",
+        "membership",
+        "snapshots",
+        "coverage",
+        "records"
+      ],
+      "additionalProperties": false
+    },
+    "domain_ScopedIdV1": {
+      "type": "object",
+      "properties": {
+        "tenant_id": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "portfolio_id": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "kind": {
+          "enum": [
+            "account",
+            "connection",
+            "instrument",
+            "issuer",
+            "fact",
+            "snapshot"
+          ]
+        },
+        "value": {
+          "type": "string",
+          "maxLength": 4096
+        }
+      },
+      "required": [
+        "tenant_id",
+        "portfolio_id",
+        "kind",
+        "value"
+      ],
+      "additionalProperties": false
+    },
+    "domain_LegacyRecordRefV1": {
+      "type": "object",
+      "properties": {
+        "canonical_sha256": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "collection": {
+          "enum": [
+            "batch",
+            "evidence",
+            "membership",
+            "accounts",
+            "snapshots",
+            "coverage",
+            "records"
+          ]
+        },
+        "ordinal": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "field": {
+          "type": "string",
+          "maxLength": 4096
+        }
+      },
+      "required": [
+        "canonical_sha256",
+        "collection",
+        "ordinal",
+        "field"
+      ],
+      "additionalProperties": false
+    },
+    "domain_InstantV1": {
+      "type": "object",
+      "properties": {
+        "token": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "zone": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 4096
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "fractional_digits": {
+          "type": "integer"
+        },
+        "tag": {
+          "enum": [
+            "instant"
+          ]
+        }
+      },
+      "required": [
+        "token",
+        "zone",
+        "fractional_digits",
+        "tag"
+      ],
+      "additionalProperties": false
+    },
+    "domain_DateOnlyV1": {
+      "type": "object",
+      "properties": {
+        "token": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "zone": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 4096
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "tag": {
+          "enum": [
+            "date_only"
+          ]
+        }
+      },
+      "required": [
+        "token",
+        "zone",
+        "tag"
+      ],
+      "additionalProperties": false
+    },
+    "domain_LegacyDateTimeV1": {
+      "type": "object",
+      "properties": {
+        "token": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "archive": {
+          "$ref": "#/$defs/domain_LegacyRecordRefV1"
+        },
+        "precision": {
+          "enum": [
+            "legacy_unspecified"
+          ]
+        },
+        "tag": {
+          "enum": [
+            "legacy_datetime"
+          ]
+        }
+      },
+      "required": [
+        "token",
+        "archive",
+        "precision",
+        "tag"
+      ],
+      "additionalProperties": false
+    },
+    "domain_PointV1": {
+      "type": "object",
+      "properties": {
+        "at": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/domain_InstantV1"
+                },
+                {
+                  "$ref": "#/$defs/domain_DateOnlyV1"
+                }
+              ]
+            },
+            {
+              "$ref": "#/$defs/domain_LegacyDateTimeV1"
+            }
+          ]
+        },
+        "tag": {
+          "enum": [
+            "point"
+          ]
+        }
+      },
+      "required": [
+        "at",
+        "tag"
+      ],
+      "additionalProperties": false
+    },
+    "domain_IntervalV1": {
+      "type": "object",
+      "properties": {
+        "start": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/domain_InstantV1"
+                },
+                {
+                  "$ref": "#/$defs/domain_DateOnlyV1"
+                }
+              ]
+            },
+            {
+              "$ref": "#/$defs/domain_LegacyDateTimeV1"
+            }
+          ]
+        },
+        "end": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/domain_InstantV1"
+                },
+                {
+                  "$ref": "#/$defs/domain_DateOnlyV1"
+                }
+              ]
+            },
+            {
+              "$ref": "#/$defs/domain_LegacyDateTimeV1"
+            }
+          ]
+        },
+        "start_inclusive": {
+          "type": "boolean"
+        },
+        "end_inclusive": {
+          "type": "boolean"
+        },
+        "tag": {
+          "enum": [
+            "interval"
+          ]
+        }
+      },
+      "required": [
+        "start",
+        "end",
+        "start_inclusive",
+        "end_inclusive",
+        "tag"
+      ],
+      "additionalProperties": false
+    },
+    "domain_DecimalTokenV1": {
+      "type": "object",
+      "properties": {
+        "token": {
+          "type": "string",
+          "maxLength": 4096
+        }
+      },
+      "required": [
+        "token"
+      ],
+      "additionalProperties": false
+    },
+    "domain_MoneyV1": {
+      "type": "object",
+      "properties": {
+        "amount": {
+          "$ref": "#/$defs/domain_DecimalTokenV1"
+        },
+        "currency": {
+          "type": "string",
+          "maxLength": 4096
+        }
+      },
+      "required": [
+        "amount",
+        "currency"
+      ],
+      "additionalProperties": false
+    },
+    "domain_SourceSelectorV1": {
+      "type": "object",
+      "properties": {
+        "connection": {
+          "$ref": "#/$defs/domain_ScopedIdV1"
+        },
+        "provider": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "source_account_key": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 4096
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "kind": {
+          "enum": [
+            "holdings",
+            "cash_flows",
+            "crypto_transactions",
+            "activity",
+            "snapshot",
+            "coverage",
+            "membership"
+          ]
+        },
+        "source_id": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "observation_id": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "revision": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 4096
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "record_kind": {
+          "anyOf": [
+            {
+              "enum": [
+                "holdings",
+                "cash_flows",
+                "crypto_transactions",
+                "activity"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "connection",
+        "provider",
+        "source_account_key",
+        "kind",
+        "source_id",
+        "observation_id",
+        "revision",
+        "record_kind"
+      ],
+      "additionalProperties": false
+    },
+    "domain_ExternalSourceRefV1": {
+      "type": "object",
+      "properties": {
+        "tenant_id": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "portfolio_id": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "selector": {
+          "$ref": "#/$defs/domain_SourceSelectorV1"
+        }
+      },
+      "required": [
+        "tenant_id",
+        "portfolio_id",
+        "selector"
+      ],
+      "additionalProperties": false
+    },
+    "domain_FactIdentityV1": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/domain_ScopedIdV1"
+        },
+        "source": {
+          "$ref": "#/$defs/domain_SourceSelectorV1"
+        },
+        "change": {
+          "enum": [
+            "original",
+            "correction",
+            "void"
+          ]
+        },
+        "parent": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/domain_ExternalSourceRefV1"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 4096
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "evidence_reference": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "legacy": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/domain_LegacyRecordRefV1"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "source",
+        "change",
+        "parent",
+        "reason",
+        "evidence_reference",
+        "legacy"
+      ],
+      "additionalProperties": false
+    },
+    "domain_FinancialAccountV1": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/domain_ScopedIdV1"
+        },
+        "category": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "role": {
+          "enum": [
+            "investment",
+            "crypto",
+            "funding"
+          ]
+        },
+        "label": {
+          "type": "string",
+          "maxLength": 4096
+        }
+      },
+      "required": [
+        "id",
+        "category",
+        "role",
+        "label"
+      ],
+      "additionalProperties": false
+    },
+    "domain_SourceConnectionV1": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/domain_ScopedIdV1"
+        },
+        "provider": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "kind": {
+          "enum": [
+            "FILE_IMPORT",
+            "PULL_API"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "provider",
+        "kind"
+      ],
+      "additionalProperties": false
+    },
+    "domain_AccountAliasV1": {
+      "type": "object",
+      "properties": {
+        "connection": {
+          "$ref": "#/$defs/domain_ScopedIdV1"
+        },
+        "provider": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "source_account_key": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "account": {
+          "$ref": "#/$defs/domain_ScopedIdV1"
+        },
+        "mapping_revision": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "evidence_reference": {
+          "type": "string",
+          "maxLength": 4096
+        }
+      },
+      "required": [
+        "connection",
+        "provider",
+        "source_account_key",
+        "account",
+        "mapping_revision",
+        "evidence_reference"
+      ],
+      "additionalProperties": false
+    },
+    "domain_IssuerV1": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/domain_ScopedIdV1"
+        },
+        "label": {
+          "type": "string",
+          "maxLength": 4096
+        }
+      },
+      "required": [
+        "id",
+        "label"
+      ],
+      "additionalProperties": false
+    },
+    "domain_IdentifierHintV1": {
+      "type": "object",
+      "properties": {
+        "scheme": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "value": {
+          "type": "string",
+          "maxLength": 4096
+        }
+      },
+      "required": [
+        "scheme",
+        "value"
+      ],
+      "additionalProperties": false
+    },
+    "domain_InstrumentV1": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/domain_ScopedIdV1"
+        },
+        "kind": {
+          "enum": [
+            "SECURITY",
+            "CASH",
+            "CRYPTO",
+            "UNSUPPORTED"
+          ]
+        },
+        "currency": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 4096
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "ticker": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 4096
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "mic": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 4096
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "symbol": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 4096
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "network": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 4096
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "settlement_identity": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 4096
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "issuer": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/domain_ScopedIdV1"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "identifiers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/domain_IdentifierHintV1"
+          },
+          "maxItems": 50000
+        },
+        "source_descriptor": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "evidence_reference": {
+          "type": "string",
+          "maxLength": 4096
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "currency",
+        "ticker",
+        "mic",
+        "symbol",
+        "network",
+        "settlement_identity",
+        "issuer",
+        "identifiers",
+        "source_descriptor",
+        "evidence_reference"
+      ],
+      "additionalProperties": false
+    },
+    "domain_InstrumentScopeV1": {
+      "type": "object",
+      "properties": {
+        "tag": {
+          "enum": [
+            "all",
+            "instruments",
+            "category"
+          ]
+        },
+        "instruments": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/domain_ScopedIdV1"
+          },
+          "maxItems": 50000
+        },
+        "category": {
+          "anyOf": [
+            {
+              "enum": [
+                "SECURITY",
+                "CASH",
+                "CRYPTO",
+                "UNSUPPORTED"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "tag",
+        "instruments",
+        "category"
+      ],
+      "additionalProperties": false
+    },
+    "domain_CoverageV1": {
+      "type": "object",
+      "properties": {
+        "connection": {
+          "$ref": "#/$defs/domain_ScopedIdV1"
+        },
+        "source_account_key": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "account": {
+          "$ref": "#/$defs/domain_ScopedIdV1"
+        },
+        "kind": {
+          "enum": [
+            "holdings",
+            "cash_flows",
+            "crypto_transactions",
+            "activity"
+          ]
+        },
+        "scope_id": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "revision": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "parent": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/domain_ExternalSourceRefV1"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "time": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/domain_PointV1"
+            },
+            {
+              "$ref": "#/$defs/domain_IntervalV1"
+            }
+          ]
+        },
+        "instrument_scope": {
+          "$ref": "#/$defs/domain_InstrumentScopeV1"
+        },
+        "status": {
+          "enum": [
+            "complete",
+            "partial",
+            "unknown"
+          ]
+        },
+        "basis": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "observation_id": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "legacy": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/domain_LegacyRecordRefV1"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "connection",
+        "source_account_key",
+        "account",
+        "kind",
+        "scope_id",
+        "revision",
+        "parent",
+        "time",
+        "instrument_scope",
+        "status",
+        "basis",
+        "observation_id",
+        "legacy"
+      ],
+      "additionalProperties": false
+    },
+    "domain_SupportV1": {
+      "type": "object",
+      "properties": {
+        "classification": {
+          "enum": [
+            "supported_shape",
+            "unsupported"
+          ]
+        },
+        "reasons": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "unsupported_instrument",
+              "signed_position",
+              "unsupported_activity",
+              "unsupported_status"
+            ]
+          },
+          "maxItems": 50000
+        }
+      },
+      "required": [
+        "classification",
+        "reasons"
+      ],
+      "additionalProperties": false
+    },
+    "domain_PositionItemV1": {
+      "type": "object",
+      "properties": {
+        "identity": {
+          "$ref": "#/$defs/domain_FactIdentityV1"
+        },
+        "account": {
+          "$ref": "#/$defs/domain_ScopedIdV1"
+        },
+        "instrument": {
+          "$ref": "#/$defs/domain_ScopedIdV1"
+        },
+        "as_of": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/domain_InstantV1"
+                },
+                {
+                  "$ref": "#/$defs/domain_DateOnlyV1"
+                }
+              ]
+            },
+            {
+              "$ref": "#/$defs/domain_LegacyDateTimeV1"
+            }
+          ]
+        },
+        "quantity": {
+          "$ref": "#/$defs/domain_DecimalTokenV1"
+        },
+        "market_value": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/domain_MoneyV1"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "unit_price": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/domain_MoneyV1"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "cost_native": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/domain_MoneyV1"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "cost_cad": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/domain_MoneyV1"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "unrealized": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/domain_MoneyV1"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source_name": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "source_type": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "source_exchange": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "support": {
+          "$ref": "#/$defs/domain_SupportV1"
+        }
+      },
+      "required": [
+        "identity",
+        "account",
+        "instrument",
+        "as_of",
+        "quantity",
+        "market_value",
+        "unit_price",
+        "cost_native",
+        "cost_cad",
+        "unrealized",
+        "source_name",
+        "source_type",
+        "source_exchange",
+        "support"
+      ],
+      "additionalProperties": false
+    },
+    "domain_PositionSnapshotV1": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/domain_ScopedIdV1"
+        },
+        "connection": {
+          "$ref": "#/$defs/domain_ScopedIdV1"
+        },
+        "source_id": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "revision": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "parent": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/domain_ExternalSourceRefV1"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "as_of": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/domain_InstantV1"
+                },
+                {
+                  "$ref": "#/$defs/domain_DateOnlyV1"
+                }
+              ]
+            },
+            {
+              "$ref": "#/$defs/domain_LegacyDateTimeV1"
+            }
+          ]
+        },
+        "accounts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/domain_ScopedIdV1"
+          },
+          "maxItems": 50000
+        },
+        "coverage": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/domain_ExternalSourceRefV1"
+          },
+          "maxItems": 50000
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/domain_PositionItemV1"
+          },
+          "maxItems": 50000
+        },
+        "legacy": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/domain_LegacyRecordRefV1"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "connection",
+        "source_id",
+        "revision",
+        "parent",
+        "as_of",
+        "accounts",
+        "coverage",
+        "items",
+        "legacy"
+      ],
+      "additionalProperties": false
+    },
+    "domain_ActivityLegV1": {
+      "type": "object",
+      "properties": {
+        "account": {
+          "$ref": "#/$defs/domain_ScopedIdV1"
+        },
+        "instrument": {
+          "$ref": "#/$defs/domain_ScopedIdV1"
+        },
+        "quantity": {
+          "$ref": "#/$defs/domain_DecimalTokenV1"
+        },
+        "role": {
+          "enum": [
+            "ACQUISITION",
+            "PAYMENT",
+            "TRANSFER",
+            "FEE",
+            "OTHER"
+          ]
+        }
+      },
+      "required": [
+        "account",
+        "instrument",
+        "quantity",
+        "role"
+      ],
+      "additionalProperties": false
+    },
+    "domain_FeeV1": {
+      "type": "object",
+      "properties": {
+        "account": {
+          "$ref": "#/$defs/domain_ScopedIdV1"
+        },
+        "instrument": {
+          "$ref": "#/$defs/domain_ScopedIdV1"
+        },
+        "quantity": {
+          "$ref": "#/$defs/domain_DecimalTokenV1"
+        },
+        "included_in_leg": {
+          "type": "boolean"
+        },
+        "included_in_cost": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "account",
+        "instrument",
+        "quantity",
+        "included_in_leg",
+        "included_in_cost"
+      ],
+      "additionalProperties": false
+    },
+    "domain_SourceCashFlowV1": {
+      "type": "object",
+      "properties": {
+        "cash_amount": {
+          "$ref": "#/$defs/domain_MoneyV1"
+        },
+        "direction": {
+          "enum": [
+            "in",
+            "out"
+          ]
+        },
+        "boundary": {
+          "enum": [
+            "external",
+            "internal",
+            "unclassified"
+          ]
+        },
+        "transfer_reference": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 4096
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "counterpart": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/domain_ExternalSourceRefV1"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "cash_leg_of": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/domain_ExternalSourceRefV1"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "cash_amount",
+        "direction",
+        "boundary",
+        "transfer_reference",
+        "counterpart",
+        "cash_leg_of"
+      ],
+      "additionalProperties": false
+    },
+    "domain_ActivityEventV1": {
+      "type": "object",
+      "properties": {
+        "identity": {
+          "$ref": "#/$defs/domain_FactIdentityV1"
+        },
+        "event_time": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/domain_InstantV1"
+                },
+                {
+                  "$ref": "#/$defs/domain_DateOnlyV1"
+                }
+              ]
+            },
+            {
+              "$ref": "#/$defs/domain_LegacyDateTimeV1"
+            }
+          ]
+        },
+        "kind": {
+          "enum": [
+            "BUY",
+            "SELL",
+            "TRANSFER",
+            "FEE",
+            "INCOME",
+            "FUNDING",
+            "CORPORATE_ACTION",
+            "UNSUPPORTED"
+          ]
+        },
+        "source_kind": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "source_status": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "status": {
+          "enum": [
+            "completed",
+            "pending",
+            "cancelled",
+            "unsupported"
+          ]
+        },
+        "legs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/domain_ActivityLegV1"
+          },
+          "maxItems": 50000
+        },
+        "acquisition_cost": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/domain_MoneyV1"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "acquisition_cost_cad": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/domain_MoneyV1"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "fees": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/domain_FeeV1"
+              },
+              "maxItems": 50000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "economic_references": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/domain_ExternalSourceRefV1"
+          },
+          "maxItems": 50000
+        },
+        "transfer_reference": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 4096
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "lifecycle": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/domain_LegacyRecordRefV1"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "cash_flow": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/domain_SourceCashFlowV1"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "support": {
+          "$ref": "#/$defs/domain_SupportV1"
+        }
+      },
+      "required": [
+        "identity",
+        "event_time",
+        "kind",
+        "source_kind",
+        "source_status",
+        "status",
+        "legs",
+        "acquisition_cost",
+        "acquisition_cost_cad",
+        "fees",
+        "economic_references",
+        "transfer_reference",
+        "lifecycle",
+        "cash_flow",
+        "support"
+      ],
+      "additionalProperties": false
+    },
+    "domain_ProvenanceV1": {
+      "type": "object",
+      "properties": {
+        "raw_sha256": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "canonical_sha256": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 4096
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "provider": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "adapter": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "adapter_version": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "export_version": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "evidence_reference": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "source_effective_at": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/domain_InstantV1"
+                    },
+                    {
+                      "$ref": "#/$defs/domain_DateOnlyV1"
+                    }
+                  ]
+                },
+                {
+                  "$ref": "#/$defs/domain_LegacyDateTimeV1"
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "evidence_at": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/domain_InstantV1"
+                    },
+                    {
+                      "$ref": "#/$defs/domain_DateOnlyV1"
+                    }
+                  ]
+                },
+                {
+                  "$ref": "#/$defs/domain_LegacyDateTimeV1"
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "imported_at": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/domain_InstantV1"
+                    },
+                    {
+                      "$ref": "#/$defs/domain_DateOnlyV1"
+                    }
+                  ]
+                },
+                {
+                  "$ref": "#/$defs/domain_LegacyDateTimeV1"
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "accepted_at": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/domain_InstantV1"
+                    },
+                    {
+                      "$ref": "#/$defs/domain_DateOnlyV1"
+                    }
+                  ]
+                },
+                {
+                  "$ref": "#/$defs/domain_LegacyDateTimeV1"
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "legacy": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/domain_LegacyRecordRefV1"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "raw_sha256",
+        "canonical_sha256",
+        "provider",
+        "adapter",
+        "adapter_version",
+        "export_version",
+        "evidence_reference",
+        "source_effective_at",
+        "evidence_at",
+        "imported_at",
+        "accepted_at",
+        "legacy"
+      ],
+      "additionalProperties": false
+    },
+    "domain_DomainBatchV1": {
+      "type": "object",
+      "properties": {
+        "contract_version": {
+          "type": "integer"
+        },
+        "profile": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "tenant_id": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "portfolio_id": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "mapping_revision": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "evidence_reference": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "provenance": {
+          "$ref": "#/$defs/domain_ProvenanceV1"
+        },
+        "accounts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/domain_FinancialAccountV1"
+          },
+          "maxItems": 50000
+        },
+        "connections": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/domain_SourceConnectionV1"
+          },
+          "maxItems": 50000
+        },
+        "aliases": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/domain_AccountAliasV1"
+          },
+          "maxItems": 50000
+        },
+        "instruments": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/domain_InstrumentV1"
+          },
+          "maxItems": 50000
+        },
+        "issuers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/domain_IssuerV1"
+          },
+          "maxItems": 50000
+        },
+        "coverage": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/domain_CoverageV1"
+          },
+          "maxItems": 50000
+        },
+        "snapshots": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/domain_PositionSnapshotV1"
+          },
+          "maxItems": 50000
+        },
+        "activities": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/domain_ActivityEventV1"
+          },
+          "maxItems": 50000
+        }
+      },
+      "required": [
+        "contract_version",
+        "profile",
+        "tenant_id",
+        "portfolio_id",
+        "mapping_revision",
+        "evidence_reference",
+        "provenance",
+        "accounts",
+        "connections",
+        "aliases",
+        "instruments",
+        "issuers",
+        "coverage",
+        "snapshots",
+        "activities"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "note": "Static annotation shape index only; actual frozen semantic validation remains authoritative. Not a runtime schema replacement."
+}

@@ -1,0 +1,14 @@
+# Accepted finance and least-privilege persistence
+
+This r5 contract is an additive optional PostgreSQL ingestion profile. The exhaustive inventory is [sql-inventory.json](sql-inventory.json) and [sql-appendix.md](sql-appendix.md), with 22 tables, 31 functions and 22 triggers. No SQL has been installed or run. Frozen 0001/0002/0003 provider files and existing SQLite/legacy behavior remain unchanged.
+
+The gateway can call only the nine authenticated user import functions; the dedicated worker only the eight scoped work functions. The ordinary financial role is SELECT-only in this new profile and RequestDatabase remains read-only. Launcher/children have no database credentials. Private helpers and accepted mutations are operator-owned, not directly executable by app roles. Exact grants/RLS/bodies/owners/constraints must pass actual independent PG inspection after implementation.
+
+Staging, decisions and previews are sensitive transient data, never accepted financial truth. Exact source fingerprints, user/session/realm and lease/fence bind every work attempt. Accepted inputs and approved plan bytes are copied to immutable permanent records inside the same acceptance transaction, so historical receipts can be verified after transient preview cleanup. Receipt references do not depend on purgeable preview rows. Unknown values remain null and original source revisions stay intact.
+
+Foundation candidate/job fact_generation is not reused. accepted_generation increments once per set with new authoritative source_revisions or head changes; retained duplicate input/plan/lineage alone does not increment it. mapping_generation increments once for accepted mapping/authority changes. control_generation and set revision track reviewed decisions and control invalidation independently. A mapping-only acceptance emits one typed invalidation event with unchanged accepted_generation; it is not a new acquisition or market gain. Exact replay has no new row/counter/audit/outbox effects. New duplicate-only acceptance without mapping change has one no-change receipt/audit and no financial generation or outbox.
+
+All selected members, entity proposals, mappings, revisions/heads, necessary evidence, receipt/audit/generations and one applicable outbox event commit atomically. No raw reception/parser/network/rendering runs in that transaction. Faults before COMMIT roll back every financial effect. Uncertain COMMIT recovers by exact receipt after current authentication, not by rerunning a parser. Full rules are in [failure and restore](failure-restore.md).
+
+New schema names and 59 public implementation paths remain a specification proposal. Gate A and serialized sole-writer ownership are still required. Source-only image context changes are explicitly bounded in scope.json; neither this private planning directory nor private data is an image/publication input.
+

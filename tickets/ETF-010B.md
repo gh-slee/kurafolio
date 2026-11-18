@@ -16,7 +16,7 @@ review: independent
 branch:
 pr:
 spec:
-updated: 2026-11-11
+updated: 2026-11-18
 ---
 
 # ETF-010B: Serve the V2 exposure analysis: companies, sectors, countries and regions
@@ -26,6 +26,10 @@ updated: 2026-11-11
 The owner wants to see what they own through their ETFs: the largest companies, and the split by sector, country and region, with every country that has holdings visible, Taiwan included. The Exposures page (ANL-012E) needs one endpoint that returns this from live positions and the stored fund holdings. No V2 endpoint does.
 
 ## Context
+
+### Spec material
+
+- Golden cases G11 and G12, cited in Acceptance criteria: [docs/golden-cases.md](../docs/golden-cases.md) (sha256:f7adca063ff68fe0502066608fc6fad6b1f818244679190b3e7cdcf3020e5594).
 
 ### Current behaviour
 

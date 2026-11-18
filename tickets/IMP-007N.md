@@ -15,8 +15,8 @@ gate_approval: "owner 2026-11-12, exponential backoff 30s x 2^(n-1) capped at 15
 review: independent
 branch: 
 pr: 
-spec: docs/specs/wealth-ledger-v2/P0/WL-P0-007.md
-updated: 2026-11-12
+spec: docs/specs/imp-007-r7/spec.md
+updated: 2026-11-18
 ---
 
 # IMP-007N: Back off cleanup claims for sets whose cleanup keeps failing
@@ -24,6 +24,11 @@ updated: 2026-11-12
 ## Goal
 
 `claim_plan_v1(work_kind=cleanup)` always hands out the oldest terminal set whose cleanup is `pending` or `failed`. A set whose launcher proofs keep coming back `pending` or `failed` is therefore picked first on every claim. A single worker loop can retry it forever while newer sets keep their storage reservations and raw slots. Add the owner's backoff so that a failing set waits longer between attempts and newer sets get cleaned in the meantime.
+
+## Context
+
+- Frozen r7 contract bundle, the contract approved as "IMP-007 spec r7": [docs/specs/imp-007-r7/](../docs/specs/imp-007-r7/README.md) (index sha256:75a859f65d7ee4564a20220b756b88ff44cf4449644167e2df2a87fd081e7fe7; the index lists the SHA-256 of each file), notably [spec.md](../docs/specs/imp-007-r7/spec.md), [sql-appendix.md](../docs/specs/imp-007-r7/sql-appendix.md), [sql-inventory.json](../docs/specs/imp-007-r7/sql-inventory.json), [contract-appendix.md](../docs/specs/imp-007-r7/contract-appendix.md) and [acceptance.md](../docs/specs/imp-007-r7/acceptance.md). The r7 inventory is the frozen baseline [sql-inventory.json](../docs/specs/imp-007-r7/sql-inventory.json). The inventory the code is tested against is the `sql-inventory` key of `tests/fixtures/ingestion/oracle.json`, checked by `tests/test_postgres_migration.py`; it is the r7 baseline plus later approved additions.
+- Background only: the revision 1 planning draft [docs/specs/v2-drafts/WL-P0-007.md](../docs/specs/v2-drafts/WL-P0-007.md) (sha256:fa0971a0da787cb327484c92144e4a5ecd916db4ad0328e03b408d647190acd5), which the r7 bundle supersedes.
 
 ## Acceptance criteria
 

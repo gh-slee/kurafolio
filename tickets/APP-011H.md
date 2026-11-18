@@ -15,8 +15,8 @@ gate_approval: "owner 2026-11-12, scope as written; plugins declare their asset 
 review: independent
 branch: 
 pr: 
-spec: docs/specs/wealth-ledger-v2/P0/WL-P0-011.md
-updated: 2026-11-12
+spec: docs/specs/v2-drafts/WL-P0-011.md
+updated: 2026-11-18
 ---
 
 # APP-011H: Show source-aware Stock/Bond and Crypto pages
@@ -26,6 +26,10 @@ updated: 2026-11-12
 Make the V2 shell decide from real data whether Stock/Bond, Exposures and Crypto show content or offer "Enable a source". This is the second half of a APP-011A acceptance criterion. The owner moved it here on 2026-11-12 so the shell could close before the positions contract exists.
 
 ## Context
+
+### Spec material
+
+- Background only: the revision 1 planning draft [docs/specs/v2-drafts/WL-P0-011.md](../docs/specs/v2-drafts/WL-P0-011.md) (sha256:c1e6032acd9488898f8a71cb0fd8edc2b8867ae4816d33a43bf4c5b9e26b8636). Where it differs from this ticket, this ticket applies.
 
 ### Current behaviour
 

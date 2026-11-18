@@ -1,0 +1,1047 @@
+{
+  "cases": [
+    {
+      "acceptance_id": "A07-01",
+      "action": "Use complete parser2 or native fixtures independently, or tracked public Wealthsimple/Bull demo CSVs, with renderers/quotes unavailable.",
+      "evidence_owner": "Developer self-tests then separately authorized independent QA; native/PG proof only on actual environment.",
+      "execution": "NOT_RUN",
+      "expected": {
+        "Bull": {
+          "ACCEPT_receipts": 1,
+          "accounts": 2,
+          "activity_heads": 3,
+          "eligible_BUYs": 2,
+          "instruments": 3,
+          "new_mapping_rows": 5,
+          "outbox": 1,
+          "source_revisions": 6
+        },
+        "WS": {
+          "ACCEPT_receipts": 1,
+          "accounts": 3,
+          "activity_heads": 0,
+          "complete_base_heads": 0,
+          "instruments": 5,
+          "new_mapping_rows": 8,
+          "outbox": 1,
+          "positions": 6,
+          "snapshot_heads": 3,
+          "source_revisions": 11
+        },
+        "first_use": "expected-first-use.json",
+        "native_first_use": "expected-native-first-use.json"
+      },
+      "fixture_files": [
+        "trade.csv",
+        "parser2.json",
+        "minimal-parser2.json",
+        "decisions-first-use.json",
+        "plan-first-use.json",
+        "expected-first-use.json",
+        "native-discovery.json",
+        "minimal-native.json",
+        "decisions-native-first-use.json",
+        "plan-native-first-use.json",
+        "expected-native-first-use.json",
+        "review-parser2-initial.json",
+        "review-parser2-ready.json",
+        "preview-parser2-page.json",
+        "snapshot-seed-t2-plan.json",
+        "snapshot-historical-t1-plan.json",
+        "snapshot-history-effects.json",
+        "mixed-set-plan.json",
+        "mixed-set-review.json",
+        "mixed-set-expected.json",
+        "positive-clock-and-wire.json",
+        "context-time-negative-cases.json"
+      ],
+      "name": "first-use"
+    },
+    {
+      "acceptance_id": "A07-02",
+      "action": "After successful ACCEPT, retry identical op/digest after preview expiry/source disable; separately confirm a new duplicate-only set.",
+      "evidence_owner": "Developer self-tests then separately authorized independent QA; native/PG proof only on actual environment.",
+      "execution": "NOT_RUN",
+      "expected": {
+        "exact_replay": {
+          "ACCEPT_audit": 0,
+          "ACCEPT_receipts": 0,
+          "accepted_financial_rows": 0,
+          "accepted_generation": 0,
+          "mapping_generation": 0,
+          "outbox": 0
+        },
+        "new_duplicate_only": {
+          "ACCEPT_audit": 1,
+          "ACCEPT_receipts": 1,
+          "accepted_financial_rows": 0,
+          "accepted_generation": 0,
+          "mapping_generation": 0,
+          "outbox": 0,
+          "permanent_evidence": "See effect-oracles.json: separate accepted_inputs/plans/lineage deltas from source fact rows; actual new Receipt is retained."
+        },
+        "parser_reruns": 0
+      },
+      "fixture_files": [
+        "trade.csv",
+        "parser2.json",
+        "minimal-parser2.json",
+        "decisions-first-use.json",
+        "plan-first-use.json",
+        "expected-first-use.json",
+        "effect-oracles.json",
+        "receipt-first-use.json"
+      ],
+      "name": "replay"
+    },
+    {
+      "acceptance_id": "A07-03",
+      "action": "Materialize trade-x/y/z raw and parser2 variants from literal quantities0.010/0.020/0.005, stable IDs x/y/z, cost700/1400/350; imports[x,y] then[y,z].",
+      "evidence_owner": "Developer self-tests then separately authorized independent QA; native/PG proof only on actual environment.",
+      "execution": "NOT_RUN",
+      "expected": {
+        "authoritative_source_ids": [
+          "x",
+          "y",
+          "z"
+        ],
+        "future_008_quantity_btc": "0.03500000",
+        "second_y_added": false,
+        "unique_BUY_heads": 3
+      },
+      "fixture_files": [
+        "trade.csv",
+        "parser2.json",
+        "minimal-parser2.json",
+        "decisions-first-use.json",
+        "plan-first-use.json",
+        "expected-first-use.json",
+        "effect-oracles.json",
+        "key-preimages.json",
+        "reordered-record-counterexample.json"
+      ],
+      "name": "overlap"
+    },
+    {
+      "acceptance_id": "A07-04",
+      "action": "Two source IDs x/y with identical instant/0.010 BTC; exact x repeat.",
+      "evidence_owner": "Developer self-tests then separately authorized independent QA; native/PG proof only on actual environment.",
+      "execution": "NOT_RUN",
+      "expected": {
+        "first_heads": 2,
+        "future_008_quantity_btc": "0.02000000",
+        "repeat_fact_delta": 0
+      },
+      "fixture_files": [
+        "trade.csv",
+        "parser2.json",
+        "minimal-parser2.json",
+        "decisions-first-use.json",
+        "plan-first-use.json",
+        "expected-first-use.json"
+      ],
+      "name": "twins"
+    },
+    {
+      "acceptance_id": "A07-05",
+      "action": "Remove stable source identity support from two indistinguishable equal rows; keep hash/time/amount equal.",
+      "evidence_owner": "Developer self-tests then separately authorized independent QA; native/PG proof only on actual environment.",
+      "execution": "NOT_RUN",
+      "expected": {
+        "deltas": {
+          "ACCEPT_audit": 0,
+          "ACCEPT_receipts": 0,
+          "accepted_financial_rows": 0,
+          "accepted_generation": 0,
+          "mapping_generation": 0,
+          "outbox": 0
+        },
+        "implicit_merge": false,
+        "state": "CONFLICT"
+      },
+      "fixture_files": [
+        "trade.csv",
+        "parser2.json",
+        "minimal-parser2.json",
+        "decisions-first-use.json",
+        "plan-first-use.json",
+        "expected-first-use.json"
+      ],
+      "name": "identity-ambiguity"
+    },
+    {
+      "acceptance_id": "A07-06",
+      "action": "Use full snapshot-t1 and t2-complete/empty-complete native+minimal fixture pairs.",
+      "evidence_owner": "Developer self-tests then separately authorized independent QA; native/PG proof only on actual environment.",
+      "execution": "NOT_RUN",
+      "expected": {
+        "T1_retained": true,
+        "T2_items": {
+          "A": "7"
+        },
+        "complete_base": "s2",
+        "empty_complete_items": {},
+        "latest": "s2",
+        "stored_synthetic_zero_rows": 0
+      },
+      "fixture_files": [
+        "trade.csv",
+        "parser2.json",
+        "minimal-parser2.json",
+        "decisions-first-use.json",
+        "plan-first-use.json",
+        "expected-first-use.json",
+        "snapshot-t1-native.json",
+        "snapshot-t1-minimal.json",
+        "snapshot-t2-complete-native.json",
+        "snapshot-t2-complete-minimal.json",
+        "snapshot-t2-partial-minimal.json",
+        "snapshot-t2-empty-complete-minimal.json",
+        "snapshot-t2-empty-partial-minimal.json",
+        "coverage-parent-cases.json",
+        "key-preimages.json",
+        "evidence-reference-cases.json",
+        "snapshot-seed-t2-plan.json",
+        "snapshot-historical-t1-plan.json",
+        "snapshot-history-effects.json"
+      ],
+      "name": "complete-scope"
+    },
+    {
+      "acceptance_id": "A07-07",
+      "action": "Use full snapshot-t1 and t2-partial/empty-partial; clone category/explicit scopes for disjoint and overlapping variants.",
+      "evidence_owner": "Developer self-tests then separately authorized independent QA; native/PG proof only on actual environment.",
+      "execution": "NOT_RUN",
+      "expected": {
+        "B_current": null,
+        "B_last_seen": "5",
+        "complete_base": "s1",
+        "disjoint_domains": "coexist",
+        "empty_partial_not_zero": true,
+        "latest": "s2",
+        "unresolved_overlap": "CONFLICT"
+      },
+      "fixture_files": [
+        "trade.csv",
+        "parser2.json",
+        "minimal-parser2.json",
+        "decisions-first-use.json",
+        "plan-first-use.json",
+        "expected-first-use.json",
+        "snapshot-t1-native.json",
+        "snapshot-t1-minimal.json",
+        "snapshot-t2-complete-native.json",
+        "snapshot-t2-complete-minimal.json",
+        "snapshot-t2-partial-minimal.json",
+        "snapshot-t2-empty-complete-minimal.json",
+        "snapshot-t2-empty-partial-minimal.json",
+        "key-preimages.json",
+        "evidence-reference-cases.json",
+        "snapshot-seed-t2-plan.json",
+        "snapshot-historical-t1-plan.json",
+        "snapshot-history-effects.json"
+      ],
+      "name": "partial-scope"
+    },
+    {
+      "acceptance_id": "A07-08",
+      "action": "Set T3 complete A8; accept older T2 A7; same-time A9 without and with explicit parent; remove/foreign/fork/cycle parent variants.",
+      "evidence_owner": "Developer self-tests then separately authorized independent QA; native/PG proof only on actual environment.",
+      "execution": "NOT_RUN",
+      "expected": {
+        "corrected_A": "9",
+        "corrected_head": "T3-r2",
+        "equal_offsets": "same instant",
+        "head_after_older": "T3-r1",
+        "invalid_parent_deltas": {
+          "ACCEPT_audit": 0,
+          "ACCEPT_receipts": 0,
+          "accepted_financial_rows": 0,
+          "accepted_generation": 0,
+          "mapping_generation": 0,
+          "outbox": 0
+        },
+        "older": "historical_only",
+        "unlinked_same_time": "CONFLICT"
+      },
+      "fixture_files": [
+        "trade.csv",
+        "parser2.json",
+        "minimal-parser2.json",
+        "decisions-first-use.json",
+        "plan-first-use.json",
+        "expected-first-use.json",
+        "snapshot-t1-native.json",
+        "snapshot-t1-minimal.json",
+        "snapshot-t2-complete-native.json",
+        "snapshot-t2-complete-minimal.json",
+        "snapshot-t2-partial-minimal.json",
+        "snapshot-t2-empty-complete-minimal.json",
+        "snapshot-t2-empty-partial-minimal.json",
+        "effect-oracles.json",
+        "coverage-parent-cases.json",
+        "reordered-record-counterexample.json",
+        "snapshot-seed-t2-plan.json",
+        "snapshot-historical-t1-plan.json",
+        "snapshot-history-effects.json"
+      ],
+      "name": "ordering"
+    },
+    {
+      "acceptance_id": "A07-09",
+      "action": "Map TFSA/RRSP explicitly. Reset second-connection same-account fixtures for mirror, independent and unresolved choices.",
+      "evidence_owner": "Developer self-tests then separately authorized independent QA; native/PG proof only on actual environment.",
+      "execution": "NOT_RUN",
+      "expected": {
+        "display_label_merge": false,
+        "independent_economic_groups": 2,
+        "mirror_economic_groups": 1,
+        "real_accounts": 2,
+        "unresolved": "CONFLICT"
+      },
+      "fixture_files": [
+        "trade.csv",
+        "parser2.json",
+        "minimal-parser2.json",
+        "decisions-first-use.json",
+        "plan-first-use.json",
+        "expected-first-use.json",
+        "snapshot-t1-native.json",
+        "snapshot-t1-minimal.json",
+        "snapshot-t2-complete-native.json",
+        "snapshot-t2-complete-minimal.json",
+        "snapshot-t2-partial-minimal.json",
+        "snapshot-t2-empty-complete-minimal.json",
+        "snapshot-t2-empty-partial-minimal.json",
+        "authority-only-prestate.json",
+        "authority-only-plan.json",
+        "authority-only-review.json",
+        "effect-oracles.json"
+      ],
+      "name": "account-authority"
+    },
+    {
+      "acceptance_id": "A07-10",
+      "action": "Use same ABC ticker in USD/XNYS and CAD/XTSE, plus BTC/bitcoin and LBTC/liquid.",
+      "evidence_owner": "Developer self-tests then separately authorized independent QA; native/PG proof only on actual environment.",
+      "execution": "NOT_RUN",
+      "expected": {
+        "distinct_instruments": 4,
+        "implicit_network_or_ticker_merge": false
+      },
+      "fixture_files": [
+        "trade.csv",
+        "parser2.json",
+        "minimal-parser2.json",
+        "decisions-first-use.json",
+        "plan-first-use.json",
+        "expected-first-use.json",
+        "snapshot-t1-native.json",
+        "snapshot-t1-minimal.json",
+        "snapshot-t2-complete-native.json",
+        "snapshot-t2-complete-minimal.json",
+        "snapshot-t2-partial-minimal.json",
+        "snapshot-t2-empty-complete-minimal.json",
+        "snapshot-t2-empty-partial-minimal.json",
+        "metadata-native-discovery.json",
+        "metadata-native-minimal.json",
+        "metadata-native-bodies.json",
+        "metadata-native-plan.json",
+        "metadata-native-expected.json"
+      ],
+      "name": "instrument-identity"
+    },
+    {
+      "acceptance_id": "A07-11",
+      "action": "Literal G05/G06 trades plus transfer/balance/funding; pending->completed correction->void, cancelled unlinked, fee-included flags and cash_leg_of.",
+      "evidence_owner": "Developer self-tests then separately authorized independent QA; native/PG proof only on actual environment.",
+      "execution": "NOT_RUN",
+      "expected": {
+        "base_eligible": [
+          "x",
+          "y"
+        ],
+        "extra_independent_eligible": [
+          "x",
+          "y",
+          "z"
+        ],
+        "fee_cost_double_add": false,
+        "future_base_btc": "0.03000000",
+        "future_extra_btc": "0.03500000",
+        "inferred_contribution": null,
+        "transfer_balance_funding_extra_buy": false,
+        "unlinked_cancel": "CONFLICT"
+      },
+      "fixture_files": [
+        "trade.csv",
+        "parser2.json",
+        "minimal-parser2.json",
+        "decisions-first-use.json",
+        "plan-first-use.json",
+        "expected-first-use.json",
+        "metadata-sidecar-negative-cases.json"
+      ],
+      "name": "eligibility"
+    },
+    {
+      "acceptance_id": "A07-12",
+      "action": "Retain lifecycle from full trade fixture; replace known cost with null then0.00; one sat vs sub-sat, signed security, date-only and legacy time.",
+      "evidence_owner": "Developer self-tests then separately authorized independent QA; native/PG proof only on actual environment.",
+      "execution": "NOT_RUN",
+      "expected": {
+        "fees_null_is_empty": false,
+        "invented_timestamp": false,
+        "lifecycle_exact": "fixture typed fields",
+        "null_is_zero": false,
+        "one_sat": "0.00000001",
+        "subsat": "REJECTED"
+      },
+      "fixture_files": [
+        "trade.csv",
+        "parser2.json",
+        "minimal-parser2.json",
+        "decisions-first-use.json",
+        "plan-first-use.json",
+        "expected-first-use.json",
+        "metadata-legacy-parser2.json",
+        "metadata-native-domain.json",
+        "metadata-native-discovery.json",
+        "metadata-sidecar-negative-cases.json"
+      ],
+      "name": "precision"
+    },
+    {
+      "acceptance_id": "A07-13",
+      "action": "Disable quote/FX/rendering backends. Select unknown format/PULL_API and unsupported wrapper variants.",
+      "evidence_owner": "Developer self-tests then separately authorized independent QA; native/PG proof only on actual environment.",
+      "execution": "NOT_RUN",
+      "expected": {
+        "PULL_API": "unavailable",
+        "reference_calls": 0,
+        "renderer_calls": 0,
+        "supported_CSV": "accepts facts only",
+        "unknown_format": "rejected",
+        "unsupported_profile": "unavailable"
+      },
+      "fixture_files": [
+        "trade.csv",
+        "parser2.json",
+        "minimal-parser2.json",
+        "decisions-first-use.json",
+        "plan-first-use.json",
+        "expected-first-use.json"
+      ],
+      "name": "dependency-free"
+    },
+    {
+      "acceptance_id": "A07-14",
+      "action": "Admit full minimal fixture, prove raw released, choose new existing scoped account/instrument targets; change alias/parser/time context separately.",
+      "evidence_owner": "Developer self-tests then separately authorized independent QA; native/PG proof only on actual environment.",
+      "execution": "NOT_RUN",
+      "expected": {
+        "compatible_mapping": "new immutable plan/digest without child call",
+        "legacy_archive_reconstructed": false,
+        "real_reparse": "new raw upload required"
+      },
+      "fixture_files": [
+        "trade.csv",
+        "parser2.json",
+        "minimal-parser2.json",
+        "decisions-first-use.json",
+        "plan-first-use.json",
+        "expected-first-use.json",
+        "review-pagination-content.json",
+        "review-pagination-expected.json",
+        "metadata-native-expected.json",
+        "positive-clock-and-wire.json",
+        "context-time-negative-cases.json",
+        "large-basis-page.json",
+        "large-basis-expectations.json"
+      ],
+      "name": "post-delete-remap"
+    },
+    {
+      "acceptance_id": "A07-15",
+      "action": "Mutate one raw/header/context/minimal/plan digest, unknown key, local ordinal, parent or tenant independently.",
+      "evidence_owner": "Developer self-tests then separately authorized independent QA; native/PG proof only on actual environment.",
+      "execution": "NOT_RUN",
+      "expected": {
+        "caller_financial_json": "REJECTED",
+        "cross_scope": "REJECTED",
+        "deltas": {
+          "ACCEPT_audit": 0,
+          "ACCEPT_receipts": 0,
+          "accepted_financial_rows": 0,
+          "accepted_generation": 0,
+          "mapping_generation": 0,
+          "outbox": 0
+        }
+      },
+      "fixture_files": [
+        "trade.csv",
+        "parser2.json",
+        "minimal-parser2.json",
+        "decisions-first-use.json",
+        "plan-first-use.json",
+        "expected-first-use.json",
+        "coverage-parent-cases.json",
+        "evidence-reference-cases.json",
+        "worker-protocol-cases.json",
+        "positive-clock-and-wire.json",
+        "context-time-negative-cases.json",
+        "large-basis-page.json",
+        "large-basis-expectations.json"
+      ],
+      "name": "tamper"
+    },
+    {
+      "acceptance_id": "A07-16",
+      "action": "Change exact installation/availability/enablement/connection generation, disable then re-enable between preview and ACCEPT.",
+      "evidence_owner": "Developer self-tests then separately authorized independent QA; native/PG proof only on actual environment.",
+      "execution": "NOT_RUN",
+      "expected": {
+        "deltas": {
+          "ACCEPT_audit": 0,
+          "ACCEPT_receipts": 0,
+          "accepted_financial_rows": 0,
+          "accepted_generation": 0,
+          "mapping_generation": 0,
+          "outbox": 0
+        },
+        "new_effect": "import_stale",
+        "old_matching_receipt": "historical replay allowed after current auth"
+      },
+      "fixture_files": [
+        "trade.csv",
+        "parser2.json",
+        "minimal-parser2.json",
+        "decisions-first-use.json",
+        "plan-first-use.json",
+        "expected-first-use.json"
+      ],
+      "name": "source-ABA"
+    },
+    {
+      "acceptance_id": "A07-17",
+      "action": "Change accepted/mapping/control root or decision revision after preview; hold lock to force post-wait recheck.",
+      "evidence_owner": "Developer self-tests then separately authorized independent QA; native/PG proof only on actual environment.",
+      "execution": "NOT_RUN",
+      "expected": {
+        "deltas": {
+          "ACCEPT_audit": 0,
+          "ACCEPT_receipts": 0,
+          "accepted_financial_rows": 0,
+          "accepted_generation": 0,
+          "mapping_generation": 0,
+          "outbox": 0
+        },
+        "new_effect": "import_stale",
+        "old_plan_recomputed": false
+      },
+      "fixture_files": [
+        "trade.csv",
+        "parser2.json",
+        "minimal-parser2.json",
+        "decisions-first-use.json",
+        "plan-first-use.json",
+        "expected-first-use.json",
+        "effect-oracles.json",
+        "authority-only-review.json",
+        "reordered-record-counterexample.json",
+        "snapshot-seed-t2-plan.json",
+        "snapshot-historical-t1-plan.json",
+        "snapshot-history-effects.json",
+        "mixed-set-plan.json",
+        "mixed-set-review.json",
+        "mixed-set-expected.json"
+      ],
+      "name": "stale-map-generation"
+    },
+    {
+      "acceptance_id": "A07-18",
+      "action": "Revoke session/disable user/change credential/restore while queued or blocked; expiry equality and +1microsecond.",
+      "evidence_owner": "Developer self-tests then separately authorized independent QA; native/PG proof only on actual environment.",
+      "execution": "NOT_RUN",
+      "expected": {
+        "deltas": {
+          "ACCEPT_audit": 0,
+          "ACCEPT_receipts": 0,
+          "accepted_financial_rows": 0,
+          "accepted_generation": 0,
+          "mapping_generation": 0,
+          "outbox": 0
+        },
+        "expiry_equality": "expired",
+        "new_effect": "DENIED",
+        "private_error_body": false
+      },
+      "fixture_files": [
+        "trade.csv",
+        "parser2.json",
+        "minimal-parser2.json",
+        "decisions-first-use.json",
+        "plan-first-use.json",
+        "expected-first-use.json"
+      ],
+      "name": "live-auth"
+    },
+    {
+      "acceptance_id": "A07-19",
+      "action": "Two users with identical provider/source IDs; foreign raw/set/preview/receipt/mapping refs; repeat after failure/savepoint/pool reset.",
+      "evidence_owner": "Developer self-tests then separately authorized independent QA; native/PG proof only on actual environment.",
+      "execution": "NOT_RUN",
+      "expected": {
+        "cross_scope_rows": 0,
+        "foreign_missing_status": "same nondisclosing result",
+        "stale_role_or_scope": false
+      },
+      "fixture_files": [
+        "trade.csv",
+        "parser2.json",
+        "minimal-parser2.json",
+        "decisions-first-use.json",
+        "plan-first-use.json",
+        "expected-first-use.json"
+      ],
+      "name": "isolation"
+    },
+    {
+      "acceptance_id": "A07-20",
+      "action": "Real PG separate processes concurrently confirm conflicting plans; repeat same op; race cancel against ACCEPT with deterministic barriers.",
+      "evidence_owner": "Developer self-tests then separately authorized independent QA; native/PG proof only on actual environment.",
+      "execution": "NOT_RUN",
+      "expected": {
+        "admissible_effects": 1,
+        "cancel_first": "CANCELLED/no ACCEPT effect",
+        "commit_first": "COMMITTED/original receipt",
+        "late_worker": "DENIED",
+        "same_op_receipts": 1
+      },
+      "fixture_files": [
+        "trade.csv",
+        "parser2.json",
+        "minimal-parser2.json",
+        "decisions-first-use.json",
+        "plan-first-use.json",
+        "expected-first-use.json"
+      ],
+      "name": "race"
+    },
+    {
+      "acceptance_id": "A07-21",
+      "action": "Drop response/connection after actual financial COMMIT; same op/digest; changed kind/payload; repeat after restore.",
+      "evidence_owner": "Developer self-tests then separately authorized independent QA; native/PG proof only on actual environment.",
+      "execution": "NOT_RUN",
+      "expected": {
+        "changed_payload": "operation_conflict",
+        "fresh_GET": "historical receipt allowed",
+        "old_realm_POST": "no effect",
+        "same_realm_authenticated_retry": "original bytes/zero new effect"
+      },
+      "fixture_files": [
+        "trade.csv",
+        "parser2.json",
+        "minimal-parser2.json",
+        "decisions-first-use.json",
+        "plan-first-use.json",
+        "expected-first-use.json",
+        "effect-oracles.json",
+        "worker-protocol-cases.json"
+      ],
+      "name": "uncertain-commit"
+    },
+    {
+      "acceptance_id": "A07-22",
+      "action": "Fault after each entity/input/plan/revision/head/lineage/generation/receipt/audit/outbox write before COMMIT.",
+      "evidence_owner": "Developer self-tests then separately authorized independent QA; native/PG proof only on actual environment.",
+      "execution": "NOT_RUN",
+      "expected": {
+        "deltas": {
+          "ACCEPT_audit": 0,
+          "ACCEPT_receipts": 0,
+          "accepted_financial_rows": 0,
+          "accepted_generation": 0,
+          "mapping_generation": 0,
+          "outbox": 0
+        },
+        "financial_relations": "EXACT_PRESTATE"
+      },
+      "fixture_files": [
+        "trade.csv",
+        "parser2.json",
+        "minimal-parser2.json",
+        "decisions-first-use.json",
+        "plan-first-use.json",
+        "expected-first-use.json",
+        "effect-oracles.json"
+      ],
+      "name": "rollback"
+    },
+    {
+      "acceptance_id": "A07-23",
+      "action": "Inject40001/40P01 and lock timeout/deadline; set accepted/mapping/control/fence counter to int8 maximum.",
+      "evidence_owner": "Developer self-tests then separately authorized independent QA; native/PG proof only on actual environment.",
+      "execution": "NOT_RUN",
+      "expected": {
+        "attempt_max": 3,
+        "new_invalid_effect": false,
+        "total_deadline_s": 20,
+        "wrap": false
+      },
+      "fixture_files": [
+        "trade.csv",
+        "parser2.json",
+        "minimal-parser2.json",
+        "decisions-first-use.json",
+        "plan-first-use.json",
+        "expected-first-use.json"
+      ],
+      "name": "retry-and-overflow"
+    },
+    {
+      "acceptance_id": "A07-24",
+      "action": "Two-file/two-account set, last member unresolved/rejected/stale; mixed duplicate/new fact set.",
+      "evidence_owner": "Developer self-tests then separately authorized independent QA; native/PG proof only on actual environment.",
+      "execution": "NOT_RUN",
+      "expected": {
+        "blocked_set_deltas": {
+          "ACCEPT_audit": 0,
+          "ACCEPT_receipts": 0,
+          "accepted_financial_rows": 0,
+          "accepted_generation": 0,
+          "mapping_generation": 0,
+          "outbox": 0
+        },
+        "hidden_partial_acceptance": false,
+        "mixed_duplicate_new": "single ACCEPT receipt/event and one accepted-generation increment"
+      },
+      "fixture_files": [
+        "trade.csv",
+        "parser2.json",
+        "minimal-parser2.json",
+        "decisions-first-use.json",
+        "plan-first-use.json",
+        "expected-first-use.json",
+        "snapshot-t1-native.json",
+        "snapshot-t1-minimal.json",
+        "snapshot-t2-complete-native.json",
+        "snapshot-t2-complete-minimal.json",
+        "snapshot-t2-partial-minimal.json",
+        "snapshot-t2-empty-complete-minimal.json",
+        "snapshot-t2-empty-partial-minimal.json",
+        "review-bundle-first-use.json",
+        "reordered-record-counterexample.json",
+        "snapshot-seed-t2-plan.json",
+        "snapshot-historical-t1-plan.json",
+        "snapshot-history-effects.json",
+        "mixed-set-plan.json",
+        "mixed-set-review.json",
+        "mixed-set-expected.json"
+      ],
+      "name": "atomic-set"
+    },
+    {
+      "acceptance_id": "A07-25",
+      "action": "Disconnect/crash/cancel/expire at every receive/handoff/child/create/start/result/stage/cleanup/COMMIT boundary in the fixed fault table.",
+      "evidence_owner": "Developer self-tests then separately authorized independent QA; native/PG proof only on actual environment.",
+      "execution": "NOT_RUN",
+      "expected": {
+        "old_fence_publish": false,
+        "proven_stage": "recover by digest within TTL",
+        "terminal_revival": false,
+        "unproven_raw": "reupload_required"
+      },
+      "fixture_files": [
+        "trade.csv",
+        "parser2.json",
+        "minimal-parser2.json",
+        "decisions-first-use.json",
+        "plan-first-use.json",
+        "expected-first-use.json",
+        "worker-protocol-cases.json",
+        "positive-clock-and-wire.json",
+        "context-time-negative-cases.json",
+        "large-basis-page.json",
+        "large-basis-expectations.json"
+      ],
+      "name": "lifecycle-fault"
+    },
+    {
+      "acceptance_id": "A07-26",
+      "action": "Use literal unused/source_fields canaries and allowed700.00/lifecycle markers; inspect live buffers and durable surfaces before/after cleanup.",
+      "evidence_owner": "Developer self-tests then separately authorized independent QA; native/PG proof only on actual environment.",
+      "execution": "NOT_RUN",
+      "expected": {
+        "allowed_typed_values": "exact retained",
+        "expired_live_payloads": "purged",
+        "forbidden_canaries_in_DB_WAL_dump_logs_backups": 0,
+        "historical_backup_erasure_claim": false,
+        "raw_durable_writes": 0,
+        "raw_insert_then_delete_allowed": false
+      },
+      "fixture_files": [
+        "trade.csv",
+        "parser2.json",
+        "minimal-parser2.json",
+        "decisions-first-use.json",
+        "plan-first-use.json",
+        "expected-first-use.json",
+        "metadata-native-expected.json",
+        "large-basis-page.json",
+        "large-basis-expectations.json"
+      ],
+      "name": "privacy"
+    },
+    {
+      "acceptance_id": "A07-27",
+      "action": "Guess/foreign/cross-reuse handles; supply path/symlink/filename/Docker flags/unknown field.",
+      "evidence_owner": "Developer self-tests then separately authorized independent QA; native/PG proof only on actual environment.",
+      "execution": "NOT_RUN",
+      "expected": {
+        "arbitrary_file_read": false,
+        "deltas": {
+          "ACCEPT_audit": 0,
+          "ACCEPT_receipts": 0,
+          "accepted_financial_rows": 0,
+          "accepted_generation": 0,
+          "mapping_generation": 0,
+          "outbox": 0
+        },
+        "private_path_or_payload_response": false
+      },
+      "fixture_files": [
+        "trade.csv",
+        "parser2.json",
+        "minimal-parser2.json",
+        "decisions-first-use.json",
+        "plan-first-use.json",
+        "expected-first-use.json"
+      ],
+      "name": "ownership-paths"
+    },
+    {
+      "acceptance_id": "A07-28",
+      "action": "Actual ASGI CL missing/duplicate/CL+TE/extra/short/chunks/invalidUTF8/control duplicates; raw/header/payload limits-1/equal/+1; stream output limit racing exit.",
+      "evidence_owner": "Developer self-tests then separately authorized independent QA; native/PG proof only on actual environment.",
+      "execution": "NOT_RUN",
+      "expected": {
+        "bad_framing": 400,
+        "decode_overflowed_output": false,
+        "encoding_type": 415,
+        "missing_CL": 411,
+        "oversize": 413,
+        "payload_limit_bytes": 4194304,
+        "raw_limit_bytes": 10485760,
+        "timeout": 408
+      },
+      "fixture_files": [
+        "trade.csv",
+        "parser2.json",
+        "minimal-parser2.json",
+        "decisions-first-use.json",
+        "plan-first-use.json",
+        "expected-first-use.json",
+        "positive-clock-and-wire.json",
+        "context-time-negative-cases.json"
+      ],
+      "name": "framing"
+    },
+    {
+      "acceptance_id": "A07-29",
+      "action": "Real reviewed Linux-container image/arch: probe network, invented host file/socket/DB/env, root write and privileges.",
+      "evidence_owner": "Developer self-tests then separately authorized independent QA; native/PG proof only on actual environment.",
+      "execution": "NOT_RUN",
+      "expected": {
+        "API_Docker_socket": false,
+        "missing_control": "readiness fail",
+        "required_denials": "all verified",
+        "untested_platform": "NOT_RUN",
+        "worker_Docker_socket": false
+      },
+      "fixture_files": [
+        "trade.csv",
+        "parser2.json",
+        "minimal-parser2.json",
+        "decisions-first-use.json",
+        "plan-first-use.json",
+        "expected-first-use.json"
+      ],
+      "name": "native-denials"
+    },
+    {
+      "acceptance_id": "A07-30",
+      "action": "Measure CPU/memory/PID/wall/stdout/stderr/descendants, exact cancellation and failed cleanup with owned/unrelated children present.",
+      "evidence_owner": "Developer self-tests then separately authorized independent QA; native/PG proof only on actual environment.",
+      "execution": "NOT_RUN",
+      "expected": {
+        "CPU_rlimit_s": 2,
+        "PIDs": 16,
+        "memory_MiB": 256,
+        "owned_descendants_reaped": true,
+        "quota_released_after_failed_cleanup": false,
+        "stderr_bytes": 65536,
+        "unrelated_child_touched": false,
+        "wall_s": 10
+      },
+      "fixture_files": [
+        "trade.csv",
+        "parser2.json",
+        "minimal-parser2.json",
+        "decisions-first-use.json",
+        "plan-first-use.json",
+        "expected-first-use.json"
+      ],
+      "name": "native-resources"
+    },
+    {
+      "acceptance_id": "A07-31",
+      "action": "Wrong mTLS peer/realm/epoch/job/fence/nonce/image/profile/context; replay different payload; restart at create/journal/control boundaries.",
+      "evidence_owner": "Developer self-tests then separately authorized independent QA; native/PG proof only on actual environment.",
+      "execution": "NOT_RUN",
+      "expected": {
+        "arbitrary_pull_build": false,
+        "journal_financial_bytes": 0,
+        "same_start_context": "one child/status recovery only",
+        "unauthorized_launches": 0,
+        "wrong_child_cancel": false
+      },
+      "fixture_files": [
+        "trade.csv",
+        "parser2.json",
+        "minimal-parser2.json",
+        "decisions-first-use.json",
+        "plan-first-use.json",
+        "expected-first-use.json",
+        "child-result-cases.json",
+        "worker-protocol-cases.json",
+        "positive-clock-and-wire.json",
+        "context-time-negative-cases.json"
+      ],
+      "name": "peer-and-launch"
+    },
+    {
+      "acceptance_id": "A07-32",
+      "action": "Compare declared frozen hashes and run old CLI/Web/domain/parser/source/identity/foundation fixtures in their own profiles.",
+      "evidence_owner": "Developer self-tests then separately authorized independent QA; native/PG proof only on actual environment.",
+      "execution": "NOT_RUN",
+      "expected": {
+        "frozen_source_bytes": "unchanged",
+        "legacy_archive_cleanup": false,
+        "new_profile_automatic_enable": false,
+        "old_behavior_regression": false
+      },
+      "fixture_files": [
+        "trade.csv",
+        "parser2.json",
+        "minimal-parser2.json",
+        "decisions-first-use.json",
+        "plan-first-use.json",
+        "expected-first-use.json",
+        "coverage-parent-cases.json"
+      ],
+      "name": "compatibility"
+    },
+    {
+      "acceptance_id": "A07-33",
+      "action": "Each new table/column/function/DDL as reader/gateway/worker/foreign context; alter one owner/search_path/grant/FK/policy/provider and migrate.",
+      "evidence_owner": "Developer self-tests then separately authorized independent QA; native/PG proof only on actual environment.",
+      "execution": "NOT_RUN",
+      "expected": {
+        "auto_repair_or_stamp": false,
+        "direct_reader_financial_write": false,
+        "drift_ready": false,
+        "immutable_history_rewrite": false,
+        "only_exact_declared_grants": "allowed"
+      },
+      "fixture_files": [
+        "trade.csv",
+        "parser2.json",
+        "minimal-parser2.json",
+        "decisions-first-use.json",
+        "plan-first-use.json",
+        "expected-first-use.json",
+        "worker-protocol-cases.json",
+        "large-basis-page.json",
+        "large-basis-expectations.json"
+      ],
+      "name": "SQL-inventory"
+    },
+    {
+      "acceptance_id": "A07-34",
+      "action": "Same initialized dump into two empty targets; each corruption/nonempty/uninitialized/wrong schema/missing bytes/head-parent-receipt fault; interrupt each finalization barrier.",
+      "evidence_owner": "Developer self-tests then separately authorized independent QA; native/PG proof only on actual environment.",
+      "execution": "NOT_RUN",
+      "expected": {
+        "accepted_input_plan_bytes": "exact dump",
+        "bad_target_ready": false,
+        "distinct_new_realms": true,
+        "expired_unaccepted_payloads": "purged before ready",
+        "later_write_invented": false,
+        "old_forms_jobs_sessions": "invalid"
+      },
+      "fixture_files": [
+        "trade.csv",
+        "parser2.json",
+        "minimal-parser2.json",
+        "decisions-first-use.json",
+        "plan-first-use.json",
+        "expected-first-use.json",
+        "metadata-native-expected.json",
+        "effect-oracles.json",
+        "large-basis-page.json",
+        "large-basis-expectations.json"
+      ],
+      "name": "restore"
+    },
+    {
+      "acceptance_id": "A07-35",
+      "action": "Disable outbox consumer/report render before/after successful ACCEPT; replay same delivery.",
+      "evidence_owner": "Developer self-tests then separately authorized independent QA; native/PG proof only on actual environment.",
+      "execution": "NOT_RUN",
+      "expected": {
+        "accepted_effect": "preserved",
+        "financial_outbox_per_effect": 1,
+        "render_inside_commit": false,
+        "second_acceptance": false
+      },
+      "fixture_files": [
+        "trade.csv",
+        "parser2.json",
+        "minimal-parser2.json",
+        "decisions-first-use.json",
+        "plan-first-use.json",
+        "expected-first-use.json",
+        "effect-oracles.json"
+      ],
+      "name": "acceptance-vs-delivery"
+    },
+    {
+      "acceptance_id": "A07-36",
+      "action": "Two API processes/worker restarts share quotas/rates; terminal cleanup failures; en-CA/zh-TW/zh-CN error/decimal DTOs.",
+      "evidence_owner": "Developer self-tests then separately authorized independent QA; native/PG proof only on actual environment.",
+      "execution": "NOT_RUN",
+      "expected": {
+        "instance_parallel": 4,
+        "no_float_finance": true,
+        "rate_reset_releases_live_storage": false,
+        "raw_or_secret_error_copy": false,
+        "same_user_parallel": 1,
+        "sets_instance": 64,
+        "sets_user": 8
+      },
+      "fixture_files": [
+        "trade.csv",
+        "parser2.json",
+        "minimal-parser2.json",
+        "decisions-first-use.json",
+        "plan-first-use.json",
+        "expected-first-use.json"
+      ],
+      "name": "shared-bounds-and-copy"
+    }
+  ],
+  "materialization": "Branch cases reset to a fresh synthetic fixture. Numeric/identity/time overrides must be applied to both the literal raw CSV and expected typed shape, then hashes recomputed by standard canonical serialization only. Tamper cases deliberately change only the indicated untrusted side. Expected business values/heads/deltas above are fixed independently of application code. The matrix is not evidence of running a feature.",
+  "status": "R6_COORDINATOR_PROPOSED_NOT_INDEPENDENT_QA",
+  "version": 1
+}
