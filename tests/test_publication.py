@@ -280,6 +280,25 @@ create_pr = true
         self.run_git('commit', '-m', 'Synthetic public roles')
         self.assertTrue(guard.scan_history(self.root, all_history=True)['passed'])
 
+    def test_cited_spec_copies_are_exact_paths_only(self):
+        # ENG-114 (AC-ENG-114-03): only the reviewed copies that tickets cite are public.
+        repo = SCRIPTS.parent
+        self.assertTrue(guard.path_allowed('docs/golden-cases.md'))
+        self.assertEqual(len(guard.PUBLIC_SPEC_DOCS), 36)
+        for relative in sorted(guard.PUBLIC_SPEC_DOCS):
+            self.assertTrue(guard.path_allowed(relative), relative)
+            self.assertTrue((repo / relative).is_file(), relative)
+            self.assertTrue(guard.content_issues(b'/Users/' + b'example/private.csv', relative), relative)
+        for relative in ('docs/specs/imp-007-r7/manifest.json', 'docs/specs/imp-007-r7/review-summary.md',
+                         'docs/specs/imp-007-r7/r6-repairs.md', 'docs/specs/imp-007-r7/fixtures/r5-fixture-status.json',
+                         'docs/specs/imp-007-r7/fixtures/trade.csv', 'docs/specs/imp-007-r7/AGENTS.override.md',
+                         'docs/specs/v2-drafts/WL-P2-003.md', 'docs/specs/v2-drafts/README.md',
+                         'docs/specs/wealth-ledger-v2/P0/WL-P0-008.md',
+                         'docs/specs/wealth-ledger-v2/quality/GOLDEN_CASES.md',
+                         'docs/golden-cases.local.md', './docs/specs/imp-007-r7/spec.md',
+                         'docs/specs/imp-007-r7/../imp-007-r7/spec.md'):
+            self.assertFalse(guard.path_allowed(relative), relative)
+
     def test_role_exception_does_not_publish_other_agent_or_planning_paths(self):
         # Test exact patterns independent of macOS Git's case-folding option.
         self.run_git('config', 'core.ignorecase', 'false')

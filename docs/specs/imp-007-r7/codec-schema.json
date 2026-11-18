@@ -1,0 +1,2752 @@
+{
+  "$defs": {
+    "Account": {
+      "additionalProperties": false,
+      "properties": {
+        "category": {
+          "maxLength": 128,
+          "type": "string"
+        },
+        "label": {
+          "maxLength": 160,
+          "type": "string"
+        },
+        "local_id": {
+          "$ref": "#/$defs/Local"
+        },
+        "masked_identifier": {
+          "anyOf": [
+            {
+              "maxLength": 160,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "provider": {
+          "maxLength": 64,
+          "type": "string"
+        },
+        "role": {
+          "enum": [
+            "investment",
+            "crypto",
+            "funding"
+          ]
+        },
+        "source_account_key": {
+          "maxLength": 256,
+          "type": "string"
+        }
+      },
+      "required": [
+        "local_id",
+        "provider",
+        "source_account_key",
+        "category",
+        "role",
+        "label",
+        "masked_identifier"
+      ],
+      "type": "object"
+    },
+    "Activity": {
+      "additionalProperties": false,
+      "properties": {
+        "acquisition_cost": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Money"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "acquisition_cost_cad": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Money"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "cash_flow": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CashFlow"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "economic_references": {
+          "items": {
+            "$ref": "#/$defs/Claim"
+          },
+          "maxItems": 256,
+          "type": "array"
+        },
+        "event_time": {
+          "$ref": "#/$defs/Time"
+        },
+        "fees": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/Fee"
+              },
+              "maxItems": 256,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "identity": {
+          "$ref": "#/$defs/Identity"
+        },
+        "kind": {
+          "enum": [
+            "BUY",
+            "SELL",
+            "TRANSFER",
+            "FEE",
+            "INCOME",
+            "FUNDING",
+            "CORPORATE_ACTION",
+            "UNSUPPORTED"
+          ]
+        },
+        "legs": {
+          "items": {
+            "$ref": "#/$defs/Leg"
+          },
+          "maxItems": 256,
+          "type": "array"
+        },
+        "lifecycle": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Lifecycle"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "lifecycle_reference": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LegacyLineage"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "local_id": {
+          "$ref": "#/$defs/Local"
+        },
+        "record_type": {
+          "enum": [
+            "activity"
+          ]
+        },
+        "source_account_local_id": {
+          "$ref": "#/$defs/Local"
+        },
+        "source_kind": {
+          "enum": [
+            "cash_flows",
+            "crypto_transactions",
+            "activity"
+          ]
+        },
+        "source_status": {
+          "maxLength": 128,
+          "type": "string"
+        },
+        "source_type": {
+          "maxLength": 128,
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "completed",
+            "pending",
+            "cancelled",
+            "unsupported"
+          ]
+        },
+        "support": {
+          "$ref": "#/$defs/Support"
+        },
+        "transfer_reference": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "record_type",
+        "local_id",
+        "source_account_local_id",
+        "source_kind",
+        "identity",
+        "event_time",
+        "kind",
+        "source_type",
+        "source_status",
+        "status",
+        "legs",
+        "acquisition_cost",
+        "acquisition_cost_cad",
+        "fees",
+        "economic_references",
+        "transfer_reference",
+        "lifecycle",
+        "cash_flow",
+        "support",
+        "lifecycle_reference"
+      ],
+      "type": "object"
+    },
+    "ActivityHeadKey": {
+      "additionalProperties": false,
+      "properties": {
+        "economic_group_id": {
+          "$ref": "#/$defs/UUID"
+        },
+        "portfolio_id": {
+          "$ref": "#/$defs/UUID"
+        },
+        "tenant_id": {
+          "$ref": "#/$defs/UUID"
+        },
+        "version": {
+          "enum": [
+            1
+          ]
+        }
+      },
+      "required": [
+        "version",
+        "tenant_id",
+        "portfolio_id",
+        "economic_group_id"
+      ],
+      "type": "object"
+    },
+    "Asset": {
+      "additionalProperties": false,
+      "properties": {
+        "currency": {
+          "anyOf": [
+            {
+              "maxLength": 3,
+              "pattern": "^[A-Z]{3}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "identifier": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "identifiers": {
+          "items": {
+            "$ref": "#/$defs/Identifier"
+          },
+          "maxItems": 64,
+          "type": "array"
+        },
+        "issuer_local_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Local"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "kind": {
+          "enum": [
+            "SECURITY",
+            "CASH",
+            "CRYPTO",
+            "UNSUPPORTED"
+          ]
+        },
+        "local_id": {
+          "$ref": "#/$defs/Local"
+        },
+        "mic": {
+          "anyOf": [
+            {
+              "maxLength": 4,
+              "pattern": "^[A-Z0-9]{4}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "network": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "settlement_identity": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source_descriptor": {
+          "maxLength": 4096,
+          "type": "string"
+        },
+        "symbol": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "ticker": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "local_id",
+        "kind",
+        "symbol",
+        "currency",
+        "ticker",
+        "mic",
+        "network",
+        "settlement_identity",
+        "identifier",
+        "identifiers",
+        "issuer_local_id",
+        "source_descriptor"
+      ],
+      "type": "object"
+    },
+    "AssetAmount": {
+      "additionalProperties": false,
+      "properties": {
+        "asset_local_id": {
+          "$ref": "#/$defs/Local"
+        },
+        "method": {
+          "maxLength": 128,
+          "type": "string"
+        },
+        "quantity": {
+          "$ref": "#/$defs/Decimal"
+        }
+      },
+      "required": [
+        "asset_local_id",
+        "quantity",
+        "method"
+      ],
+      "type": "object"
+    },
+    "AuthorityDecision": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence_reference": {
+          "maxLength": 256,
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "mirror",
+            "independent",
+            "authority",
+            "historical_only"
+          ]
+        },
+        "left": {
+          "$ref": "#/$defs/EvidenceRef"
+        },
+        "right": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EvidenceRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "left",
+        "right",
+        "evidence_reference"
+      ],
+      "type": "object"
+    },
+    "CanonicalInstrumentScope": {
+      "additionalProperties": false,
+      "properties": {
+        "category": {
+          "anyOf": [
+            {
+              "enum": [
+                "SECURITY",
+                "CASH",
+                "CRYPTO",
+                "UNSUPPORTED"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "instrument_ids": {
+          "items": {
+            "$ref": "#/$defs/UUID"
+          },
+          "maxItems": 2048,
+          "type": "array"
+        },
+        "tag": {
+          "enum": [
+            "all",
+            "instruments",
+            "category"
+          ]
+        }
+      },
+      "required": [
+        "tag",
+        "instrument_ids",
+        "category"
+      ],
+      "type": "object"
+    },
+    "CashFlow": {
+      "additionalProperties": false,
+      "properties": {
+        "boundary": {
+          "enum": [
+            "external",
+            "internal",
+            "unclassified"
+          ]
+        },
+        "cash_amount": {
+          "$ref": "#/$defs/Money"
+        },
+        "cash_leg_of": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Claim"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "counterpart": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Claim"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "direction": {
+          "enum": [
+            "in",
+            "out"
+          ]
+        },
+        "transfer_reference": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "cash_amount",
+        "direction",
+        "boundary",
+        "transfer_reference",
+        "counterpart",
+        "cash_leg_of"
+      ],
+      "type": "object"
+    },
+    "Claim": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": [
+            "holdings",
+            "cash_flows",
+            "crypto_transactions",
+            "activity",
+            "snapshot",
+            "coverage",
+            "membership"
+          ]
+        },
+        "observation_id": {
+          "maxLength": 256,
+          "type": "string"
+        },
+        "provider": {
+          "maxLength": 64,
+          "type": "string"
+        },
+        "record_kind": {
+          "anyOf": [
+            {
+              "enum": [
+                "holdings",
+                "cash_flows",
+                "crypto_transactions",
+                "activity"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "revision": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source_account_key": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source_id": {
+          "maxLength": 256,
+          "type": "string"
+        }
+      },
+      "required": [
+        "provider",
+        "source_account_key",
+        "kind",
+        "source_id",
+        "observation_id",
+        "revision",
+        "record_kind"
+      ],
+      "type": "object"
+    },
+    "Counter": {
+      "maxLength": 19,
+      "pattern": "^(0|[1-9][0-9]{0,18})$",
+      "type": "string"
+    },
+    "Coverage": {
+      "additionalProperties": false,
+      "properties": {
+        "account_local_id": {
+          "$ref": "#/$defs/Local"
+        },
+        "basis": {
+          "maxLength": 4096,
+          "type": "string"
+        },
+        "instrument_scope": {
+          "$ref": "#/$defs/InstrumentScope"
+        },
+        "kind": {
+          "enum": [
+            "holdings",
+            "cash_flows",
+            "crypto_transactions",
+            "activity"
+          ]
+        },
+        "legacy": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LegacyLineage"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "local_id": {
+          "$ref": "#/$defs/Local"
+        },
+        "observation_id": {
+          "maxLength": 256,
+          "type": "string"
+        },
+        "parent": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Claim"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "revision": {
+          "maxLength": 256,
+          "type": "string"
+        },
+        "scope_id": {
+          "maxLength": 256,
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "complete",
+            "partial",
+            "unknown"
+          ]
+        },
+        "time": {
+          "$ref": "#/$defs/SelectorTime"
+        }
+      },
+      "required": [
+        "local_id",
+        "kind",
+        "account_local_id",
+        "scope_id",
+        "revision",
+        "parent",
+        "time",
+        "instrument_scope",
+        "status",
+        "basis",
+        "observation_id",
+        "legacy"
+      ],
+      "type": "object"
+    },
+    "Date": {
+      "additionalProperties": false,
+      "properties": {
+        "tag": {
+          "enum": [
+            "date_only"
+          ]
+        },
+        "token": {
+          "maxLength": 10,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+          "type": "string"
+        },
+        "zone": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "tag",
+        "token",
+        "zone"
+      ],
+      "type": "object"
+    },
+    "Decimal": {
+      "maxLength": 256,
+      "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+      "type": "string"
+    },
+    "Decisions": {
+      "additionalProperties": false,
+      "properties": {
+        "authorities": {
+          "items": {
+            "$ref": "#/$defs/AuthorityDecision"
+          },
+          "maxItems": 128,
+          "type": "array"
+        },
+        "expected_set_revision": {
+          "$ref": "#/$defs/Counter"
+        },
+        "mappings": {
+          "items": {
+            "$ref": "#/$defs/Mapping"
+          },
+          "maxItems": 128,
+          "type": "array"
+        },
+        "new_entities": {
+          "items": {
+            "$ref": "#/$defs/EntityProposal"
+          },
+          "maxItems": 128,
+          "type": "array"
+        },
+        "operation_id": {
+          "$ref": "#/$defs/UUID"
+        },
+        "parents": {
+          "items": {
+            "$ref": "#/$defs/ParentDecision"
+          },
+          "maxItems": 128,
+          "type": "array"
+        },
+        "version": {
+          "enum": [
+            1
+          ]
+        }
+      },
+      "required": [
+        "version",
+        "operation_id",
+        "expected_set_revision",
+        "mappings",
+        "new_entities",
+        "authorities",
+        "parents"
+      ],
+      "type": "object"
+    },
+    "Diagnostic": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "enum": [
+            "market_math",
+            "unrealized_math",
+            "nonpositive_cost_quantity",
+            "wallet_balance_unverified",
+            "wallet_fees_unknown",
+            "observed_order_rows"
+          ]
+        },
+        "duplicate_count": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Counter"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "record_local_ids": {
+          "items": {
+            "$ref": "#/$defs/Local"
+          },
+          "maxItems": 10000,
+          "type": "array"
+        },
+        "row_count": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Counter"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "severity": {
+          "enum": [
+            "info",
+            "warning",
+            "error"
+          ]
+        }
+      },
+      "required": [
+        "code",
+        "severity",
+        "row_count",
+        "duplicate_count",
+        "record_local_ids"
+      ],
+      "type": "object"
+    },
+    "EntityBody": {
+      "anyOf": [
+        {
+          "$ref": "frozen-shapes.json#/$defs/domain_FinancialAccountV1"
+        },
+        {
+          "$ref": "frozen-shapes.json#/$defs/domain_InstrumentV1"
+        },
+        {
+          "$ref": "frozen-shapes.json#/$defs/domain_IssuerV1"
+        }
+      ]
+    },
+    "EntityProposal": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/UUID"
+        },
+        "kind": {
+          "enum": [
+            "account",
+            "instrument",
+            "issuer"
+          ]
+        },
+        "local_id": {
+          "$ref": "#/$defs/Local"
+        },
+        "member_id": {
+          "$ref": "#/$defs/UUID"
+        },
+        "version": {
+          "$ref": "#/$defs/Hash"
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "version",
+        "member_id",
+        "local_id"
+      ],
+      "type": "object"
+    },
+    "EntityTarget": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/UUID"
+        },
+        "mode": {
+          "enum": [
+            "existing",
+            "proposed"
+          ]
+        },
+        "version": {
+          "$ref": "#/$defs/Hash"
+        }
+      },
+      "required": [
+        "mode",
+        "id",
+        "version"
+      ],
+      "type": "object"
+    },
+    "EvidenceRef": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "collection": {
+              "enum": [
+                "records",
+                "coverage",
+                "snapshots",
+                "membership"
+              ]
+            },
+            "form": {
+              "enum": [
+                "incoming"
+              ]
+            },
+            "local_id": {
+              "$ref": "#/$defs/Local"
+            },
+            "member_id": {
+              "$ref": "#/$defs/UUID"
+            }
+          },
+          "required": [
+            "form",
+            "member_id",
+            "collection",
+            "local_id"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "accepted_revision_id": {
+              "$ref": "#/$defs/UUID"
+            },
+            "form": {
+              "enum": [
+                "accepted"
+              ]
+            }
+          },
+          "required": [
+            "form",
+            "accepted_revision_id"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "FactEffect": {
+      "additionalProperties": false,
+      "properties": {
+        "accepted_revision_id": {
+          "$ref": "#/$defs/UUID"
+        },
+        "action": {
+          "enum": [
+            "append",
+            "duplicate",
+            "historical",
+            "correction",
+            "void",
+            "mirror"
+          ]
+        },
+        "collection": {
+          "enum": [
+            "records",
+            "coverage",
+            "snapshots",
+            "membership"
+          ]
+        },
+        "economic_group_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/UUID"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "financial_digest": {
+          "$ref": "#/$defs/Hash"
+        },
+        "local_id": {
+          "$ref": "#/$defs/Local"
+        },
+        "member_id": {
+          "$ref": "#/$defs/UUID"
+        },
+        "parent_revision_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/UUID"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "member_id",
+        "collection",
+        "local_id",
+        "action",
+        "accepted_revision_id",
+        "parent_revision_id",
+        "economic_group_id",
+        "financial_digest"
+      ],
+      "type": "object"
+    },
+    "Fee": {
+      "additionalProperties": false,
+      "properties": {
+        "account_local_id": {
+          "$ref": "#/$defs/Local"
+        },
+        "asset_local_id": {
+          "$ref": "#/$defs/Local"
+        },
+        "included_in_cost": {
+          "type": "boolean"
+        },
+        "included_in_leg": {
+          "type": "boolean"
+        },
+        "quantity": {
+          "$ref": "#/$defs/Decimal"
+        }
+      },
+      "required": [
+        "account_local_id",
+        "asset_local_id",
+        "quantity",
+        "included_in_leg",
+        "included_in_cost"
+      ],
+      "type": "object"
+    },
+    "FieldMapping": {
+      "additionalProperties": false,
+      "properties": {
+        "canonical_field": {
+          "maxLength": 128,
+          "type": "string"
+        },
+        "source_field": {
+          "maxLength": 128,
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_field",
+        "canonical_field"
+      ],
+      "type": "object"
+    },
+    "Hash": {
+      "maxLength": 64,
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "HeadEffect": {
+      "additionalProperties": false,
+      "properties": {
+        "active": {
+          "type": "boolean"
+        },
+        "complete_base_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/UUID"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "key_digest": {
+          "$ref": "#/$defs/Hash"
+        },
+        "kind": {
+          "enum": [
+            "activity",
+            "snapshot"
+          ]
+        },
+        "next_revision_id": {
+          "$ref": "#/$defs/UUID"
+        },
+        "prior_revision_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/UUID"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "key_digest",
+        "prior_revision_id",
+        "next_revision_id",
+        "complete_base_id",
+        "active"
+      ],
+      "type": "object"
+    },
+    "Identifier": {
+      "additionalProperties": false,
+      "properties": {
+        "scheme": {
+          "maxLength": 128,
+          "type": "string"
+        },
+        "value": {
+          "maxLength": 256,
+          "type": "string"
+        }
+      },
+      "required": [
+        "scheme",
+        "value"
+      ],
+      "type": "object"
+    },
+    "Identity": {
+      "additionalProperties": false,
+      "properties": {
+        "change": {
+          "enum": [
+            "original",
+            "correction",
+            "void"
+          ]
+        },
+        "legacy": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LegacyLineage"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "observation_id": {
+          "maxLength": 256,
+          "type": "string"
+        },
+        "parent": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Claim"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "revision": {
+          "maxLength": 256,
+          "type": "string"
+        },
+        "revision_reason": {
+          "anyOf": [
+            {
+              "maxLength": 4096,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source_id": {
+          "maxLength": 256,
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_id",
+        "revision",
+        "change",
+        "parent",
+        "revision_reason",
+        "observation_id",
+        "legacy"
+      ],
+      "type": "object"
+    },
+    "InputRef": {
+      "additionalProperties": false,
+      "properties": {
+        "discovery_digest": {
+          "$ref": "#/$defs/Hash"
+        },
+        "member_id": {
+          "$ref": "#/$defs/UUID"
+        },
+        "raw_digest": {
+          "$ref": "#/$defs/Hash"
+        },
+        "stage_digest": {
+          "$ref": "#/$defs/Hash"
+        }
+      },
+      "required": [
+        "member_id",
+        "stage_digest",
+        "raw_digest",
+        "discovery_digest"
+      ],
+      "type": "object"
+    },
+    "Instant": {
+      "additionalProperties": false,
+      "properties": {
+        "fractional_digits": {
+          "maximum": 6,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "tag": {
+          "enum": [
+            "instant"
+          ]
+        },
+        "token": {
+          "maxLength": 40,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,6})?(Z|[+-]\\d{2}:\\d{2})$",
+          "type": "string"
+        },
+        "zone": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "tag",
+        "token",
+        "zone",
+        "fractional_digits"
+      ],
+      "type": "object"
+    },
+    "InstrumentScope": {
+      "additionalProperties": false,
+      "properties": {
+        "asset_local_ids": {
+          "items": {
+            "$ref": "#/$defs/Local"
+          },
+          "maxItems": 2048,
+          "type": "array"
+        },
+        "category": {
+          "anyOf": [
+            {
+              "enum": [
+                "SECURITY",
+                "CASH",
+                "CRYPTO",
+                "UNSUPPORTED"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "tag": {
+          "enum": [
+            "all",
+            "category",
+            "instruments"
+          ]
+        }
+      },
+      "required": [
+        "tag",
+        "asset_local_ids",
+        "category"
+      ],
+      "type": "object"
+    },
+    "Interval": {
+      "additionalProperties": false,
+      "properties": {
+        "end": {
+          "$ref": "#/$defs/Time"
+        },
+        "end_inclusive": {
+          "type": "boolean"
+        },
+        "start": {
+          "$ref": "#/$defs/Time"
+        },
+        "start_inclusive": {
+          "type": "boolean"
+        },
+        "tag": {
+          "enum": [
+            "interval"
+          ]
+        }
+      },
+      "required": [
+        "tag",
+        "start",
+        "end",
+        "start_inclusive",
+        "end_inclusive"
+      ],
+      "type": "object"
+    },
+    "Issuer": {
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "maxLength": 160,
+          "type": "string"
+        },
+        "local_id": {
+          "$ref": "#/$defs/Local"
+        }
+      },
+      "required": [
+        "local_id",
+        "label"
+      ],
+      "type": "object"
+    },
+    "Leg": {
+      "additionalProperties": false,
+      "properties": {
+        "account_local_id": {
+          "$ref": "#/$defs/Local"
+        },
+        "asset_local_id": {
+          "$ref": "#/$defs/Local"
+        },
+        "quantity": {
+          "$ref": "#/$defs/Decimal"
+        },
+        "role": {
+          "enum": [
+            "ACQUISITION",
+            "PAYMENT",
+            "TRANSFER",
+            "FEE",
+            "OTHER"
+          ]
+        }
+      },
+      "required": [
+        "account_local_id",
+        "asset_local_id",
+        "quantity",
+        "role"
+      ],
+      "type": "object"
+    },
+    "LegacyLineage": {
+      "additionalProperties": false,
+      "properties": {
+        "canonical_sha256": {
+          "$ref": "#/$defs/Hash"
+        },
+        "collection": {
+          "enum": [
+            "batch",
+            "evidence",
+            "membership",
+            "accounts",
+            "snapshots",
+            "coverage",
+            "records"
+          ]
+        },
+        "field": {
+          "maxLength": 128,
+          "type": "string"
+        },
+        "ordinal": {
+          "anyOf": [
+            {
+              "maximum": 49999,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "canonical_sha256",
+        "collection",
+        "ordinal",
+        "field"
+      ],
+      "type": "object"
+    },
+    "LegacyTime": {
+      "additionalProperties": false,
+      "properties": {
+        "legacy": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LegacyLineage"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "tag": {
+          "enum": [
+            "legacy_unspecified"
+          ]
+        },
+        "token": {
+          "maxLength": 64,
+          "type": "string"
+        },
+        "zone": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "tag",
+        "token",
+        "zone",
+        "legacy"
+      ],
+      "type": "object"
+    },
+    "Lifecycle": {
+      "additionalProperties": false,
+      "properties": {
+        "completed_at": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "created_at": {
+          "$ref": "#/$defs/Time"
+        },
+        "exchange_rate": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Rate"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "index_rate": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Rate"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "payin": {
+          "$ref": "#/$defs/AssetAmount"
+        },
+        "payin_status": {
+          "maxLength": 128,
+          "type": "string"
+        },
+        "payout": {
+          "$ref": "#/$defs/AssetAmount"
+        },
+        "payout_status": {
+          "maxLength": 128,
+          "type": "string"
+        },
+        "sent_at": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source_status": {
+          "maxLength": 128,
+          "type": "string"
+        },
+        "source_subtype": {
+          "maxLength": 128,
+          "type": "string"
+        },
+        "source_type": {
+          "maxLength": 128,
+          "type": "string"
+        }
+      },
+      "required": [
+        "created_at",
+        "completed_at",
+        "sent_at",
+        "source_type",
+        "source_subtype",
+        "source_status",
+        "payin_status",
+        "payout_status",
+        "payin",
+        "payout",
+        "exchange_rate",
+        "index_rate"
+      ],
+      "type": "object"
+    },
+    "Local": {
+      "maxLength": 5,
+      "pattern": "^(0|[1-9][0-9]{0,4})$",
+      "type": "string"
+    },
+    "Mapping": {
+      "additionalProperties": false,
+      "properties": {
+        "entity_kind": {
+          "enum": [
+            "account",
+            "instrument",
+            "issuer"
+          ]
+        },
+        "local_id": {
+          "$ref": "#/$defs/Local"
+        },
+        "member_id": {
+          "$ref": "#/$defs/UUID"
+        },
+        "target": {
+          "$ref": "#/$defs/EntityTarget"
+        }
+      },
+      "required": [
+        "member_id",
+        "entity_kind",
+        "local_id",
+        "target"
+      ],
+      "type": "object"
+    },
+    "Membership": {
+      "additionalProperties": false,
+      "properties": {
+        "account_local_ids": {
+          "items": {
+            "$ref": "#/$defs/Local"
+          },
+          "maxItems": 64,
+          "type": "array"
+        },
+        "basis": {
+          "maxLength": 4096,
+          "type": "string"
+        },
+        "parent": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Claim"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "revision": {
+          "maxLength": 256,
+          "type": "string"
+        },
+        "scope_id": {
+          "maxLength": 256,
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "complete",
+            "partial",
+            "unknown"
+          ]
+        }
+      },
+      "required": [
+        "scope_id",
+        "revision",
+        "parent",
+        "account_local_ids",
+        "status",
+        "basis"
+      ],
+      "type": "object"
+    },
+    "Minimal": {
+      "additionalProperties": false,
+      "properties": {
+        "accounts": {
+          "items": {
+            "$ref": "#/$defs/Account"
+          },
+          "maxItems": 64,
+          "type": "array"
+        },
+        "assets": {
+          "items": {
+            "$ref": "#/$defs/Asset"
+          },
+          "maxItems": 2048,
+          "type": "array"
+        },
+        "coverage": {
+          "items": {
+            "$ref": "#/$defs/Coverage"
+          },
+          "maxItems": 10000,
+          "type": "array"
+        },
+        "issuers": {
+          "items": {
+            "$ref": "#/$defs/Issuer"
+          },
+          "maxItems": 2048,
+          "type": "array"
+        },
+        "membership": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Membership"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "provenance": {
+          "$ref": "#/$defs/Provenance"
+        },
+        "records": {
+          "items": {
+            "$ref": "#/$defs/Record"
+          },
+          "maxItems": 10000,
+          "type": "array"
+        },
+        "snapshots": {
+          "items": {
+            "$ref": "#/$defs/Snapshot"
+          },
+          "maxItems": 10000,
+          "type": "array"
+        },
+        "version": {
+          "enum": [
+            1
+          ]
+        }
+      },
+      "required": [
+        "version",
+        "provenance",
+        "accounts",
+        "assets",
+        "issuers",
+        "membership",
+        "coverage",
+        "snapshots",
+        "records"
+      ],
+      "type": "object"
+    },
+    "Money": {
+      "additionalProperties": false,
+      "properties": {
+        "amount": {
+          "$ref": "#/$defs/Decimal"
+        },
+        "currency": {
+          "maxLength": 3,
+          "pattern": "^[A-Z]{3}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "amount",
+        "currency"
+      ],
+      "type": "object"
+    },
+    "NativeDiscovery": {
+      "additionalProperties": false,
+      "properties": {
+        "domain": {
+          "$ref": "frozen-shapes.json#/$defs/domain_DomainBatchV1"
+        },
+        "lifecycle_by_activity": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "activity_ordinal": {
+                "maximum": 9999,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "value": {
+                "$ref": "#/$defs/Lifecycle"
+              }
+            },
+            "required": [
+              "activity_ordinal",
+              "value"
+            ],
+            "type": "object"
+          },
+          "maxItems": 10000,
+          "type": "array"
+        },
+        "membership": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Membership"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "version": {
+          "enum": [
+            1
+          ]
+        }
+      },
+      "required": [
+        "version",
+        "domain",
+        "lifecycle_by_activity",
+        "membership"
+      ],
+      "type": "object"
+    },
+    "ParentDecision": {
+      "additionalProperties": false,
+      "properties": {
+        "collection": {
+          "enum": [
+            "records",
+            "coverage",
+            "snapshots",
+            "membership"
+          ]
+        },
+        "local_id": {
+          "$ref": "#/$defs/Local"
+        },
+        "member_id": {
+          "$ref": "#/$defs/UUID"
+        },
+        "parent_revision_id": {
+          "$ref": "#/$defs/UUID"
+        },
+        "reason": {
+          "maxLength": 160,
+          "type": "string"
+        }
+      },
+      "required": [
+        "member_id",
+        "collection",
+        "local_id",
+        "parent_revision_id",
+        "reason"
+      ],
+      "type": "object"
+    },
+    "PinnedSource": {
+      "additionalProperties": false,
+      "properties": {
+        "availability_generation": {
+          "$ref": "#/$defs/Counter"
+        },
+        "connection_generation": {
+          "$ref": "#/$defs/Counter"
+        },
+        "connection_id": {
+          "$ref": "#/$defs/UUID"
+        },
+        "connection_version": {
+          "$ref": "#/$defs/Hash"
+        },
+        "context_digest": {
+          "$ref": "#/$defs/Hash"
+        },
+        "enablement_generation": {
+          "$ref": "#/$defs/Counter"
+        },
+        "format_version": {
+          "maxLength": 128,
+          "type": "string"
+        },
+        "installation_id": {
+          "$ref": "#/$defs/Hash"
+        },
+        "member_id": {
+          "$ref": "#/$defs/UUID"
+        },
+        "wrapper_profile_digest": {
+          "$ref": "#/$defs/Hash"
+        }
+      },
+      "required": [
+        "member_id",
+        "connection_id",
+        "connection_version",
+        "connection_generation",
+        "enablement_generation",
+        "availability_generation",
+        "installation_id",
+        "wrapper_profile_digest",
+        "format_version",
+        "context_digest"
+      ],
+      "type": "object"
+    },
+    "Plan": {
+      "additionalProperties": false,
+      "properties": {
+        "authorities": {
+          "items": {
+            "$ref": "#/$defs/AuthorityDecision"
+          },
+          "maxItems": 40000,
+          "type": "array"
+        },
+        "decision_digest": {
+          "$ref": "#/$defs/Hash"
+        },
+        "expected_accepted_generation": {
+          "$ref": "#/$defs/Counter"
+        },
+        "expected_control_generation": {
+          "$ref": "#/$defs/Counter"
+        },
+        "expected_mapping_generation": {
+          "$ref": "#/$defs/Counter"
+        },
+        "expected_set_revision": {
+          "$ref": "#/$defs/Counter"
+        },
+        "expires_at": {
+          "$ref": "#/$defs/Instant"
+        },
+        "facts": {
+          "items": {
+            "$ref": "#/$defs/FactEffect"
+          },
+          "maxItems": 40000,
+          "type": "array"
+        },
+        "heads": {
+          "items": {
+            "$ref": "#/$defs/HeadEffect"
+          },
+          "maxItems": 40000,
+          "type": "array"
+        },
+        "incarnation": {
+          "$ref": "#/$defs/UUID"
+        },
+        "inputs": {
+          "items": {
+            "$ref": "#/$defs/InputRef"
+          },
+          "maxItems": 4,
+          "type": "array"
+        },
+        "mappings": {
+          "items": {
+            "$ref": "#/$defs/Mapping"
+          },
+          "maxItems": 8192,
+          "type": "array"
+        },
+        "new_entities": {
+          "items": {
+            "$ref": "#/$defs/EntityProposal"
+          },
+          "maxItems": 8192,
+          "type": "array"
+        },
+        "parents": {
+          "items": {
+            "$ref": "#/$defs/ParentDecision"
+          },
+          "maxItems": 40000,
+          "type": "array"
+        },
+        "pinned_sources": {
+          "items": {
+            "$ref": "#/$defs/PinnedSource"
+          },
+          "maxItems": 4,
+          "type": "array"
+        },
+        "portfolio_id": {
+          "$ref": "#/$defs/UUID"
+        },
+        "preview_id": {
+          "$ref": "#/$defs/UUID"
+        },
+        "realm_digest": {
+          "$ref": "#/$defs/Hash"
+        },
+        "restore_epoch": {
+          "$ref": "#/$defs/Counter"
+        },
+        "review_content_digest": {
+          "$ref": "#/$defs/Hash"
+        },
+        "set_id": {
+          "$ref": "#/$defs/UUID"
+        },
+        "tenant_id": {
+          "$ref": "#/$defs/UUID"
+        },
+        "version": {
+          "enum": [
+            1
+          ]
+        }
+      },
+      "required": [
+        "version",
+        "tenant_id",
+        "portfolio_id",
+        "set_id",
+        "preview_id",
+        "realm_digest",
+        "incarnation",
+        "restore_epoch",
+        "decision_digest",
+        "expected_set_revision",
+        "expected_accepted_generation",
+        "expected_mapping_generation",
+        "expected_control_generation",
+        "expires_at",
+        "pinned_sources",
+        "inputs",
+        "mappings",
+        "new_entities",
+        "authorities",
+        "parents",
+        "facts",
+        "heads",
+        "review_content_digest"
+      ],
+      "type": "object"
+    },
+    "Point": {
+      "additionalProperties": false,
+      "properties": {
+        "at": {
+          "$ref": "#/$defs/Time"
+        },
+        "tag": {
+          "enum": [
+            "point"
+          ]
+        }
+      },
+      "required": [
+        "tag",
+        "at"
+      ],
+      "type": "object"
+    },
+    "Position": {
+      "additionalProperties": false,
+      "properties": {
+        "as_of": {
+          "$ref": "#/$defs/Time"
+        },
+        "asset_local_id": {
+          "$ref": "#/$defs/Local"
+        },
+        "cost_cad": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Money"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "cost_native": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Money"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "exchange": {
+          "maxLength": 128,
+          "type": "string"
+        },
+        "identity": {
+          "$ref": "#/$defs/Identity"
+        },
+        "instrument_type": {
+          "maxLength": 128,
+          "type": "string"
+        },
+        "local_id": {
+          "$ref": "#/$defs/Local"
+        },
+        "market_value": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Money"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "name": {
+          "maxLength": 160,
+          "type": "string"
+        },
+        "quantity": {
+          "$ref": "#/$defs/Decimal"
+        },
+        "record_type": {
+          "enum": [
+            "position"
+          ]
+        },
+        "source_account_local_id": {
+          "$ref": "#/$defs/Local"
+        },
+        "source_kind": {
+          "enum": [
+            "holdings"
+          ]
+        },
+        "support": {
+          "$ref": "#/$defs/Support"
+        },
+        "unit_price": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Money"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "unrealized": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Money"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "record_type",
+        "local_id",
+        "source_account_local_id",
+        "source_kind",
+        "identity",
+        "as_of",
+        "asset_local_id",
+        "name",
+        "instrument_type",
+        "exchange",
+        "quantity",
+        "market_value",
+        "unit_price",
+        "cost_native",
+        "cost_cad",
+        "unrealized",
+        "support"
+      ],
+      "type": "object"
+    },
+    "Provenance": {
+      "additionalProperties": false,
+      "properties": {
+        "adapter_id": {
+          "maxLength": 64,
+          "type": "string"
+        },
+        "adapter_version": {
+          "maxLength": 128,
+          "type": "string"
+        },
+        "diagnostics": {
+          "items": {
+            "$ref": "#/$defs/Diagnostic"
+          },
+          "maxItems": 256,
+          "type": "array"
+        },
+        "discovery_sha256": {
+          "$ref": "#/$defs/Hash"
+        },
+        "evidence_at": {
+          "$ref": "#/$defs/Time"
+        },
+        "evidence_reference": {
+          "$ref": "#/$defs/UUID"
+        },
+        "export_version": {
+          "maxLength": 128,
+          "type": "string"
+        },
+        "field_mappings": {
+          "items": {
+            "$ref": "#/$defs/FieldMapping"
+          },
+          "maxItems": 256,
+          "type": "array"
+        },
+        "format_selection": {
+          "maxLength": 128,
+          "type": "string"
+        },
+        "id_policy": {
+          "maxLength": 4096,
+          "type": "string"
+        },
+        "image_digest": {
+          "$ref": "#/$defs/Hash"
+        },
+        "installation_id": {
+          "$ref": "#/$defs/Hash"
+        },
+        "legacy": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LegacyLineage"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "parser_api": {
+          "anyOf": [
+            {
+              "enum": [
+                2
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "provider_id": {
+          "maxLength": 64,
+          "type": "string"
+        },
+        "raw_sha256": {
+          "$ref": "#/$defs/Hash"
+        },
+        "semantic_digests": {
+          "items": {
+            "$ref": "#/$defs/SemanticDigest"
+          },
+          "maxItems": 8,
+          "type": "array"
+        },
+        "source_accepted_at": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source_alias": {
+          "anyOf": [
+            {
+              "maxLength": 160,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source_effective_at": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source_imported_at": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source_timezone": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "wrapper_profile_digest": {
+          "$ref": "#/$defs/Hash"
+        }
+      },
+      "required": [
+        "provider_id",
+        "adapter_id",
+        "adapter_version",
+        "parser_api",
+        "export_version",
+        "raw_sha256",
+        "discovery_sha256",
+        "installation_id",
+        "image_digest",
+        "wrapper_profile_digest",
+        "evidence_reference",
+        "evidence_at",
+        "source_timezone",
+        "format_selection",
+        "source_alias",
+        "source_effective_at",
+        "source_imported_at",
+        "source_accepted_at",
+        "id_policy",
+        "diagnostics",
+        "field_mappings",
+        "semantic_digests",
+        "legacy"
+      ],
+      "type": "object"
+    },
+    "Rate": {
+      "additionalProperties": false,
+      "properties": {
+        "amount": {
+          "$ref": "#/$defs/Decimal"
+        },
+        "unit": {
+          "maxLength": 128,
+          "type": "string"
+        }
+      },
+      "required": [
+        "amount",
+        "unit"
+      ],
+      "type": "object"
+    },
+    "Record": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Position"
+        },
+        {
+          "$ref": "#/$defs/Activity"
+        }
+      ]
+    },
+    "SelectorTime": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Point"
+        },
+        {
+          "$ref": "#/$defs/Interval"
+        }
+      ]
+    },
+    "SemanticDigest": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "enum": [
+            "legacy_semantic_hash"
+          ]
+        },
+        "value": {
+          "$ref": "#/$defs/Hash"
+        }
+      },
+      "required": [
+        "name",
+        "value"
+      ],
+      "type": "object"
+    },
+    "Snapshot": {
+      "additionalProperties": false,
+      "properties": {
+        "account_local_ids": {
+          "items": {
+            "$ref": "#/$defs/Local"
+          },
+          "maxItems": 64,
+          "type": "array"
+        },
+        "as_of": {
+          "$ref": "#/$defs/Time"
+        },
+        "coverage_local_ids": {
+          "items": {
+            "$ref": "#/$defs/Local"
+          },
+          "maxItems": 10000,
+          "type": "array"
+        },
+        "legacy": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LegacyLineage"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "local_id": {
+          "$ref": "#/$defs/Local"
+        },
+        "parent": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Claim"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "position_local_ids": {
+          "items": {
+            "$ref": "#/$defs/Local"
+          },
+          "maxItems": 10000,
+          "type": "array"
+        },
+        "revision": {
+          "maxLength": 256,
+          "type": "string"
+        },
+        "source_id": {
+          "maxLength": 256,
+          "type": "string"
+        }
+      },
+      "required": [
+        "local_id",
+        "source_id",
+        "revision",
+        "parent",
+        "as_of",
+        "account_local_ids",
+        "coverage_local_ids",
+        "position_local_ids",
+        "legacy"
+      ],
+      "type": "object"
+    },
+    "SnapshotHeadKey": {
+      "additionalProperties": false,
+      "properties": {
+        "account_id": {
+          "$ref": "#/$defs/UUID"
+        },
+        "instrument_scope": {
+          "$ref": "#/$defs/CanonicalInstrumentScope"
+        },
+        "portfolio_id": {
+          "$ref": "#/$defs/UUID"
+        },
+        "record_kind": {
+          "enum": [
+            "holdings"
+          ]
+        },
+        "tenant_id": {
+          "$ref": "#/$defs/UUID"
+        },
+        "version": {
+          "enum": [
+            1
+          ]
+        }
+      },
+      "required": [
+        "version",
+        "tenant_id",
+        "portfolio_id",
+        "account_id",
+        "record_kind",
+        "instrument_scope"
+      ],
+      "type": "object"
+    },
+    "SourceKey": {
+      "additionalProperties": false,
+      "properties": {
+        "collection": {
+          "enum": [
+            "records",
+            "coverage",
+            "snapshots",
+            "membership"
+          ]
+        },
+        "connection_id": {
+          "$ref": "#/$defs/UUID"
+        },
+        "kind": {
+          "enum": [
+            "holdings",
+            "cash_flows",
+            "crypto_transactions",
+            "activity",
+            "coverage",
+            "snapshot",
+            "membership"
+          ]
+        },
+        "observation_id": {
+          "maxLength": 256,
+          "type": "string"
+        },
+        "portfolio_id": {
+          "$ref": "#/$defs/UUID"
+        },
+        "provider": {
+          "maxLength": 64,
+          "type": "string"
+        },
+        "record_kind": {
+          "anyOf": [
+            {
+              "enum": [
+                "holdings",
+                "cash_flows",
+                "crypto_transactions",
+                "activity"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source_account_key": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source_id": {
+          "maxLength": 256,
+          "type": "string"
+        },
+        "tenant_id": {
+          "$ref": "#/$defs/UUID"
+        },
+        "version": {
+          "enum": [
+            1
+          ]
+        }
+      },
+      "required": [
+        "version",
+        "tenant_id",
+        "portfolio_id",
+        "connection_id",
+        "collection",
+        "provider",
+        "source_account_key",
+        "kind",
+        "record_kind",
+        "source_id",
+        "observation_id"
+      ],
+      "type": "object"
+    },
+    "SourceRevisionKey": {
+      "additionalProperties": false,
+      "properties": {
+        "revision": {
+          "maxLength": 256,
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/SourceKey"
+        },
+        "version": {
+          "enum": [
+            1
+          ]
+        }
+      },
+      "required": [
+        "version",
+        "source",
+        "revision"
+      ],
+      "type": "object"
+    },
+    "Support": {
+      "additionalProperties": false,
+      "properties": {
+        "classification": {
+          "enum": [
+            "supported_shape",
+            "unsupported"
+          ]
+        },
+        "reasons": {
+          "items": {
+            "enum": [
+              "unsupported_instrument",
+              "signed_position",
+              "unsupported_activity",
+              "unsupported_status"
+            ]
+          },
+          "maxItems": 4,
+          "type": "array"
+        }
+      },
+      "required": [
+        "classification",
+        "reasons"
+      ],
+      "type": "object"
+    },
+    "TargetCandidate": {
+      "additionalProperties": false,
+      "properties": {
+        "body": {
+          "$ref": "#/$defs/EntityBody"
+        },
+        "entity_kind": {
+          "enum": [
+            "account",
+            "instrument",
+            "issuer"
+          ]
+        },
+        "local_id": {
+          "$ref": "#/$defs/Local"
+        },
+        "member_id": {
+          "$ref": "#/$defs/UUID"
+        },
+        "target": {
+          "$ref": "#/$defs/EntityTarget"
+        }
+      },
+      "required": [
+        "member_id",
+        "entity_kind",
+        "local_id",
+        "target",
+        "body"
+      ],
+      "type": "object"
+    },
+    "Time": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Instant"
+        },
+        {
+          "$ref": "#/$defs/Date"
+        },
+        {
+          "$ref": "#/$defs/LegacyTime"
+        }
+      ]
+    },
+    "UUID": {
+      "maxLength": 36,
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "type": "string"
+    },
+    "WrapperProfile": {
+      "additionalProperties": false,
+      "properties": {
+        "distribution": {
+          "maxLength": 128,
+          "type": "string"
+        },
+        "entry_point": {
+          "maxLength": 256,
+          "type": "string"
+        },
+        "format_versions": {
+          "items": {
+            "maxLength": 128,
+            "type": "string"
+          },
+          "maxItems": 32,
+          "type": "array"
+        },
+        "identity_policy": {
+          "enum": [
+            "provider_scoped_stable",
+            "snapshot_semantic",
+            "ambiguous"
+          ]
+        },
+        "image_digest": {
+          "$ref": "#/$defs/Hash"
+        },
+        "installation_id": {
+          "$ref": "#/$defs/Hash"
+        },
+        "profile_digest": {
+          "$ref": "#/$defs/Hash"
+        },
+        "projection": {
+          "enum": [
+            "parser2-minimal-v1",
+            "domain1-minimal-v1"
+          ]
+        },
+        "version": {
+          "enum": [
+            1
+          ]
+        },
+        "wrapper_sha256": {
+          "$ref": "#/$defs/Hash"
+        }
+      },
+      "required": [
+        "version",
+        "installation_id",
+        "image_digest",
+        "distribution",
+        "entry_point",
+        "wrapper_sha256",
+        "projection",
+        "format_versions",
+        "profile_digest",
+        "identity_policy"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "urn:wealth-ledger:planning:ingestion-contracts:1",
+  "$ref": "#/$defs/Minimal",
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}
