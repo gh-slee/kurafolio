@@ -32,10 +32,9 @@ Upload, reconciled preview, decisions, confirmation and import history on the V2
 - No V2 page exists. The shipped UI talks only to `/api/v1` (`frontend/src/lib/api.ts`).
 - Routes come from IMP-007E (not built). Backend status and the meaning of preview, decision and confirmation: [web-v2-imports.md](../docs/web-v2-imports.md).
 - The shipped import page is `frontend/src/components/imports.tsx` (1,071 lines). Observed on the synthetic fixture on 2026-11-10: step 3 is marked current on arrival (`:170-176`), two near-identical introductions (`:393-394`), timestamps typed with a UTC offset (`:507,521`), "Snapshot kind" and "reference JSON" fields, and history rows that show only a job type and time (`:1040-1060`).
+- Its confirmation dialog (`:996-1030`) and its rule that unsent input survives errors are worth keeping.
 
 ## Requirements
-
-- Its confirmation dialog (`:996-1030`) and its rule that unsent input survives errors are worth keeping.
 
 ### Expected behaviour
 
@@ -101,4 +100,4 @@ Upload, reconciled preview, decisions, confirmation and import history on the V2
 - 2026-11-10 planner: destination name updated to "Parser Plugin Store".
 - 2026-11-10 planner: added the absent-account question to the review step by owner decision.
 - 2026-11-10 planner: owner approved Gate A for the V2 MVP scope of this ticket on 2026-11-10 and released it (status ready).
-- 2026-11-18 claude-code/opus-5.5: ENG-113 migrated this ticket to the spec format without changing any wording: moved the "Its confirmation dialog" bullet of Current behaviour, "Expected behaviour", "Scope" and "Implementation notes" from Context into Requirements and numbered the acceptance criteria AC-APP-011D-01 to 09. Spec hash sha256:a4fa9d941d9595066f10cbfe9cff0171014230e50290d4487139dfda70eceb96, awaiting the owner's confirmation.
+- 2026-11-18 claude-code/opus-5.5: ENG-113 migrated this ticket to the spec format without changing any wording: moved "Expected behaviour", "Scope" and "Implementation notes" from Context into Requirements and numbered the acceptance criteria AC-APP-011D-01 to 09. Spec hash sha256:0c597433e5a0769ec0d413329823746c94b9dc551ad54ea12123b036506476c5, awaiting the owner's confirmation.

@@ -37,11 +37,11 @@ Run normalization in a dedicated worker that leases members, launches the parser
 - V2 HTTP application and DTO style: `src/kurafolio/web_v2/api.py`, `web_v2/schemas.py`.
 - Tests to extend: `tests/test_postgres_migration.py`, `tests/test_ingestion_*.py`, `tests/test_web_v2_api.py`, `tests/test_web_v2_sources.py`; vectors in `tests/fixtures/ingestion/oracle.json`.
 - Public status and boundaries: [web-v2-imports.md](../docs/web-v2-imports.md). Product intent: [PRODUCT_CONTEXT.md](PRODUCT_CONTEXT.md).
-- Real-PostgreSQL tests need the explicit isolated environment; a skipped test is not acceptance. Use the claim's `isolation_id` and `port_base`.
 
 ## Requirements
 
 - Frozen r7 contract bundle, the contract approved as "IMP-007 spec r7": [docs/specs/imp-007-r7/](../docs/specs/imp-007-r7/README.md) (index sha256:75a859f65d7ee4564a20220b756b88ff44cf4449644167e2df2a87fd081e7fe7; the index lists the SHA-256 of each file), notably [spec.md](../docs/specs/imp-007-r7/spec.md), [sql-appendix.md](../docs/specs/imp-007-r7/sql-appendix.md), [sql-inventory.json](../docs/specs/imp-007-r7/sql-inventory.json), [contract-appendix.md](../docs/specs/imp-007-r7/contract-appendix.md) and [acceptance.md](../docs/specs/imp-007-r7/acceptance.md).
+- Real-PostgreSQL tests need the explicit isolated environment; a skipped test is not acceptance. Use the claim's `isolation_id` and `port_base`.
 
 ### What to build
 
@@ -92,4 +92,4 @@ Rules that reviewers will check:
 - 2026-11-10 planner: added the dependency on IMP-007L: the worker cannot prepare a review without the prepare-lease functions.
 - 2026-11-13 planner: added a plain description of the two processes, the rules from the approved r7 contract, and six acceptance criteria, including the owner's platform decision of 2026-11-11. Scope is unchanged.
 - 2026-11-17 planner: the owner confirmed in conversation ("Confirm all six") the changes PR #64 made to this ticket after its approval. The approval in gate_approval covers the text as it stands now.
-- 2026-11-18 claude-code/opus-5.5: ENG-113 migrated this ticket to the spec format without changing any wording: moved the bullet naming the r7 contract bundle and "What to build" from Context into Requirements and numbered the acceptance criteria AC-IMP-007F-01 to 09. Spec hash sha256:ca40323656289449643433b9955b9c22f9c4b18dd1164313017e246003e73d9f, awaiting the owner's confirmation.
+- 2026-11-18 claude-code/opus-5.5: ENG-113 migrated this ticket to the spec format without changing any wording: moved the bullet naming the r7 contract bundle, the "Real-PostgreSQL tests" bullet of Where to start and "What to build" from Context into Requirements and numbered the acceptance criteria AC-IMP-007F-01 to 09. Spec hash sha256:4cce4a674bf22ce519b38274a06b9b34fb7df958e9156be431ef9c9ee726477b, awaiting the owner's confirmation.
