@@ -297,7 +297,8 @@ Keep it current. Overwrite it at each checkpoint; the Log keeps history.
   only when the owner approved that exact text. Any change to `gate_approval` or
   `spec_approved`, including clearing it, quotes the owner's words in the Log; the
   script cannot tell who approved, so the owner checks this at review.
-- **Reviews:** `review: independent` means a different agent session than the
+- **Reviews:** `review: independent`, and every `frontier` ticket whatever its
+  `review` field says, means a different agent session than the
   implementer reviews the diff against the acceptance criteria. The same session
   cannot self-certify. Using a different model is welcome but does not by itself
   count as independence. The implementer starts this review itself, without
