@@ -29,7 +29,7 @@ The owner wants to see what they own through their ETFs: the largest companies, 
 
 ### Spec material
 
-- Golden cases G11 and G12, cited in Acceptance criteria: [docs/golden-cases.md](../docs/golden-cases.md) (sha256:5e6a5db1ec4409cf78f7e1d04a52ee3b66e0079898460199e75fe998c4f71b0f).
+- Golden cases G11 and G12, cited in Acceptance criteria: [docs/golden-cases.md](../docs/golden-cases.md) (sha256:f7adca063ff68fe0502066608fc6fad6b1f818244679190b3e7cdcf3020e5594).
 
 ### Current behaviour
 

@@ -29,7 +29,7 @@ The owner wants the values on the analysis pages to follow the market: the app f
 
 ### Spec material
 
-- Golden cases G09, G10 and G19, cited in Implementation notes and Acceptance criteria: [docs/golden-cases.md](../docs/golden-cases.md) (sha256:5e6a5db1ec4409cf78f7e1d04a52ee3b66e0079898460199e75fe998c4f71b0f).
+- Golden cases G09, G10 and G19, cited in Implementation notes and Acceptance criteria: [docs/golden-cases.md](../docs/golden-cases.md) (sha256:f7adca063ff68fe0502066608fc6fad6b1f818244679190b3e7cdcf3020e5594).
 
 ### Current behaviour
 

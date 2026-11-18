@@ -27,9 +27,9 @@ Independent end-to-end acceptance of AC-WL-P0-007-01..04 on a synthetic instance
 
 ## Context
 
-- Frozen r7 contract bundle, the contract approved as "IMP-007 spec r7": [docs/specs/imp-007-r7/](../docs/specs/imp-007-r7/README.md) (index sha256:90e4b3306450dc88ce7bb9a5d973e4ed9837f37e5c8ac9f3da1b7d7a65bcea88; the index lists the SHA-256 of each file), notably [spec.md](../docs/specs/imp-007-r7/spec.md), [sql-appendix.md](../docs/specs/imp-007-r7/sql-appendix.md), [sql-inventory.json](../docs/specs/imp-007-r7/sql-inventory.json), [contract-appendix.md](../docs/specs/imp-007-r7/contract-appendix.md) and [acceptance.md](../docs/specs/imp-007-r7/acceptance.md).
+- Frozen r7 contract bundle, the contract approved as "IMP-007 spec r7": [docs/specs/imp-007-r7/](../docs/specs/imp-007-r7/README.md) (index sha256:75a859f65d7ee4564a20220b756b88ff44cf4449644167e2df2a87fd081e7fe7; the index lists the SHA-256 of each file), notably [spec.md](../docs/specs/imp-007-r7/spec.md), [sql-appendix.md](../docs/specs/imp-007-r7/sql-appendix.md), [sql-inventory.json](../docs/specs/imp-007-r7/sql-inventory.json), [contract-appendix.md](../docs/specs/imp-007-r7/contract-appendix.md) and [acceptance.md](../docs/specs/imp-007-r7/acceptance.md).
 - r7 [acceptance.md](../docs/specs/imp-007-r7/acceptance.md), [failure-restore.md](../docs/specs/imp-007-r7/failure-restore.md) and [oracle.json](../docs/specs/imp-007-r7/oracle.json). The r7 fixtures: [fixtures/case-matrix.json](../docs/specs/imp-007-r7/fixtures/case-matrix.json); the fixture files themselves are tracked in `tests/fixtures/ingestion/oracle.json`, as the bundle index explains.
-- Background only: the revision 1 planning draft [docs/specs/v2-drafts/WL-P0-007.md](../docs/specs/v2-drafts/WL-P0-007.md) (sha256:a8b73b5b4c55fe46eae9551f229623cc577f3296ffd16ecd4093e47bbdfb234f), which the r7 bundle supersedes.
+- Background only: the revision 1 planning draft [docs/specs/v2-drafts/WL-P0-007.md](../docs/specs/v2-drafts/WL-P0-007.md) (sha256:fa0971a0da787cb327484c92144e4a5ecd916db4ad0328e03b408d647190acd5), which the r7 bundle supersedes.
 
 ### Where to start
 
@@ -42,7 +42,7 @@ Independent end-to-end acceptance of AC-WL-P0-007-01..04 on a synthetic instance
 
 ### What to check
 
-The approved acceptance list has 36 cases, A07-01 to A07-36, in `acceptance.md` of the r7 bundle, with literal expected values in `oracle.json` (a tracked copy of the vectors is `tests/fixtures/ingestion/oracle.json`). Work through all of them on a disposable synthetic instance started from the OPS-021 compose file, or from the IMP-007D to 007F commands if 021 is not merged. They fall into six groups:
+The approved acceptance list has 36 cases, A07-01 to A07-36, in `acceptance.md` of the r7 bundle, with literal expected values in `oracle.json` (a different file from the tracked test vectors in `tests/fixtures/ingestion/oracle.json`, which hold the fixture inputs; see the [bundle index](../docs/specs/imp-007-r7/README.md)). Work through all of them on a disposable synthetic instance started from the OPS-021 compose file, or from the IMP-007D to 007F commands if 021 is not merged. They fall into six groups:
 
 | Group | Cases | What it proves |
 |---|---|---|

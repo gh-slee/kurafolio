@@ -50,7 +50,7 @@ The three V2 analysis pages need one versioned read contract so they can be buil
 - DTO and error conventions: `src/kurafolio/web_v2/schemas.py`. Decimal rules: [canonical-domain.md](../docs/canonical-domain.md).
 - Unknown is never zero and CAD, USD and TWD are alternative equivalents, never additive (AGENTS.md).
 - The frontend types are generated: see `docs/web-frontend.md` lines 130-140 for `scripts/export_web_schema.py` and `openapi-typescript`. Decide whether V2 gets its own generated file.
-- Acceptance numbers come from the golden cases referenced by ANL-008 and the original ANL-012 criteria, in [docs/golden-cases.md](../docs/golden-cases.md) (sha256:5e6a5db1ec4409cf78f7e1d04a52ee3b66e0079898460199e75fe998c4f71b0f).
+- Acceptance numbers come from the golden cases referenced by ANL-008 and the original ANL-012 criteria, in [docs/golden-cases.md](../docs/golden-cases.md) (sha256:f7adca063ff68fe0502066608fc6fad6b1f818244679190b3e7cdcf3020e5594).
 
 ### Owner decisions recorded 2026-11-10
 

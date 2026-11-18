@@ -56,7 +56,7 @@ Upload, reconciled preview, decisions, confirmation and import history on the V2
 - Split the page into small components; do not copy `imports.tsx` wholesale.
 - Confirmation sends the preview digest and an idempotency token; a retry after an uncertain network result must reuse both.
 - Polling must not move focus; announce completion once with `role="status"`.
-- The longer draft spec is published as background: [docs/specs/v2-drafts/WL-P0-011.md](../docs/specs/v2-drafts/WL-P0-011.md) (sha256:3a17f839b41f2625870403d5914a7a4699f3696492f649d7a3e1d985b9023685). This ticket is written to be sufficient without it.
+- The longer draft spec is published as background: [docs/specs/v2-drafts/WL-P0-011.md](../docs/specs/v2-drafts/WL-P0-011.md) (sha256:c1e6032acd9488898f8a71cb0fd8edc2b8867ae4816d33a43bf4c5b9e26b8636). This ticket is written to be sufficient without it.
 
 ## Acceptance criteria
 

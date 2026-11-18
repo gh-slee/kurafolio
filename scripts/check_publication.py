@@ -199,7 +199,7 @@ def path_allowed(path: str) -> bool:
             return p.name in {'wealthsimple-holdings.csv', 'bull-orders.csv', 'fx.json', 'btc-price.json'}
         return len(parts) == 3 and parts[1] == 'templates' and p.name in {'btc_events.csv', 'cash_flows.csv'}
     if parts[0] == 'docs':
-        return len(parts) == 2 and p.name in PUBLIC_DOCS or path in PUBLIC_SPEC_DOCS
+        return (len(parts) == 2 and p.name in PUBLIC_DOCS) or path in PUBLIC_SPEC_DOCS
     if parts[0] == 'tickets':
         # Tracked agent backlog: flat Markdown only (see tickets/README.md).
         return len(parts) == 2 and p.suffix == '.md' and re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]*\.md', p.name) is not None

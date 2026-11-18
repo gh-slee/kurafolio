@@ -29,7 +29,7 @@ Make the V2 shell decide from real data whether Stock/Bond, Exposures and Crypto
 
 ### Spec material
 
-- Background only: the revision 1 planning draft [docs/specs/v2-drafts/WL-P0-011.md](../docs/specs/v2-drafts/WL-P0-011.md) (sha256:3a17f839b41f2625870403d5914a7a4699f3696492f649d7a3e1d985b9023685). Where it differs from this ticket, this ticket applies.
+- Background only: the revision 1 planning draft [docs/specs/v2-drafts/WL-P0-011.md](../docs/specs/v2-drafts/WL-P0-011.md) (sha256:c1e6032acd9488898f8a71cb0fd8edc2b8867ae4816d33a43bf4c5b9e26b8636). Where it differs from this ticket, this ticket applies.
 
 ### Current behaviour
 

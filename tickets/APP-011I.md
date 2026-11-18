@@ -29,8 +29,8 @@ When someone opens an invitation link that has expired, been revoked or already 
 
 ### Spec material
 
-- The r7 SQL appendix the Handoff refers to: [sql-appendix.md](../docs/specs/imp-007-r7/sql-appendix.md) in [docs/specs/imp-007-r7/](../docs/specs/imp-007-r7/README.md) (index sha256:90e4b3306450dc88ce7bb9a5d973e4ed9837f37e5c8ac9f3da1b7d7a65bcea88; the index lists the SHA-256 of each file).
-- Background only: the revision 1 planning draft [docs/specs/v2-drafts/WL-P0-011.md](../docs/specs/v2-drafts/WL-P0-011.md) (sha256:3a17f839b41f2625870403d5914a7a4699f3696492f649d7a3e1d985b9023685). Where it differs from this ticket, this ticket applies.
+- The r7 SQL appendix the Handoff refers to: [sql-appendix.md](../docs/specs/imp-007-r7/sql-appendix.md) in [docs/specs/imp-007-r7/](../docs/specs/imp-007-r7/README.md) (index sha256:75a859f65d7ee4564a20220b756b88ff44cf4449644167e2df2a87fd081e7fe7; the index lists the SHA-256 of each file).
+- Background only: the revision 1 planning draft [docs/specs/v2-drafts/WL-P0-011.md](../docs/specs/v2-drafts/WL-P0-011.md) (sha256:c1e6032acd9488898f8a71cb0fd8edc2b8867ae4816d33a43bf4c5b9e26b8636). Where it differs from this ticket, this ticket applies.
 
 ### Current behaviour
 

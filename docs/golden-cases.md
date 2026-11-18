@@ -4,6 +4,8 @@ These are the independent financial acceptance cases G01 to G19 from the V2 plan
 
 Tickets that rely on a case link this file with its SHA-256. Changing a case ID, an input or an expected value changes the spec of every ticket that cites the case, so those tickets need the owner's approval again before anyone builds against the new value. Add a new case under a new ID rather than editing an existing one.
 
+The planning package proposed these cases, as the note below says. A case becomes an approved expected value through the Gate A of a ticket that cites it in Acceptance criteria; the others remain proposals.
+
 ## Independent financial acceptance cases
 
 Revision 1, proposed QA oracle. Values below are invented, dimensioned, fixed examples derived from elementary arithmetic and requirements, not copied from production functions. Planned implementation tests are NOT RUN. A planning-only independent Decimal arithmetic check of the stated constants is recorded in the unpublished planning package. Future QA must approve inputs/oracle separately, then execute against the implementation and compare.

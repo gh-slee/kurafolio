@@ -65,9 +65,23 @@ Links inside the published files to the files above do not resolve.
 `tests/fixtures/ingestion/oracle.json` is the test vector set the implementation
 uses. It also has `sql-inventory` and `codec-shapes` keys whose content differs from
 [sql-inventory.json](sql-inventory.json) and [codec-schema.json](codec-schema.json)
-here. The r7 oracle in this directory is a different file: it records the
-acceptance cases and their expected outcomes. Where the two disagree, the files in
-this directory are the contract the tickets cite. ENG-114 does not reconcile them.
+here, because the tracked file also carries changes made by later IMP-007 child
+tickets, such as the `admit_rate_v1` function that IMP-007J's approval added. The
+r7 oracle in this directory is a different file: it records the acceptance cases
+and their expected outcomes. The files here are the frozen r7 baseline. ENG-114
+reconciles nothing and sets no precedence between the two; a difference that
+matters to a ticket goes to the owner.
+
+## Status fields and order of authority
+
+The copies keep the status fields they had when the bundle was frozen, such as
+`human_gate_a: null` and `implementation_authorized: false` in `spec.md`. The
+owner's approval of "IMP-007 spec r7" is recorded in the tickets' `gate_approval`,
+not in these files. Bundle r7 holds WL-P0-007 spec revision 6.
+
+The citing ticket is the spec. This bundle is the contract its approval refers to.
+The revision 1 planning draft in [docs/specs/v2-drafts/](../v2-drafts/WL-P0-007.md)
+is background only.
 
 ## Changing these files
 
