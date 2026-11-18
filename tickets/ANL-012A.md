@@ -33,6 +33,8 @@ The three V2 analysis pages need one versioned read contract so they can be buil
 - The shipped pages read a frozen report (`GET /api/v1/portfolios/{id}/reports/{report_id}`, `src/kurafolio/web/reports.py:293`); its DTO is edition-based and cannot refresh.
 - Positions come from ANL-008 and quotes and FX from MKT-009.
 
+## Requirements
+
 ### Expected behaviour
 
 - `GET /api/v2/analysis/securities`, `/crypto` and `/total`, each taking `currency`.
@@ -62,11 +64,11 @@ The three V2 analysis pages need one versioned read contract so they can be buil
 
 ## Acceptance criteria
 
-- [ ] Given only a securities import, then `/securities` and `/total` match the fixed oracle right after the commit generation and `/crypto` reports "no eligible acquisitions" without a zero value.
-- [ ] Given securities and Bitcoin acquisitions, then `/total` counts Bitcoin once and equals the oracle in each supported currency.
-- [ ] Given a missing quote or FX rate, then `known_subtotal` is returned, `complete_total` is null and the affected rows carry a reason code.
-- [ ] Given user A, then no parameter returns user B's data.
-- [ ] OpenAPI lists the routes and every field; decimal values are strings.
+- [ ] AC-ANL-012A-01: Given only a securities import, then `/securities` and `/total` match the fixed oracle right after the commit generation and `/crypto` reports "no eligible acquisitions" without a zero value.
+- [ ] AC-ANL-012A-02: Given securities and Bitcoin acquisitions, then `/total` counts Bitcoin once and equals the oracle in each supported currency.
+- [ ] AC-ANL-012A-03: Given a missing quote or FX rate, then `known_subtotal` is returned, `complete_total` is null and the affected rows carry a reason code.
+- [ ] AC-ANL-012A-04: Given user A, then no parameter returns user B's data.
+- [ ] AC-ANL-012A-05: OpenAPI lists the routes and every field; decimal values are strings.
 
 ### Tests
 
@@ -100,3 +102,4 @@ None open. Answered by the owner on 2026-11-10: yes, the first version may value
 - 2026-11-10 planner: dependency on MKT-009 removed for the first version by the owner's MVP decision; live stock quotes and the daily series are added when MKT-009 and MKT-009A land.
 - 2026-11-11 planner: named the MKT-009 children that extend this contract after the MVP.
 - 2026-11-13 planner: removed the answered decision and the stale gate wording; the ticket waits only on ANL-008.
+- 2026-11-18 claude-code/opus-5.5: ENG-113 migrated this ticket to the spec format without changing any wording: moved "Expected behaviour", "Scope", "Implementation notes" and "Owner decisions recorded 2026-11-10" from Context into Requirements and numbered the acceptance criteria AC-ANL-012A-01 to 05. Spec hash sha256:53db5ddc3a935a30bdbdefb6bc5d90d43426429e417c2ebb3db32784d205d4ee, awaiting the owner's confirmation.

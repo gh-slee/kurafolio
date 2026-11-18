@@ -27,7 +27,6 @@ Independent end-to-end acceptance of AC-WL-P0-007-01..04 on a synthetic instance
 
 ## Context
 
-- Frozen r7 contract bundle, the contract approved as "IMP-007 spec r7": [docs/specs/imp-007-r7/](../docs/specs/imp-007-r7/README.md) (index sha256:75a859f65d7ee4564a20220b756b88ff44cf4449644167e2df2a87fd081e7fe7; the index lists the SHA-256 of each file), notably [spec.md](../docs/specs/imp-007-r7/spec.md), [sql-appendix.md](../docs/specs/imp-007-r7/sql-appendix.md), [sql-inventory.json](../docs/specs/imp-007-r7/sql-inventory.json), [contract-appendix.md](../docs/specs/imp-007-r7/contract-appendix.md) and [acceptance.md](../docs/specs/imp-007-r7/acceptance.md).
 - r7 [acceptance.md](../docs/specs/imp-007-r7/acceptance.md), [failure-restore.md](../docs/specs/imp-007-r7/failure-restore.md) and [oracle.json](../docs/specs/imp-007-r7/oracle.json). The r7 fixtures: [fixtures/case-matrix.json](../docs/specs/imp-007-r7/fixtures/case-matrix.json); the fixture files themselves are tracked in `tests/fixtures/ingestion/oracle.json`, as the bundle index explains.
 - Background only: the revision 1 planning draft [docs/specs/v2-drafts/WL-P0-007.md](../docs/specs/v2-drafts/WL-P0-007.md) (sha256:fa0971a0da787cb327484c92144e4a5ecd916db4ad0328e03b408d647190acd5), which the r7 bundle supersedes.
 
@@ -39,6 +38,10 @@ Independent end-to-end acceptance of AC-WL-P0-007-01..04 on a synthetic instance
 - Tests to extend: `tests/test_postgres_migration.py`, `tests/test_ingestion_*.py`, `tests/test_web_v2_api.py`, `tests/test_web_v2_sources.py`; vectors in `tests/fixtures/ingestion/oracle.json`.
 - Public status and boundaries: [web-v2-imports.md](../docs/web-v2-imports.md). Product intent: [PRODUCT_CONTEXT.md](PRODUCT_CONTEXT.md).
 - Real-PostgreSQL tests need the explicit isolated environment; a skipped test is not acceptance. Use the claim's `isolation_id` and `port_base`.
+
+## Requirements
+
+- Frozen r7 contract bundle, the contract approved as "IMP-007 spec r7": [docs/specs/imp-007-r7/](../docs/specs/imp-007-r7/README.md) (index sha256:75a859f65d7ee4564a20220b756b88ff44cf4449644167e2df2a87fd081e7fe7; the index lists the SHA-256 of each file), notably [spec.md](../docs/specs/imp-007-r7/spec.md), [sql-appendix.md](../docs/specs/imp-007-r7/sql-appendix.md), [sql-inventory.json](../docs/specs/imp-007-r7/sql-inventory.json), [contract-appendix.md](../docs/specs/imp-007-r7/contract-appendix.md) and [acceptance.md](../docs/specs/imp-007-r7/acceptance.md).
 
 ### What to check
 
@@ -57,12 +60,12 @@ Derive every expected value yourself from the fixture files. Do not call the imp
 
 ## Acceptance criteria
 
-- [ ] All four epic acceptance criteria pass with independently derived expected values.
-- [ ] A results table lists each of A07-01 to A07-36 as PASS, FAIL or NOT RUN, with the command or test that produced it. It is committed under `docs/` or linked from the pull request, with no private data.
-- [ ] Restore into two empty targets keeps unaccepted authority inactive.
-- [ ] Findings are recorded; repairs go back through the owning child ticket.
-- [ ] Each FAIL has a bug ticket that names the case, the expected value and the observed value. A FAIL in booking, isolation, or races and faults blocks OPS-015; the pull request says so plainly.
-- [ ] The cases are automated where they can be, as opt-in PostgreSQL or Docker tests, so they run again in CI and for OPS-015.
+- [ ] AC-IMP-007G-01: All four epic acceptance criteria pass with independently derived expected values.
+- [ ] AC-IMP-007G-02: A results table lists each of A07-01 to A07-36 as PASS, FAIL or NOT RUN, with the command or test that produced it. It is committed under `docs/` or linked from the pull request, with no private data.
+- [ ] AC-IMP-007G-03: Restore into two empty targets keeps unaccepted authority inactive.
+- [ ] AC-IMP-007G-04: Findings are recorded; repairs go back through the owning child ticket.
+- [ ] AC-IMP-007G-05: Each FAIL has a bug ticket that names the case, the expected value and the observed value. A FAIL in booking, isolation, or races and faults blocks OPS-015; the pull request says so plainly.
+- [ ] AC-IMP-007G-06: The cases are automated where they can be, as opt-in PostgreSQL or Docker tests, so they run again in CI and for OPS-015.
 
 ## Plan
 
@@ -84,3 +87,4 @@ Derive every expected value yourself from the fixture files. Do not call the imp
 - 2026-11-10 planner: owner re-confirmed this ticket for the V2 MVP on 2026-11-10; released (status ready), added starting files and verify commands.
 - 2026-11-13 planner: added the six groups of the 36 approved acceptance cases and three acceptance criteria about recording results. Scope is unchanged.
 - 2026-11-17 planner: the owner confirmed in conversation ("Confirm all six") the changes PR #64 made to this ticket after its approval. The approval in gate_approval covers the text as it stands now.
+- 2026-11-18 claude-code/opus-5.5: ENG-113 migrated this ticket to the spec format without changing any wording: moved the bullet naming the r7 contract bundle and "What to check" from Context into Requirements and numbered the acceptance criteria AC-IMP-007G-01 to 06. Spec hash sha256:15036eab083b69d5e67f1d90ef90541b72b41bf07c4edd637f26c9e1e13f2ca4, awaiting the owner's confirmation.

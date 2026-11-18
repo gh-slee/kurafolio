@@ -16,7 +16,7 @@ review: independent
 branch:
 pr:
 spec:
-updated: 2026-11-13
+updated: 2026-11-18
 ---
 
 # ANL-012B: Build the V2 Stock/Bond page and the shared analysis toolbar
@@ -30,8 +30,11 @@ A V2 user who imported a holdings file wants to see their securities at current 
 ### Current behaviour
 
 - No V2 page exists. The shipped UI talks only to `/api/v1` (`frontend/src/lib/api.ts`).
-- Nearest shipped page: Holdings (`frontend/src/components/analysis.tsx:178-290`). Defects seen there on 2026-11-10 that this page must not repeat: cash listed as securities with an average cost, native and display currency mixed in one row without labels, a date rail filling the top half of the screen, an edition selector.
 - Data: `GET /api/v2/analysis/securities` from ANL-012A.
+
+## Requirements
+
+- Nearest shipped page: Holdings (`frontend/src/components/analysis.tsx:178-290`). Defects seen there on 2026-11-10 that this page must not repeat: cash listed as securities with an average cost, native and display currency mixed in one row without labels, a date rail filling the top half of the screen, an edition selector.
 
 ### Expected behaviour
 
@@ -64,15 +67,15 @@ A V2 user who imported a holdings file wants to see their securities at current 
 
 ## Acceptance criteria
 
-- [ ] Given only a Wealthsimple import, when the page loads, then the known securities value and holdings match the mocked contract and no Bitcoin or edition wording appears.
-- [ ] Given cash in two accounts, then cash is listed separately without cost or profit columns.
-- [ ] Given the user selects USD, then every amount, chart axis and table header follows it and the choice survives a reload.
-- [ ] Given a partial response (`complete_total` null), then the known subtotal is shown with a "partial" marker and a reason; no total is fabricated.
-- [ ] Given a refresh in progress, then previous values stay visible with "updating"; on failure they stay with an error and retry.
-- [ ] Given no securities source is enabled, then the page offers "Enable a source" instead of zero values.
-- [ ] Given a value history with one, two or many points, then each axis label appears once and in order (the shipped chart repeats labels with one point; see ANL-111).
-- [ ] No internal identifier or error code is shown as the only explanation of a status, and no heading is immediately repeated as a table caption (see APP-107, RPT-103).
-- [ ] Keyboard reachable with visible focus, one `h1`, labelled controls, chart data available as a table, no colour-only meaning; en-CA, zh-TW, zh-CN; light and dark; 375 px and 1024 px.
+- [ ] AC-ANL-012B-01: Given only a Wealthsimple import, when the page loads, then the known securities value and holdings match the mocked contract and no Bitcoin or edition wording appears.
+- [ ] AC-ANL-012B-02: Given cash in two accounts, then cash is listed separately without cost or profit columns.
+- [ ] AC-ANL-012B-03: Given the user selects USD, then every amount, chart axis and table header follows it and the choice survives a reload.
+- [ ] AC-ANL-012B-04: Given a partial response (`complete_total` null), then the known subtotal is shown with a "partial" marker and a reason; no total is fabricated.
+- [ ] AC-ANL-012B-05: Given a refresh in progress, then previous values stay visible with "updating"; on failure they stay with an error and retry.
+- [ ] AC-ANL-012B-06: Given no securities source is enabled, then the page offers "Enable a source" instead of zero values.
+- [ ] AC-ANL-012B-07: Given a value history with one, two or many points, then each axis label appears once and in order (the shipped chart repeats labels with one point; see ANL-111).
+- [ ] AC-ANL-012B-08: No internal identifier or error code is shown as the only explanation of a status, and no heading is immediately repeated as a table caption (see APP-107, RPT-103).
+- [ ] AC-ANL-012B-09: Keyboard reachable with visible focus, one `h1`, labelled controls, chart data available as a table, no colour-only meaning; en-CA, zh-TW, zh-CN; light and dark; 375 px and 1024 px.
 
 ### Tests
 
@@ -105,3 +108,4 @@ None open. The owner recorded Gate A on this ticket itself on 2026-11-10.
 - 2026-11-10 planner: added the owner-confirmed visual direction for the investment pages.
 - 2026-11-10 planner: owner approved Gate A for the V2 MVP scope of this ticket on 2026-11-10 and released it (status ready).
 - 2026-11-13 planner: removed the answered gate question and the stale handoff wording.
+- 2026-11-18 claude-code/opus-5.5: ENG-113 migrated this ticket to the spec format without changing any wording: moved the "Nearest shipped page" bullet of Current behaviour, "Expected behaviour", "Scope", "Implementation notes" and "Visual direction" from Context into Requirements and numbered the acceptance criteria AC-ANL-012B-01 to 09. Spec hash sha256:2137e3a3e730ec66d9d0d535270c97df145f96206587aa559cfe02dcf56c53b4, awaiting the owner's confirmation.

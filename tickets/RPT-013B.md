@@ -16,7 +16,7 @@ review: independent
 branch:
 pr:
 spec:
-updated: 2026-11-12
+updated: 2026-11-18
 ---
 
 # RPT-013B: Add the V2 download panel
@@ -32,6 +32,8 @@ A V2 user viewing any analysis page wants to download what they are looking at. 
 - The V2 shell exists (APP-011A, `frontend/src/v2/shell.tsx`); the analysis toolbar comes from ANL-012B.
 - Shipped equivalent: the report reader lists files of a saved edition by file name (`frontend/src/components/report-reader.tsx:246-310`) and `report-exports.tsx` offers data exports. Observed 2026-11-10: links read "portfolio.ods", "report.md", "report.pdf".
 - Routes come from RPT-013A; the toolbar entry point from ANL-012B.
+
+## Requirements
 
 ### Expected behaviour
 
@@ -55,12 +57,12 @@ A V2 user viewing any analysis page wants to download what they are looking at. 
 
 ## Acceptance criteria
 
-- [ ] Given a displayed calculation, when the user requests a PDF, then the request carries that calculation identifier, currency and locale.
-- [ ] Given a running export, then progress is announced once (`role="status"`) and background polling does not move focus.
-- [ ] Given the page data refreshes while an export runs, then the delivered file still matches the pinned calculation named in the panel.
-- [ ] Given a failure, then the reason and a retry are shown; retry does not create a duplicate job.
-- [ ] Given the panel is open, then focus is trapped, Escape closes it and focus returns to the Download button.
-- [ ] Keyboard reachable with visible focus, one `h1`, labelled controls, chart data available as a table, no colour-only meaning; en-CA, zh-TW, zh-CN; light and dark; 375 px and 1024 px.
+- [ ] AC-RPT-013B-01: Given a displayed calculation, when the user requests a PDF, then the request carries that calculation identifier, currency and locale.
+- [ ] AC-RPT-013B-02: Given a running export, then progress is announced once (`role="status"`) and background polling does not move focus.
+- [ ] AC-RPT-013B-03: Given the page data refreshes while an export runs, then the delivered file still matches the pinned calculation named in the panel.
+- [ ] AC-RPT-013B-04: Given a failure, then the reason and a retry are shown; retry does not create a duplicate job.
+- [ ] AC-RPT-013B-05: Given the panel is open, then focus is trapped, Escape closes it and focus returns to the Download button.
+- [ ] AC-RPT-013B-06: Keyboard reachable with visible focus, one `h1`, labelled controls, chart data available as a table, no colour-only meaning; en-CA, zh-TW, zh-CN; light and dark; 375 px and 1024 px.
 
 ### Tests
 
@@ -84,3 +86,4 @@ A V2 user viewing any analysis page wants to download what they are looking at. 
 
 - 2026-11-10 planner: created from the UI/UX feature inventory (tickets/UX_FEATURE_INVENTORY.md).
 - 2026-11-12 planner: owner approved Gate A on 2026-11-12 and released the ticket (status ready). The panel lists Excel as a fourth format.
+- 2026-11-18 claude-code/opus-5.5: ENG-113 migrated this ticket to the spec format without changing any wording: moved "Expected behaviour", "Scope" and "Implementation notes" from Context into Requirements and numbered the acceptance criteria AC-RPT-013B-01 to 06. Spec hash sha256:7b41dbf7943ccbadd8916994a5f279a0e25dd00309a28b5c378dd82c9ede5622, awaiting the owner's confirmation.

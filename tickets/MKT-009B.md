@@ -38,6 +38,8 @@ The owner wants the values on the analysis pages to follow the market: the app f
 - The V2 worker (IMP-007F) is dedicated to imports and started by a trusted launcher. It is not a general scheduler.
 - The Stock/Bond toolbar already has a Refresh button that expects "the market refresh route" (ANL-012B).
 
+## Requirements
+
 ### Expected behaviour
 
 - A market reference store in PostgreSQL: one row per listing (exchange plus symbol, or a crypto pair) and observation time, holding price, currency, source name, delay class, "as of" time, fetch time and a hash of the bounded evidence. Rows are shared by all users because they are public market data; they hold no user identifier.
@@ -75,16 +77,16 @@ The operator can change each value in configuration. The intervals never go belo
 
 ## Acceptance criteria
 
-- [ ] Given the fake provider and one user holding two listings, when the refresh process runs once, then one row per listing is stored with price, currency, "as of", fetch time, source and delay class.
-- [ ] Given two users holding the same listing, when a round runs, then one upstream request is made for it.
-- [ ] Given no new import, when the Bitcoin price changes from USD 60,000 to 61,000 at the same FX rate, then the crypto and total values rise by the oracle amount, quantities and fact generation are unchanged and the calculation generation is new (golden case G10).
-- [ ] Given a listing whose fetch fails, then its last valid price is used, the row is marked stale with its time, and `/market/status` lists it with a reason.
-- [ ] Given a holding that never had a fetched price, then its value comes from the import with the import date, and if there is neither, `complete_total` is null and `known_subtotal` excludes it (golden case G09).
-- [ ] Given three refresh requests within the minimum interval, then one upstream round runs and all three responses report the same check time.
-- [ ] Given two refresh processes started at once, then only one fetches.
-- [ ] Given a split-consistent price jump with an older quantity, then the holding is marked unresolved and is not valued at the misleading price.
-- [ ] Given user A, then `/market/status` lists only listings A holds.
-- [ ] The operator guide documents the command, the settings and their defaults.
+- [ ] AC-MKT-009B-01: Given the fake provider and one user holding two listings, when the refresh process runs once, then one row per listing is stored with price, currency, "as of", fetch time, source and delay class.
+- [ ] AC-MKT-009B-02: Given two users holding the same listing, when a round runs, then one upstream request is made for it.
+- [ ] AC-MKT-009B-03: Given no new import, when the Bitcoin price changes from USD 60,000 to 61,000 at the same FX rate, then the crypto and total values rise by the oracle amount, quantities and fact generation are unchanged and the calculation generation is new (golden case G10).
+- [ ] AC-MKT-009B-04: Given a listing whose fetch fails, then its last valid price is used, the row is marked stale with its time, and `/market/status` lists it with a reason.
+- [ ] AC-MKT-009B-05: Given a holding that never had a fetched price, then its value comes from the import with the import date, and if there is neither, `complete_total` is null and `known_subtotal` excludes it (golden case G09).
+- [ ] AC-MKT-009B-06: Given three refresh requests within the minimum interval, then one upstream round runs and all three responses report the same check time.
+- [ ] AC-MKT-009B-07: Given two refresh processes started at once, then only one fetches.
+- [ ] AC-MKT-009B-08: Given a split-consistent price jump with an older quantity, then the holding is marked unresolved and is not valued at the misleading price.
+- [ ] AC-MKT-009B-09: Given user A, then `/market/status` lists only listings A holds.
+- [ ] AC-MKT-009B-10: The operator guide documents the command, the settings and their defaults.
 
 ### Tests
 
@@ -113,3 +115,4 @@ The operator can change each value in configuration. The intervals never go belo
 
 - 2026-11-11 planner: split out of MKT-009 so the store and scheduler can be built without waiting for the official provider choice.
 - 2026-11-11 planner: owner approved Gate A for this ticket on 2026-11-11 and released it (status ready). The owner also approved the proposed refresh intervals.
+- 2026-11-18 claude-code/opus-5.5: ENG-113 migrated this ticket to the spec format without changing any wording: moved "Expected behaviour", "Defaults approved by the owner on 2026-11-11", "Scope" and "Implementation notes" from Context into Requirements and numbered the acceptance criteria AC-MKT-009B-01 to 10. Spec hash sha256:53960af1621f336883b66c3411adc1efaa2d1e16fec49360ccce80d7afa78ea9, awaiting the owner's confirmation.

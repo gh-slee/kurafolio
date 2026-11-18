@@ -27,7 +27,6 @@ Run normalization in a dedicated worker that leases members, launches the parser
 
 ## Context
 
-- Frozen r7 contract bundle, the contract approved as "IMP-007 spec r7": [docs/specs/imp-007-r7/](../docs/specs/imp-007-r7/README.md) (index sha256:75a859f65d7ee4564a20220b756b88ff44cf4449644167e2df2a87fd081e7fe7; the index lists the SHA-256 of each file), notably [spec.md](../docs/specs/imp-007-r7/spec.md), [sql-appendix.md](../docs/specs/imp-007-r7/sql-appendix.md), [sql-inventory.json](../docs/specs/imp-007-r7/sql-inventory.json), [contract-appendix.md](../docs/specs/imp-007-r7/contract-appendix.md) and [acceptance.md](../docs/specs/imp-007-r7/acceptance.md).
 - r7 [runner.md](../docs/specs/imp-007-r7/runner.md), [r7-native-policy.md](../docs/specs/imp-007-r7/r7-native-policy.md), [protocol-appendix.md](../docs/specs/imp-007-r7/protocol-appendix.md) and [wire-contracts.json](../docs/specs/imp-007-r7/wire-contracts.json).
 - Background only: the revision 1 planning draft [docs/specs/v2-drafts/WL-P0-007.md](../docs/specs/v2-drafts/WL-P0-007.md) (sha256:fa0971a0da787cb327484c92144e4a5ecd916db4ad0328e03b408d647190acd5), which the r7 bundle supersedes.
 
@@ -39,6 +38,10 @@ Run normalization in a dedicated worker that leases members, launches the parser
 - Tests to extend: `tests/test_postgres_migration.py`, `tests/test_ingestion_*.py`, `tests/test_web_v2_api.py`, `tests/test_web_v2_sources.py`; vectors in `tests/fixtures/ingestion/oracle.json`.
 - Public status and boundaries: [web-v2-imports.md](../docs/web-v2-imports.md). Product intent: [PRODUCT_CONTEXT.md](PRODUCT_CONTEXT.md).
 - Real-PostgreSQL tests need the explicit isolated environment; a skipped test is not acceptance. Use the claim's `isolation_id` and `port_base`.
+
+## Requirements
+
+- Frozen r7 contract bundle, the contract approved as "IMP-007 spec r7": [docs/specs/imp-007-r7/](../docs/specs/imp-007-r7/README.md) (index sha256:75a859f65d7ee4564a20220b756b88ff44cf4449644167e2df2a87fd081e7fe7; the index lists the SHA-256 of each file), notably [spec.md](../docs/specs/imp-007-r7/spec.md), [sql-appendix.md](../docs/specs/imp-007-r7/sql-appendix.md), [sql-inventory.json](../docs/specs/imp-007-r7/sql-inventory.json), [contract-appendix.md](../docs/specs/imp-007-r7/contract-appendix.md) and [acceptance.md](../docs/specs/imp-007-r7/acceptance.md).
 
 ### What to build
 
@@ -57,15 +60,15 @@ Rules that reviewers will check:
 
 ## Acceptance criteria
 
-- [ ] Worker uses only worker SQL functions and a fenced lease.
-- [ ] Parser child runs with effective Linux containment; residual limits are documented.
-- [ ] Crash at each step leaves a recoverable state; retry books each event once.
-- [ ] Given the example Wealthsimple holdings file and the example exchange orders file uploaded through the IMP-007E routes (or their SQL functions if 007E is not merged), the worker brings each set to a preview without a human step, and a confirmation then books the facts.
-- [ ] A worker that stops renewing its lease cannot publish: a second worker takes the work after the lease expires and the first worker's late result is refused.
-- [ ] The parser container is shown, by a test that tries each one, to have no network, no write access outside its scratch space and no access to the host socket; exceeding the memory, process, output or time limit ends it and the member is reported failed, not hung.
-- [ ] After a set is cancelled, expires or is committed, no received bytes and no container of that set remain, and the storage reservation is released exactly once.
-- [ ] The worker and launcher start and stop with one documented command each, with secrets read from files.
-- [ ] The documentation states which containment controls were verified on Docker Desktop for Apple Silicon and which only on Linux.
+- [ ] AC-IMP-007F-01: Worker uses only worker SQL functions and a fenced lease.
+- [ ] AC-IMP-007F-02: Parser child runs with effective Linux containment; residual limits are documented.
+- [ ] AC-IMP-007F-03: Crash at each step leaves a recoverable state; retry books each event once.
+- [ ] AC-IMP-007F-04: Given the example Wealthsimple holdings file and the example exchange orders file uploaded through the IMP-007E routes (or their SQL functions if 007E is not merged), the worker brings each set to a preview without a human step, and a confirmation then books the facts.
+- [ ] AC-IMP-007F-05: A worker that stops renewing its lease cannot publish: a second worker takes the work after the lease expires and the first worker's late result is refused.
+- [ ] AC-IMP-007F-06: The parser container is shown, by a test that tries each one, to have no network, no write access outside its scratch space and no access to the host socket; exceeding the memory, process, output or time limit ends it and the member is reported failed, not hung.
+- [ ] AC-IMP-007F-07: After a set is cancelled, expires or is committed, no received bytes and no container of that set remain, and the storage reservation is released exactly once.
+- [ ] AC-IMP-007F-08: The worker and launcher start and stop with one documented command each, with secrets read from files.
+- [ ] AC-IMP-007F-09: The documentation states which containment controls were verified on Docker Desktop for Apple Silicon and which only on Linux.
 
 ## Plan
 
@@ -89,3 +92,4 @@ Rules that reviewers will check:
 - 2026-11-10 planner: added the dependency on IMP-007L: the worker cannot prepare a review without the prepare-lease functions.
 - 2026-11-13 planner: added a plain description of the two processes, the rules from the approved r7 contract, and six acceptance criteria, including the owner's platform decision of 2026-11-11. Scope is unchanged.
 - 2026-11-17 planner: the owner confirmed in conversation ("Confirm all six") the changes PR #64 made to this ticket after its approval. The approval in gate_approval covers the text as it stands now.
+- 2026-11-18 claude-code/opus-5.5: ENG-113 migrated this ticket to the spec format without changing any wording: moved the bullet naming the r7 contract bundle and "What to build" from Context into Requirements and numbered the acceptance criteria AC-IMP-007F-01 to 09. Spec hash sha256:ca40323656289449643433b9955b9c22f9c4b18dd1164313017e246003e73d9f, awaiting the owner's confirmation.

@@ -37,6 +37,8 @@ Make the V2 shell decide from real data whether Stock/Bond, Exposures and Crypto
 - The shell cannot read holdings. The positions read contract is ANL-008.
 - The V2 source catalog (`GET /api/v2/sources`, `CatalogItem` in `src/kurafolio/web_v2/schemas.py`) carries no asset class. Nothing tells the shell whether a source supplies securities or crypto.
 
+## Requirements
+
 ### Expected behaviour
 
 - With no securities source enabled and no securities holdings, Stock/Bond and Exposures offer "Enable a source". Crypto does the same for crypto.
@@ -59,12 +61,12 @@ Make the V2 shell decide from real data whether Stock/Bond, Exposures and Crypto
 
 ## Acceptance criteria
 
-- [ ] Given no securities source and no securities data, then Stock/Bond and Exposures offer "Enable a source". Given no crypto source and no crypto data, Crypto offers it.
-- [ ] Given holdings from a disabled source, then the matching destination shows them and stays reachable.
-- [ ] Given a pending or failed holdings request, then the page shows the shared loading or error state, never the offer.
-- [ ] Given a newly enabled crypto source and no import yet, then Crypto no longer offers "Enable a source" and shows the empty state that leads to import.
-- [ ] The catalog returns `asset_classes` for each bundled plugin; an API test covers both bundled plugins.
-- [ ] en-CA, zh-TW and zh-CN; the existing V2 shell browser cases still pass.
+- [ ] AC-APP-011H-01: Given no securities source and no securities data, then Stock/Bond and Exposures offer "Enable a source". Given no crypto source and no crypto data, Crypto offers it.
+- [ ] AC-APP-011H-02: Given holdings from a disabled source, then the matching destination shows them and stays reachable.
+- [ ] AC-APP-011H-03: Given a pending or failed holdings request, then the page shows the shared loading or error state, never the offer.
+- [ ] AC-APP-011H-04: Given a newly enabled crypto source and no import yet, then Crypto no longer offers "Enable a source" and shows the empty state that leads to import.
+- [ ] AC-APP-011H-05: The catalog returns `asset_classes` for each bundled plugin; an API test covers both bundled plugins.
+- [ ] AC-APP-011H-06: en-CA, zh-TW and zh-CN; the existing V2 shell browser cases still pass.
 
 ### Tests
 
@@ -89,3 +91,4 @@ Make the V2 shell decide from real data whether Stock/Bond, Exposures and Crypto
 
 - 2026-11-12 developer: split from APP-011A by owner decision on 2026-11-12. The shell shipped with an unconditional "Enable a source" offer.
 - 2026-11-12 planner: owner approved Gate A on 2026-11-12 and released the ticket (status ready). Decision: plugins declare asset classes in the catalog and imported holdings always count. Depends on ANL-012A instead of ANL-008, because the holdings check reads the analysis contract.
+- 2026-11-18 claude-code/opus-5.5: ENG-113 migrated this ticket to the spec format without changing any wording: moved "Expected behaviour", "Scope", "Owner decision recorded 2026-11-12" and "Implementation notes" from Context into Requirements and numbered the acceptance criteria AC-APP-011H-01 to 06. Spec hash sha256:c5804cd88744b3f569ea6473e2297efe526dfad854d0d45206aa9a20584e74a8, awaiting the owner's confirmation.

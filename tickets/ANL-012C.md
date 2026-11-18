@@ -16,7 +16,7 @@ review: independent
 branch:
 pr:
 spec:
-updated: 2026-11-13
+updated: 2026-11-18
 ---
 
 # ANL-012C: Build the V2 Crypto page
@@ -32,6 +32,8 @@ A V2 user who imported Bitcoin purchase records wants to see how much they acqui
 - No V2 page exists. The shipped UI talks only to `/api/v1` (`frontend/src/lib/api.ts`).
 - Nearest shipped page: Bitcoin & flows (`frontend/src/components/analysis.tsx:480-590`). Observed 2026-11-10: it shows "Bull purchases (BTC equivalent)", a monthly "Funding, unclassified" column and a "Recorded cash flows" section; labels name one provider.
 - Data: `GET /api/v2/analysis/crypto` from ANL-012A; positions from ANL-008.
+
+## Requirements
 
 ### Expected behaviour
 
@@ -64,12 +66,12 @@ A V2 user who imported Bitcoin purchase records wants to see how much they acqui
 
 ## Acceptance criteria
 
-- [ ] Given purchases of 0.010 and 0.020 BTC, then the page shows 0.03000000 BTC and the oracle value from the mocked contract.
-- [ ] Given transfers or balance snapshots in the data, then they add nothing to acquisitions.
-- [ ] Given unknown cost for some purchases, then spending shows the known part with its coverage and no unrealized difference is computed for the unknown part.
-- [ ] Given no crypto source is enabled and no data, then the page offers "Enable a source"; given a disabled source with data, the data stays visible.
-- [ ] No element contains the words "opening", "self-custodied" or a provider name outside the source breakdown, in any locale.
-- [ ] Keyboard reachable with visible focus, one `h1`, labelled controls, chart data available as a table, no colour-only meaning; en-CA, zh-TW, zh-CN; light and dark; 375 px and 1024 px.
+- [ ] AC-ANL-012C-01: Given purchases of 0.010 and 0.020 BTC, then the page shows 0.03000000 BTC and the oracle value from the mocked contract.
+- [ ] AC-ANL-012C-02: Given transfers or balance snapshots in the data, then they add nothing to acquisitions.
+- [ ] AC-ANL-012C-03: Given unknown cost for some purchases, then spending shows the known part with its coverage and no unrealized difference is computed for the unknown part.
+- [ ] AC-ANL-012C-04: Given no crypto source is enabled and no data, then the page offers "Enable a source"; given a disabled source with data, the data stays visible.
+- [ ] AC-ANL-012C-05: No element contains the words "opening", "self-custodied" or a provider name outside the source breakdown, in any locale.
+- [ ] AC-ANL-012C-06: Keyboard reachable with visible focus, one `h1`, labelled controls, chart data available as a table, no colour-only meaning; en-CA, zh-TW, zh-CN; light and dark; 375 px and 1024 px.
 
 ### Tests
 
@@ -99,3 +101,4 @@ None open. The owner recorded Gate A on this ticket itself on 2026-11-10.
 - 2026-11-10 planner: added the owner-confirmed visual direction for the investment pages.
 - 2026-11-10 planner: owner approved Gate A for the V2 MVP scope of this ticket on 2026-11-10 and released it (status ready).
 - 2026-11-13 planner: removed the answered gate question and the stale handoff wording.
+- 2026-11-18 claude-code/opus-5.5: ENG-113 migrated this ticket to the spec format without changing any wording: moved "Expected behaviour", "Scope", "Implementation notes" and "Visual direction" from Context into Requirements and numbered the acceptance criteria AC-ANL-012C-01 to 06. Spec hash sha256:55d2377916623369929ca3799242d0b00b39db2b573d474a9c02cec11e11984f, awaiting the owner's confirmation.

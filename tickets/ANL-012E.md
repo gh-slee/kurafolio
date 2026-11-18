@@ -27,15 +27,17 @@ Exposures is the approved child of Stock/Bond: top companies through ETFs, and s
 
 ## Context
 
-### Spec material
-
-- The "golden exposure fixture" in Acceptance criteria is golden case G11 (owner decision 2026-11-18, recorded in ENG-114). In G11 those four amounts are US 600, TW 500, unknown 80 and cash 20, which sum to the securities denominator of CAD 1,200; the Total of CAD 3,720 also includes direct crypto: [docs/golden-cases.md](../docs/golden-cases.md) (sha256:f7adca063ff68fe0502066608fc6fad6b1f818244679190b3e7cdcf3020e5594).
-
 ### Current behaviour
 
 - The V2 shell exists (APP-011A, `frontend/src/v2/shell.tsx`) and shows "Enable a source" on Exposures until APP-011H lands. The Stock/Bond page and shared analysis toolbar come from ANL-012B.
 - Nearest shipped page: Exposure (`frontend/src/components/analysis.tsx:294-420`), which already shows every represented country (ETF-001) and a chart data table. Observed 2026-11-10: headings repeat as captions; there is no denominator choice.
 - Data: the exposure endpoint from ETF-010B.
+
+## Requirements
+
+### Spec material
+
+- The "golden exposure fixture" in Acceptance criteria is golden case G11 (owner decision 2026-11-18, recorded in ENG-114). In G11 those four amounts are US 600, TW 500, unknown 80 and cash 20, which sum to the securities denominator of CAD 1,200; the Total of CAD 3,720 also includes direct crypto: [docs/golden-cases.md](../docs/golden-cases.md) (sha256:f7adca063ff68fe0502066608fc6fad6b1f818244679190b3e7cdcf3020e5594).
 
 ### Expected behaviour
 
@@ -60,12 +62,12 @@ Exposures is the approved child of Stock/Bond: top companies through ETFs, and s
 
 ## Acceptance criteria
 
-- [ ] Given the golden exposure fixture, then US, TW, unknown and cash amounts match and sum to the denominator.
-- [ ] Given 31 represented countries, then all 31 are reachable in the chart and present in the table at 375 px and 1024 px.
-- [ ] The top-20 table ranks 1 to 20 with direct, through-ETF and total columns.
-- [ ] Given an unsupported ETF, then its weight appears as unresolved and coverage is below 100%.
-- [ ] Switching the denominator updates every percentage and the stated denominator.
-- [ ] Keyboard reachable with visible focus, one `h1`, labelled controls, chart data available as a table, no colour-only meaning; en-CA, zh-TW, zh-CN; light and dark; 375 px and 1024 px.
+- [ ] AC-ANL-012E-01: Given the golden exposure fixture, then US, TW, unknown and cash amounts match and sum to the denominator.
+- [ ] AC-ANL-012E-02: Given 31 represented countries, then all 31 are reachable in the chart and present in the table at 375 px and 1024 px.
+- [ ] AC-ANL-012E-03: The top-20 table ranks 1 to 20 with direct, through-ETF and total columns.
+- [ ] AC-ANL-012E-04: Given an unsupported ETF, then its weight appears as unresolved and coverage is below 100%.
+- [ ] AC-ANL-012E-05: Switching the denominator updates every percentage and the stated denominator.
+- [ ] AC-ANL-012E-06: Keyboard reachable with visible focus, one `h1`, labelled controls, chart data available as a table, no colour-only meaning; en-CA, zh-TW, zh-CN; light and dark; 375 px and 1024 px.
 
 ### Tests
 
@@ -91,3 +93,4 @@ Exposures is the approved child of Stock/Bond: top companies through ETFs, and s
 - 2026-11-11 planner: ETF-010 became an epic; this page now depends on its endpoint child ETF-010B.
 - 2026-11-12 planner: owner approved Gate A on 2026-11-12 and released the ticket (status ready).
 - 2026-11-18 claude-code/opus-5.5 (ENG-114): the owner chose golden case G11 for the "golden exposure fixture" in Acceptance criteria ("Approve all as recommended", 2026-11-18); linked from Context.
+- 2026-11-18 claude-code/opus-5.5: ENG-113 migrated this ticket to the spec format without changing any wording: moved "Spec material", "Expected behaviour", "Scope" and "Implementation notes" from Context into Requirements and numbered the acceptance criteria AC-ANL-012E-01 to 06. Spec hash sha256:efc294e61d903d3c7ac994fb9ec430cb62ed93db545c3f6246dcd9731661075f, awaiting the owner's confirmation.

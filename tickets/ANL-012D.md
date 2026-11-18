@@ -16,7 +16,7 @@ review: independent
 branch:
 pr:
 spec:
-updated: 2026-11-13
+updated: 2026-11-18
 ---
 
 # ANL-012D: Build the V2 Total page and Home
@@ -32,6 +32,8 @@ A V2 user lands on Home to see what they track and what to do next, and opens To
 - No V2 page exists. The shipped UI talks only to `/api/v1` (`frontend/src/lib/api.ts`).
 - Nearest shipped page: Overview (`frontend/src/components/analysis.tsx:60-176`). Observed 2026-11-10: the value is followed by "Evidence for this saved edition", "Next steps (4)" and "Saved evidence and checks"; a "Report edition" selector sits in the header. APP-011 bans these concepts from Home.
 - Data: `GET /api/v2/analysis/total` from ANL-012A.
+
+## Requirements
 
 ### Expected behaviour
 
@@ -63,12 +65,12 @@ A V2 user lands on Home to see what they track and what to do next, and opens To
 
 ## Acceptance criteria
 
-- [ ] Given a new user with no source enabled, then Home shows no amount and one action leading to Sources.
-- [ ] Given securities only, then Home and Total show the securities value and Crypto as "not tracked yet".
-- [ ] Given both, then Total counts Bitcoin once and equals the mocked oracle in each currency.
-- [ ] Home contains none of: "Evidence for this saved edition", "Partial source scope", "Carried forward", "Provided", "Next steps", "Saved evidence and checks", "Report edition", in any locale.
-- [ ] Given a partial total, then the known subtotal and a single partial marker are shown; detail opens on demand.
-- [ ] Keyboard reachable with visible focus, one `h1`, labelled controls, chart data available as a table, no colour-only meaning; en-CA, zh-TW, zh-CN; light and dark; 375 px and 1024 px.
+- [ ] AC-ANL-012D-01: Given a new user with no source enabled, then Home shows no amount and one action leading to Sources.
+- [ ] AC-ANL-012D-02: Given securities only, then Home and Total show the securities value and Crypto as "not tracked yet".
+- [ ] AC-ANL-012D-03: Given both, then Total counts Bitcoin once and equals the mocked oracle in each currency.
+- [ ] AC-ANL-012D-04: Home contains none of: "Evidence for this saved edition", "Partial source scope", "Carried forward", "Provided", "Next steps", "Saved evidence and checks", "Report edition", in any locale.
+- [ ] AC-ANL-012D-05: Given a partial total, then the known subtotal and a single partial marker are shown; detail opens on demand.
+- [ ] AC-ANL-012D-06: Keyboard reachable with visible focus, one `h1`, labelled controls, chart data available as a table, no colour-only meaning; en-CA, zh-TW, zh-CN; light and dark; 375 px and 1024 px.
 
 ### Tests
 
@@ -98,3 +100,4 @@ None open. The owner recorded Gate A on this ticket itself on 2026-11-10.
 - 2026-11-10 planner: added the owner-confirmed visual direction for the investment pages.
 - 2026-11-10 planner: owner approved Gate A for the V2 MVP scope of this ticket on 2026-11-10 and released it (status ready).
 - 2026-11-13 planner: removed the answered gate question and the stale handoff wording.
+- 2026-11-18 claude-code/opus-5.5: ENG-113 migrated this ticket to the spec format without changing any wording: moved "Expected behaviour", "Scope", "Implementation notes" and "Visual direction" from Context into Requirements and numbered the acceptance criteria AC-ANL-012D-01 to 06. Spec hash sha256:9ec8c0bf66ad2592e749a91dc7b86a4d526ba0a2d8dc537c8561ec29f9c517fc, awaiting the owner's confirmation.
