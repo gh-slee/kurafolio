@@ -174,10 +174,13 @@ work them at the same time. Inside a lane, work is sequential.
 
 A sensible split for four agents today:
 
-- Frontier model A (for example Claude or Codex): IMP-007A, then 007B.
-- Frontier model B, a different session: IMP-007H independent review.
-- Standard model: APP-011A once approved, or ENG-102.
-- Fast model such as DeepSeek Flash: ENG-018, then other `any`-tier chores.
+- Builder session A: IMP-007A, then 007B.
+- Reviewer session, a different session: IMP-007H independent review.
+- Builder session B: APP-011A once approved, or ENG-102.
+- Builder session C: ENG-018, then other `any`-tier chores.
+
+Since ENG-115, the planner model plans every ticket and any builder model may build
+a ticket of any tier; see [AGENTS.md](../AGENTS.md#models-and-roles).
 
 ## Owner actions that unlock more parallel work
 
@@ -311,13 +314,13 @@ Claimable after ENG-024 is merged: IMP-007C, IMP-007J, MKT-009A, APP-011A, APP-0
 IMP-007C and IMP-007J share `ingestion-schema-sql` and run one after the
 other; the rest share nothing, so four agents can start at once.
 
-| Lane | Order | Tier | Suggested agent |
+| Lane | Order | Tier | Suggested sessions |
 |---|---|---|---|
-| Import SQL (`ingestion-schema-sql`) | 007C, then 007L, then 007D | frontier | one strong agent for the whole lane |
-| Import services | 007E and 007F after 007D | frontier | two agents in parallel |
-| Market data | 009A | frontier | any frontier agent |
-| Bundle serving | 011G | frontier | any frontier agent |
-| Shell and screens | 011A, then 011B and 011C in parallel, 011D after 007E | standard | a standard or frontier agent |
+| Import SQL (`ingestion-schema-sql`) | 007C, then 007L, then 007D | frontier | one builder session for the whole lane |
+| Import services | 007E and 007F after 007D | frontier | two builder sessions in parallel |
+| Market data | 009A | frontier | any builder session |
+| Bundle serving | 011G | frontier | any builder session |
+| Shell and screens | 011A, then 011B and 011C in parallel, 011D after 007E | standard | any builder session |
 | Positions and analysis contract | 008 after 007D, then 012A | frontier | one agent |
 | Analysis pages | 012B, 012C, 012D in sequence | standard | one agent, after 011A and 012A |
 | Deployment and acceptance | 021; 007G by a session that implemented none of 007A to 007F | frontier | separate sessions |

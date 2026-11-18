@@ -11,7 +11,8 @@ import re
 import sys
 import tokenize
 
-from check_publication import PUBLIC_ROLE_SKILLS, path_allowed, public_role_candidate
+from check_publication import (PUBLIC_EXACT_PRIVATE_ROOT_FILES, PUBLIC_ROLE_SKILLS, path_allowed,
+                               public_role_candidate)
 
 # The one documented exception: README explains the project name with the kanji
 # kura (U+8535). Only that character, only on that line, only in README.md.
@@ -32,12 +33,13 @@ def check_file(path: str, text: str) -> list[dict]:
         issues.append({'path': path, 'line': line, 'kind': kind,
                        'reason': 'Canonical documentation, comments, docstrings and identifiers use English.'})
 
-    if path.endswith('.md'):
+    if path.endswith(('.md', '.toml')):
+        # Markdown and the Codex agent TOML are prose throughout.
         for line, value in enumerate(text.splitlines(), 1):
             if path == 'README.md' and value.startswith(NAME_LINE) and not CJK.search(value.replace('\u8535', '')):
                 continue
             if CJK.search(value):
-                record(line, 'markdown')
+                record(line, 'markdown' if path.endswith('.md') else 'text')
         return issues
     try:
         tree = ast.parse(text, filename=path)
@@ -59,17 +61,18 @@ def scan(root: Path) -> dict:
     """Read only allowlisted Markdown/Python, never private guidance or data."""
     files = []
     violations = []
-    for relative in sorted(PUBLIC_ROLE_SKILLS):
+    # Role skills and agent files (Markdown and the Codex TOML) are read by exact path.
+    for relative in sorted(PUBLIC_EXACT_PRIVATE_ROOT_FILES):
         candidate, problem = public_role_candidate(root, relative)
         if problem:
-            raise LanguageError('Refusing unsafe public role skill: ' + relative)
+            raise LanguageError('Refusing unsafe public role skill or agent file: ' + relative)
         if candidate is not None:
             files.append(relative)
             violations.extend(check_file(relative, candidate.read_text(encoding='utf-8')))
     for candidate in sorted(root.rglob('*')):
         rel = candidate.relative_to(root).as_posix()
-        if rel.split('/', 1)[0] == '.agents':
-            continue  # Only the four explicitly inspected candidates above are public.
+        if rel.split('/', 1)[0] in {'.agents', '.claude', '.codex', '.opencode'}:
+            continue  # Only the explicitly inspected candidates above are public.
         if candidate.suffix not in {'.md', '.py'} or not path_allowed(rel):
             continue
         if candidate.is_symlink():

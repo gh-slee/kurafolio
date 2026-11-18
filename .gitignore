@@ -64,7 +64,21 @@ htmlcov/
 *.egg-info/
 /node_modules/
 /.cursor/
-/.codex/
+# Agent tool state stays local. Only the reviewed role agent files are public (ENG-115).
+/.claude/*
+!/.claude/agents/
+/.claude/agents/*
+!/.claude/agents/planner.md
+!/.claude/agents/builder.md
+!/.claude/agents/reviewer.md
+/.codex/*
+!/.codex/agents/
+/.codex/agents/*
+!/.codex/agents/builder.toml
+# A same-named directory must not open a subtree.
+/.claude/agents/*/
+/.codex/agents/*/
+/.opencode/
 # Traverse only to the four reviewed public role skill files.
 /.agents/*
 !/.agents/skills/

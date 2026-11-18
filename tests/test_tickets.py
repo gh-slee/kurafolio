@@ -462,7 +462,7 @@ class SpecWorkflowTest(unittest.TestCase):
         self.assertIn('Build plan:    present', out)
 
     def test_plan_queue_and_build_plan_warning(self):
-        """AC-ENG-112-07."""
+        """AC-ENG-112-07, as changed by AC-ENG-115-03: an any-tier ticket needs a plan too."""
         no_plan = SPEC_BODY.replace('- frontend/src/v2/total.tsx (new)', '')
         self.write('SPC-001', no_plan)
         self.write('SPC-002', SPEC_BODY)
@@ -471,11 +471,37 @@ class SpecWorkflowTest(unittest.TestCase):
         self.assertIn('SPC-001', out)
         self.assertIn('needs a build plan', out)
         self.assertNotIn('SPC-002', out)
-        self.assertNotIn('SPC-003', out)
+        self.assertIn('SPC-003', out)
         code, out, _ = run(self.repo, 'next', '--tier', 'standard')
         line = next(l for l in out.splitlines() if l.startswith('SPC-001'))
         self.assertIn('no build plan', line)
         self.assertIn('SPC-002', out)
+
+    def test_every_tier_without_a_build_plan_is_marked_and_queued(self):
+        """AC-ENG-115-03: any, standard and frontier tickets are marked and queued alike."""
+        no_plan = SPEC_BODY.replace('- frontend/src/v2/total.tsx (new)', '')
+        tiers = {'SPC-001': 'any', 'SPC-002': 'standard', 'SPC-003': 'frontier'}
+        for tid, tier in tiers.items():
+            self.write(tid, no_plan, tier=tier)
+        self.write('SPC-004', SPEC_BODY, tier='frontier')
+        code, out, _ = run(self.repo, 'next')
+        self.assertEqual(code, 0)
+        lines = {l.split()[0]: l for l in out.splitlines() if l.startswith('SPC-')}
+        self.assertEqual(set(lines), {'SPC-001', 'SPC-002', 'SPC-003', 'SPC-004'})
+        for tid, tier in tiers.items():
+            self.assertIn(tier, lines[tid])
+            self.assertIn('ready; no build plan', lines[tid])
+        self.assertNotIn('no build plan', lines['SPC-004'])
+        code, out, _ = run(self.repo, 'next', '--plan')
+        queued = {l.split()[0]: l for l in out.splitlines() if l.startswith('SPC-')}
+        self.assertEqual(set(queued), set(tiers))
+        for tid in tiers:
+            self.assertIn('needs a build plan', queued[tid])
+        # --tier still narrows the list without hiding the mark.
+        code, out, _ = run(self.repo, 'next', '--tier', 'any')
+        listed = [l for l in out.splitlines() if l.startswith('SPC-')]
+        self.assertEqual([l.split()[0] for l in listed], ['SPC-001'])
+        self.assertIn('no build plan', listed[0])
 
     def test_malformed_approval_is_a_validation_error(self):
         """AC-ENG-112-08 (the live board is covered by test_repository_tickets_are_valid)."""

@@ -104,10 +104,20 @@ PUBLIC_ROLE_SKILLS = frozenset({
     '.agents/skills/kurafolio-fullstack-developer/SKILL.md',
     '.agents/skills/kurafolio-qa-automation/SKILL.md',
 })
+# Exact reviewed role agent files (ENG-115). Everything else under .claude/,
+# .codex/ and .opencode/ stays private.
+PUBLIC_AGENT_DEFINITIONS = frozenset({
+    '.claude/agents/planner.md',
+    '.claude/agents/builder.md',
+    '.claude/agents/reviewer.md',
+    '.codex/agents/builder.toml',
+})
+# Public files under otherwise private roots; each is inspected by exact path.
+PUBLIC_EXACT_PRIVATE_ROOT_FILES = PUBLIC_ROLE_SKILLS | PUBLIC_AGENT_DEFINITIONS
 PRIVATE_INSTRUCTION_NAMES = {'agents.override.md'}
 IGNORED_ROOTS = {
     '.git', 'data', 'reports', 'backups', 'work', 'private', 'outputs', 'output',
-    'dist', 'build', 'node_modules', 'venv', 'htmlcov', '.cursor', '.codex', '.agents',
+    'dist', 'build', 'node_modules', 'venv', 'htmlcov', '.cursor', '.codex', '.agents', '.claude', '.opencode',
     '.pytest_cache', '.mypy_cache', '.ruff_cache', '.impeccable',
 }
 PRIVATE_SUFFIXES = ('.db', '.sqlite', '.sqlite3', '.pem', '.key', '.p12', '.pfx',
@@ -153,9 +163,10 @@ def path_allowed(path: str) -> bool:
         return False
     if any(part.startswith('.venv') for part in parts):
         return False
-    # Exact reviewed repository skills are the only exception to the private root.
-    # Keep this after malformed/private-name validation, before ignored-root denial.
-    if path in PUBLIC_ROLE_SKILLS:
+    # Exact reviewed role skills and agent files are the only exceptions to the
+    # private roots. Keep this after malformed/private-name validation, before
+    # ignored-root denial.
+    if path in PUBLIC_EXACT_PRIVATE_ROOT_FILES:
         return True
     if parts[0] in IGNORED_ROOTS or path.lower().endswith(PRIVATE_SUFFIXES):
         return False
@@ -314,8 +325,8 @@ def finish(result: dict) -> dict:
 
 def public_role_candidate(root: Path, relative: str) -> tuple[Path | None, str | None]:
     """Inspect each path component before any target read, including dangling links."""
-    if relative not in PUBLIC_ROLE_SKILLS:
-        raise ValueError('Not a reviewed role skill path')
+    if relative not in PUBLIC_EXACT_PRIVATE_ROOT_FILES:
+        raise ValueError('Not a reviewed role skill or agent file path')
     parts = PurePosixPath(relative).parts
     candidate = root
     for index, part in enumerate(parts):
@@ -325,25 +336,25 @@ def public_role_candidate(root: Path, relative: str) -> tuple[Path | None, str |
         except FileNotFoundError:
             return None, None
         if stat.S_ISLNK(mode):
-            return None, 'public role skill or ancestor is a symlink'
+            return None, 'public role skill or agent file, or an ancestor, is a symlink'
         # Case-insensitive filesystems can resolve a differently spelled private
         # path to this candidate. Require actual directory-entry spelling too.
         if part not in {entry.name for entry in candidate.parent.iterdir()}:
-            return None, 'public role skill or ancestor spelling differs from allowlist'
+            return None, 'public role skill or agent file, or an ancestor, differs in spelling from the allowlist'
         if index < len(parts) - 1:
             if not stat.S_ISDIR(mode):
-                return None, 'public role skill ancestor is not a directory'
+                return None, 'public role skill or agent file ancestor is not a directory'
         elif not stat.S_ISREG(mode):
-            return None, 'public role skill is not a regular file'
+            return None, 'public role skill or agent file is not a regular file'
     return candidate, None
 
 
 def scan_worktree(root: Path) -> dict:
     """Build a source-only manifest; unknown non-private files fail closed."""
     result = new_result('worktree')
-    # rglob deliberately omits the private .agents root below. Inspect only the
-    # four reviewed candidates explicitly, never following a file/ancestor link.
-    for relative in sorted(PUBLIC_ROLE_SKILLS):
+    # rglob deliberately omits the private .agents, .claude and .codex roots below.
+    # Inspect only the reviewed candidates explicitly, never following a link.
+    for relative in sorted(PUBLIC_EXACT_PRIVATE_ROOT_FILES):
         candidate, problem = public_role_candidate(root, relative)
         if problem:
             result['violations'].append({'path': relative, 'origin': 'worktree',

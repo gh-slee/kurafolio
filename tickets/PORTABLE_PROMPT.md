@@ -64,7 +64,7 @@ depends_on: []          # ticket ids
 resources: []           # exclusive resources, lowercase kebab-case
 risk: medium            # low | medium | high | critical
 size: M                 # XS | S | M | L | XL
-agent_tier: standard    # any | standard | frontier  (minimum model capability)
+agent_tier: standard    # any | standard | frontier  (Build plan depth and review strictness)
 gate: none              # none | owner  (owner approval needed before work)
 gate_approval:          # filled only when the owner actually approved: "owner YYYY-MM-DD, scope"
 review: self            # self | independent (a different agent session must review)
@@ -80,8 +80,8 @@ The ticket is the spec. Body sections, in order: `## Goal` (gated), optional
 `## Context` (links, current behaviour, files to start from), `## Requirements`
 (gated: scope, non-goals, invariants), `## Acceptance criteria` (gated: verifiable
 checkboxes, each with an ID `AC-<ticket>-NN`, `[review]` when only a reviewer can
-judge it), `## Build plan` (written by a frontier-tier planner before a
-standard-tier build: files, interfaces, test cases with expected values, what not to
+judge it), `## Build plan` (written by the planner model for every ticket and merged
+before any build: files, interfaces, test cases with expected values, what not to
 touch, when to stop and ask), `## Plan` (checkbox steps, each small enough for one
 session), `## Decisions needed` (required when blocked: numbered questions with
 options and a recommendation), `## Handoff`, `## Log` (append-only dated lines,
@@ -102,10 +102,15 @@ reviewing models, repair rounds and what the spec failed to say.
 - Open questions: anything waiting on the owner
 ```
 
-Tier guidance: `any` is for low-risk, well-specified chores, docs and tests that
-fast or small models can do. `standard` is for normal features with clear
-contracts. `frontier` is for security, money, data migration, concurrency,
-auth or anything critical. Give each ticket the lowest tier that is safe.
+Tier guidance: the tier does not decide which model builds. One planner model
+plans every ticket and never builds; builder models build tickets of every tier
+once the Build plan is merged. `any` is for low-risk, well-specified chores, docs
+and tests, with a short Build plan. `standard` is for normal features with clear
+contracts and a full Build plan. `frontier` is for security, money, data migration,
+concurrency, auth or anything critical; its Build plan adds independent expected
+values, negative cases, rollback and stop points, and the reviewer model's independent
+review comes before the owner's. Give each ticket the lowest
+tier that is safe. Name the models per role in AGENTS.md.
 
 ## 4. Claim tool for concurrent agents
 
@@ -118,8 +123,9 @@ Add `scripts/tickets.py`, using only the Python standard library, with these com
 - `list [--priority] [--status] [--all]`: the board, with live claims.
 - `spec ID`: the current and approved spec hash, whether a Build plan exists, and
   each acceptance ID with the number of test files that mention it.
-- `next --plan`: ready tickets above the `any` tier that still need a Build plan.
-- `next --tier <tier>`: claimable or resumable tickets at or below the tier.
+- `next --plan`: ready tickets of every tier that still need a Build plan.
+- `next [--tier <tier>]`: claimable or resumable tickets of every tier, or at or
+  below `--tier`; a ticket without a Build plan is marked `no build plan`.
   A ticket is claimable when its status is ready (or active with no live claim),
   its dependencies are done, its gate is satisfied, it is not an epic and none of
   its resources is held by another live claim.

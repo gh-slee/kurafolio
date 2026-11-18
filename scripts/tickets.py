@@ -453,8 +453,8 @@ def cmd_next(root: Path, args) -> int:
     found = 0
     for t in sorted(tickets.values(), key=lambda t: (t['priority'], t['status'] not in ACTIVE, t['id'])):
         if args.plan:
-            # Planning queue: specs that a frontier session should design before a build.
-            if t['agent_tier'] == 'any' or has_build_plan(t.get('_body', '')):
+            # Planning queue: every tier needs a Build plan on main before a build (ENG-115).
+            if has_build_plan(t.get('_body', '')):
                 continue
         elif not tier_ok(t, args.tier):
             continue
@@ -462,7 +462,8 @@ def cmd_next(root: Path, args) -> int:
         if ok:
             if args.plan:
                 why = 'needs a build plan'
-            elif t['agent_tier'] == 'standard' and not has_build_plan(t.get('_body', '')):
+            elif not has_build_plan(t.get('_body', '')):
+                # Marking only: refusing such a claim is ENG-116.
                 why += '; no build plan'
             found += 1
             print(f'{t["id"]:<12} {t["priority"]} {t["agent_tier"]:<9} {t["risk"]:<8} {why:<28} {t["title"]}')
@@ -811,9 +812,10 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument('--priority', choices=PRIORITIES)
     s.add_argument('--status', choices=STATUSES)
     s.add_argument('--all', action='store_true', help='include done/superseded')
-    s = sub.add_parser('next', help='claimable tickets for your capability tier')
-    s.add_argument('--tier', choices=TIERS, default='frontier')
-    s.add_argument('--plan', action='store_true', help='list ready tickets that still need a build plan')
+    s = sub.add_parser('next', help='claimable tickets of every tier; those without a build plan are marked')
+    s.add_argument('--tier', choices=TIERS, default='frontier',
+                   help='list only tickets at or below this tier (default: every tier)')
+    s.add_argument('--plan', action='store_true', help='list ready tickets of every tier that still need a build plan')
     s = sub.add_parser('spec', help='spec hash, approval state, build plan and acceptance IDs of a ticket')
     s.add_argument('id')
     s.add_argument('--base', help='also compare the gated sections with this ref, e.g. origin/main')

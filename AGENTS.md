@@ -27,6 +27,8 @@ Codex or local LibreOffice is required.
 - Start new sessions in this repository. If subagents are explicitly requested,
   provide applicable shared/private rules and bounded context; do not assume they
   inherit the conversation. Never include private context in public artifacts.
+  Asking to plan, pick up or review a ticket is an explicit request for the role
+  agents in [Models and roles](#models-and-roles).
 
 ## Writing and skill setup
 
@@ -71,11 +73,12 @@ agents (any vendor or model) may work at once, one ticket each:
 
 - When the owner asks you to pick up work without naming a ticket, do this without
   further prompting: `git fetch origin`, run `cleanup` to remove merged ticket
-  worktrees, run `next` with your own tier (see the
-  [tier table](tickets/README.md#capability-tiers); if unsure, use `standard`), take
-  the first ticket listed, claim it and follow the
-  [quick start](tickets/README.md#quick-start-for-an-agent). If `next` lists nothing,
-  report that and what `list` shows as blocking; do not invent work.
+  worktrees, run `python3 scripts/tickets.py next` (it lists ready tickets of every
+  tier), take the first ticket not marked `no build plan` and route it as
+  [Models and roles](#models-and-roles) says; the builder claims it and follows the
+  [quick start](tickets/README.md#quick-start-for-an-agent). If every listed ticket
+  is marked, report them as needing planning. If `next` lists nothing, report that
+  and what `list` shows as blocking; do not invent work.
 - One ticket per session, so unrelated work does not fill the context. Claim at most
   one ticket in a session and use the session only for it, including review and CI
   repairs. File a ticket for unrelated work, or ask the owner to start a new session
@@ -89,12 +92,17 @@ agents (any vendor or model) may work at once, one ticket each:
   the PR to the owner: launch fresh-context QA (and Architect or PM where the
   [Reviews rule](tickets/README.md#rules-that-keep-the-board-consistent) says so)
   with only the ticket, the diff and the repository rules, post the findings on the
-  PR, then fix or answer them. This is an explicit request for those subagents. If
-  you cannot start one, report the review as not run. The owner reviews last.
-- Find work with `python3 scripts/tickets.py next --tier <any|standard|frontier>`;
-  claim it with `python3 scripts/tickets.py claim <ID> --agent <tool/model> --worktree`
-  and work only in that ticket's worktree and branch. Never take a live claim or a
-  ticket whose resources another live claim holds.
+  PR, then fix or answer them. The reviewer runs on the reviewer model (the
+  `reviewer` agent in Claude Code). This is an explicit request for those subagents.
+  If your tool cannot start the reviewer model, open the PR with the review marked
+  NOT RUN and ask the owner to say "review <ID>" in Claude Code. A `frontier` ticket
+  goes to the owner's review only after that review. The owner reviews last.
+- Find work with `python3 scripts/tickets.py next`, which lists every tier; `--tier`
+  only narrows the list. Claim with
+  `python3 scripts/tickets.py claim <ID> --agent <board name> --worktree`, using the
+  board name from [Models and roles](#models-and-roles), and work only in that
+  ticket's worktree and branch. Never take a live claim or a ticket whose resources
+  another live claim holds.
 - Read the ticket's Handoff first. Keep Handoff current, commit and push the ticket
   branch, and run `heartbeat` at every checkpoint, because a usage limit can stop you
   at any time. Resume someone else's stale claim with `resume` and `takeover`.
@@ -102,15 +110,66 @@ agents (any vendor or model) may work at once, one ticket each:
   tickets need recorded owner approval before work starts. Use the claim's
   `isolation_id` and `port_base` for Docker, PostgreSQL and ports.
 
+## Models and roles
+
+The owner chose these on 2026-11-17 (ENG-115). One model plans and reviews every
+ticket; the builder models write all the code, for tickets of every tier.
+
+| Role | Tool | Model | Effort | Agent file | Board name |
+|---|---|---|---|---|---|
+| Planner | Claude Code | Claude Opus 5.5 (`claude-opus-5-5`) | high | `.claude/agents/planner.md` | `claude-code/opus-5.5` |
+| Builder | Claude Code | Claude Sonnet 5.5 (`claude-sonnet-5-5`) | medium | `.claude/agents/builder.md` | `claude-code/sonnet-5.5` |
+| Builder | Codex | GPT-6.1 Sol (`gpt-6.1-sol`) | high | `.codex/agents/builder.toml` | `codex/gpt-6.1-sol` |
+| Builder | OpenCode | DeepSeek Flash | set by each user | none; each user configures the model | `opencode/deepseek-flash` |
+| Reviewer | Claude Code | Claude Opus 5.5 (`claude-opus-5-5`) | high | `.claude/agents/reviewer.md` | `claude-code/opus-5.5` |
+
+- The planner model plans and reviews. It never builds: it does not claim a ticket
+  for a build or write its code, and it hands the build to a builder model.
+- A builder never plans. It does not write or change a Build plan or a gated
+  section; when the plan is silent, it sets the ticket `blocked` as the quick start says.
+- A session that cannot reach the configured model for its role stops and says
+  which agent or model is missing. It never does a builder's work on the planner
+  model, or a planner's work on a builder model.
+- Each agent states its model in its first output. The builder uses its board name
+  in `claim --agent`, its Log lines and the outcome line.
+- "Has a Build plan" means the copy on `origin/main` after `git fetch origin` has
+  one (`git show origin/main:tickets/<ID>.md`). A plan on an unmerged branch does not count.
+
+Routing in each tool:
+
+- **Claude Code.** The session that receives the request routes it and does none
+  of the role's work itself. "plan <ID>", or "plan" for the `next --plan` queue,
+  runs the `planner` agent. "pick up <ID>" on a ticket without a Build plan runs the
+  `planner`, which opens the plan pull request and stops; on a ticket with one, it
+  hands the build to the `builder` agent. "review <ID>" runs the `reviewer` agent
+  with the ticket, the diff against `origin/main` and these rules. If the agent a
+  request needs is not available, for example because the session started before
+  its file existed or the file is missing, stop and say so.
+- **Codex.** "pick up <ID>" starts the project `builder` agent. Codex loads it only
+  when the project or worktree is trusted; if it is not available, stop. A builder
+  given a ticket without a Build plan reports that it needs planning and does not
+  build it. Planning and review run in Claude Code.
+- **OpenCode.** No agent file is published. The session builds only when it runs
+  DeepSeek Flash as its user configured it; on another model it stops. Given a
+  ticket without a Build plan, it reports that it needs planning and does not build it.
+
+Personal settings can override the committed files, for example
+`CLAUDE_CODE_SUBAGENT_MODEL` with `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`,
+`CLAUDE_CODE_EFFORT_LEVEL` or a model allowlist. An agent whose model differs from
+this table stops. See [agent development](docs/agent-development.md#model-routing-and-agent-files).
+
 ## Spec and role routing
 
 Use [the spec workflow](docs/spec-development.md) for exact-revision human Gate A,
 serialized reservations, bounded PM/Architect/Developer/independent-QA handoffs and
 human Gate B. The ticket is the spec: Goal, Requirements and Acceptance criteria are
-gated by the owner-approved hash in `spec_approved`, and a frontier-tier session
-writes the Build plan before a `standard`-tier build. Until ENG-116 decides on
-enforcement, `next` only marks such tickets `no build plan`: skip them and report them
-as needing planning unless the owner says to build one. Approvals and plans take effect when merged to `main`. Before building, run
+gated by the owner-approved hash in `spec_approved`. The planner writes the Build
+plan of every ticket, of every tier, and the plan merges to `main` before a build is
+claimed; no ticket is planned and built in one session. `agent_tier` sets how much
+the Build plan covers and how the result is reviewed, not which model may build
+([tier table](tickets/README.md#capability-tiers)). Until ENG-116 decides on
+enforcement, `next` only marks a ticket without a Build plan `no build plan`: a
+builder skips it and reports it as needing planning. Approvals and plans take effect when merged to `main`. Before building, run
 `python3 scripts/tickets.py spec <ID>`; never build a spec that changed since
 approval, and never change gated sections on a build branch. When the spec or Build
 plan is silent on behaviour, data or an interface, set the ticket to `blocked` with the
