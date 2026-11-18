@@ -15,8 +15,8 @@ gate_approval: "owner 2026-11-12, release to write the options and a recommendat
 review: independent
 branch: 
 pr: 
-spec: docs/specs/wealth-ledger-v2/P0/WL-P0-007.md
-updated: 2026-11-12
+spec: docs/specs/imp-007-r7/spec.md
+updated: 2026-11-18
 ---
 
 # IMP-007M: Decide how a re-upload gets back a raw slot that finish could not prove
@@ -24,6 +24,11 @@ updated: 2026-11-12
 ## Goal
 
 When `finish_member_v1` ends an attempt with `reupload_required` but its launcher proofs are missing, `pending` or `failed`, the attempt keeps its raw slot. Each user has one raw slot, so the next `reserve` for that set returns `import_busy`. IMP-007C releases such a slot only after the set becomes terminal (cancel, rejection, commit or expiry), which can take up to 24 hours. The owner decides whether a live set should also be able to prove and release that slot, and by which call.
+
+## Context
+
+- Frozen r7 contract bundle, the contract approved as "IMP-007 spec r7": [docs/specs/imp-007-r7/](../docs/specs/imp-007-r7/README.md) (index sha256:90e4b3306450dc88ce7bb9a5d973e4ed9837f37e5c8ac9f3da1b7d7a65bcea88; the index lists the SHA-256 of each file), notably [spec.md](../docs/specs/imp-007-r7/spec.md), [sql-appendix.md](../docs/specs/imp-007-r7/sql-appendix.md), [sql-inventory.json](../docs/specs/imp-007-r7/sql-inventory.json), [contract-appendix.md](../docs/specs/imp-007-r7/contract-appendix.md) and [acceptance.md](../docs/specs/imp-007-r7/acceptance.md).
+- Background only: the revision 1 planning draft [docs/specs/v2-drafts/WL-P0-007.md](../docs/specs/v2-drafts/WL-P0-007.md) (sha256:a8b73b5b4c55fe46eae9551f229623cc577f3296ffd16ecd4093e47bbdfb234f), which the r7 bundle supersedes.
 
 ## Acceptance criteria
 

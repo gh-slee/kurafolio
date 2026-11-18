@@ -15,8 +15,8 @@ gate_approval: "owner 2026-10-31, IMP-007 spec r7 (covers all child tickets)"
 review: independent
 branch: 
 pr: 
-spec: docs/specs/wealth-ledger-v2/P0/WL-P0-007.md
-updated: 2026-11-17
+spec: docs/specs/imp-007-r7/spec.md
+updated: 2026-11-18
 ---
 
 # IMP-007E: Add authenticated V2 import HTTP routes
@@ -27,9 +27,9 @@ Expose create, upload, read, decide, accept and cancel through authenticated Fas
 
 ## Context
 
-- Frozen r7 contract bundle (local only until ENG-016): `work/wl-p0-007/r7/` in the primary checkout, notably `spec.md`, `sql-appendix.md`, `sql-inventory.json`, `contract-appendix.md` and `acceptance.md`.
+- Frozen r7 contract bundle, the contract approved as "IMP-007 spec r7": [docs/specs/imp-007-r7/](../docs/specs/imp-007-r7/README.md) (index sha256:90e4b3306450dc88ce7bb9a5d973e4ed9837f37e5c8ac9f3da1b7d7a65bcea88; the index lists the SHA-256 of each file), notably [spec.md](../docs/specs/imp-007-r7/spec.md), [sql-appendix.md](../docs/specs/imp-007-r7/sql-appendix.md), [sql-inventory.json](../docs/specs/imp-007-r7/sql-inventory.json), [contract-appendix.md](../docs/specs/imp-007-r7/contract-appendix.md) and [acceptance.md](../docs/specs/imp-007-r7/acceptance.md).
 - Pattern: `tests/test_web_v2_sources.py` and [web-v2-sources.md](../docs/web-v2-sources.md).
-- The detailed draft spec is in the local planning package `docs/specs/wealth-ledger-v2/P0/WL-P0-007.md` until ENG-016 publishes it. If it is not in your checkout, work from this ticket and ask the owner.
+- Background only: the revision 1 planning draft [docs/specs/v2-drafts/WL-P0-007.md](../docs/specs/v2-drafts/WL-P0-007.md) (sha256:a8b73b5b4c55fe46eae9551f229623cc577f3296ffd16ecd4093e47bbdfb234f), which the r7 bundle supersedes.
 
 ### Where to start
 
@@ -65,7 +65,7 @@ Rules that reviewers will check:
 - The browser never sends financial values. Confirmation carries only the operation ID and the digest of the preview the user saw.
 - Rate limits are admitted inside the SQL functions (IMP-007J, merged). Do not add a second limiter in Python.
 - The hand-off of received bytes to the worker uses the one-use token from `reserve_member_v1` and the client in `src/kurafolio/ingestion/runner_client.py`. Until IMP-007F merges, test against a fake worker endpoint; the route's contract does not change when the real worker arrives.
-- The exact DTOs and the status code for each error are in `wire-contracts.json` in the r7 bundle. If that file is not in your checkout, stop and ask the owner; do not invent field names, because APP-011D builds its page on them.
+- The exact DTOs and the status code for each error are in [wire-contracts.json](../docs/specs/imp-007-r7/wire-contracts.json) in the r7 bundle, and the routes in [ingestion-api.md](../docs/specs/imp-007-r7/ingestion-api.md). Do not invent field names, because APP-011D builds its page on them.
 
 ## Acceptance criteria
 

@@ -16,7 +16,7 @@ review: independent
 branch:
 pr:
 spec:
-updated: 2026-11-13
+updated: 2026-11-18
 ---
 
 # MKT-009D: Build the daily value curve from historical prices and carried-forward quantities
@@ -26,6 +26,10 @@ updated: 2026-11-13
 The owner wants the value chart to be a daily line, not a few points on import dates. That needs the closing price and FX rate of every day since the first import, and a rule for the days between two imports. The owner chose the rule on 2026-11-11: use the quantities of the previous import until the next one, and say that those days are estimates.
 
 ## Context
+
+### Spec material
+
+- Golden cases G18 and G19: [docs/golden-cases.md](../docs/golden-cases.md) (sha256:5e6a5db1ec4409cf78f7e1d04a52ee3b66e0079898460199e75fe998c4f71b0f).
 
 ### Current behaviour
 

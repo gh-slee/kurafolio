@@ -16,7 +16,7 @@ review: independent
 branch:
 pr:
 spec:
-updated: 2026-11-13
+updated: 2026-11-18
 ---
 
 # ANL-012A: Define the V2 analysis read contract for securities, crypto and total
@@ -50,7 +50,7 @@ The three V2 analysis pages need one versioned read contract so they can be buil
 - DTO and error conventions: `src/kurafolio/web_v2/schemas.py`. Decimal rules: [canonical-domain.md](../docs/canonical-domain.md).
 - Unknown is never zero and CAD, USD and TWD are alternative equivalents, never additive (AGENTS.md).
 - The frontend types are generated: see `docs/web-frontend.md` lines 130-140 for `scripts/export_web_schema.py` and `openapi-typescript`. Decide whether V2 gets its own generated file.
-- Acceptance numbers come from the golden cases referenced by ANL-008 and the original ANL-012 criteria.
+- Acceptance numbers come from the golden cases referenced by ANL-008 and the original ANL-012 criteria, in [docs/golden-cases.md](../docs/golden-cases.md) (sha256:5e6a5db1ec4409cf78f7e1d04a52ee3b66e0079898460199e75fe998c4f71b0f).
 
 ### Owner decisions recorded 2026-11-10
 

@@ -15,8 +15,8 @@ gate_approval: "owner 2026-10-31, IMP-007 spec r7 (covers all child tickets)"
 review: independent
 branch: 
 pr: 
-spec: docs/specs/wealth-ledger-v2/P0/WL-P0-007.md
-updated: 2026-11-17
+spec: docs/specs/imp-007-r7/spec.md
+updated: 2026-11-18
 ---
 
 # IMP-007G: Prove V2 import acceptance: recovery, concurrency, containment and restore
@@ -27,9 +27,9 @@ Independent end-to-end acceptance of AC-WL-P0-007-01..04 on a synthetic instance
 
 ## Context
 
-- Frozen r7 contract bundle (local only until ENG-016): `work/wl-p0-007/r7/` in the primary checkout, notably `spec.md`, `sql-appendix.md`, `sql-inventory.json`, `contract-appendix.md` and `acceptance.md`.
-- r7 `acceptance.md` and `failure-restore.md` (local).
-- The detailed draft spec is in the local planning package `docs/specs/wealth-ledger-v2/P0/WL-P0-007.md` until ENG-016 publishes it. If it is not in your checkout, work from this ticket and ask the owner.
+- Frozen r7 contract bundle, the contract approved as "IMP-007 spec r7": [docs/specs/imp-007-r7/](../docs/specs/imp-007-r7/README.md) (index sha256:90e4b3306450dc88ce7bb9a5d973e4ed9837f37e5c8ac9f3da1b7d7a65bcea88; the index lists the SHA-256 of each file), notably [spec.md](../docs/specs/imp-007-r7/spec.md), [sql-appendix.md](../docs/specs/imp-007-r7/sql-appendix.md), [sql-inventory.json](../docs/specs/imp-007-r7/sql-inventory.json), [contract-appendix.md](../docs/specs/imp-007-r7/contract-appendix.md) and [acceptance.md](../docs/specs/imp-007-r7/acceptance.md).
+- r7 [acceptance.md](../docs/specs/imp-007-r7/acceptance.md), [failure-restore.md](../docs/specs/imp-007-r7/failure-restore.md) and [oracle.json](../docs/specs/imp-007-r7/oracle.json). The r7 fixtures: [fixtures/case-matrix.json](../docs/specs/imp-007-r7/fixtures/case-matrix.json); the fixture files themselves are tracked in `tests/fixtures/ingestion/oracle.json`, as the bundle index explains.
+- Background only: the revision 1 planning draft [docs/specs/v2-drafts/WL-P0-007.md](../docs/specs/v2-drafts/WL-P0-007.md) (sha256:a8b73b5b4c55fe46eae9551f229623cc577f3296ffd16ecd4093e47bbdfb234f), which the r7 bundle supersedes.
 
 ### Where to start
 

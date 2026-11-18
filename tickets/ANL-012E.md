@@ -16,7 +16,7 @@ review: independent
 branch:
 pr:
 spec:
-updated: 2026-11-12
+updated: 2026-11-18
 ---
 
 # ANL-012E: Build the V2 Exposures page
@@ -26,6 +26,10 @@ updated: 2026-11-12
 Exposures is the approved child of Stock/Bond: top companies through ETFs, and sector, country and region distributions with visible coverage. ETF-010 delivers the exposure data contract; no ticket builds the page.
 
 ## Context
+
+### Spec material
+
+- The "golden exposure fixture" in Acceptance criteria is golden case G11 (owner decision 2026-11-18, recorded in ENG-114): [docs/golden-cases.md](../docs/golden-cases.md) (sha256:5e6a5db1ec4409cf78f7e1d04a52ee3b66e0079898460199e75fe998c4f71b0f).
 
 ### Current behaviour
 
