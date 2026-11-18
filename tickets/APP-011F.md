@@ -16,6 +16,7 @@ review: independent
 branch:
 pr:
 spec:
+spec_approved: sha256:d5ad3972d46a3b9c06b503d92c39cfc5bd5ff9874c528b8a894de73dac3bed7d
 updated: 2026-11-18
 ---
 
@@ -88,3 +89,4 @@ Two of the eight approved destinations, App Settings and User Profile, have no t
 - 2026-11-10 planner: created from the UI/UX feature inventory (tickets/UX_FEATURE_INVENTORY.md).
 - 2026-11-12 planner: owner approved Gate A on 2026-11-12 and released the ticket (status ready).
 - 2026-11-18 claude-code/opus-5.5: ENG-113 migrated this ticket to the spec format without changing any wording: moved "Expected behaviour", "Scope" and "Implementation notes" from Context into Requirements and numbered the acceptance criteria AC-APP-011F-01 to 06. Spec hash sha256:d5ad3972d46a3b9c06b503d92c39cfc5bd5ff9874c528b8a894de73dac3bed7d, awaiting the owner's confirmation.
+- 2026-11-18 claude-code/opus-5.5: the owner confirmed the migrated text of this ticket in conversation with "Confirm all 29", the batch listed in ENG-113 decision 3; `spec_approved` records sha256:d5ad3972d46a3b9c06b503d92c39cfc5bd5ff9874c528b8a894de73dac3bed7d.

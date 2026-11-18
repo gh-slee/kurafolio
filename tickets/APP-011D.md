@@ -16,6 +16,7 @@ review: independent
 branch: 
 pr: 
 spec: docs/specs/v2-drafts/WL-P0-011.md
+spec_approved: sha256:0c597433e5a0769ec0d413329823746c94b9dc551ad54ea12123b036506476c5
 updated: 2026-11-18
 ---
 
@@ -101,3 +102,4 @@ Upload, reconciled preview, decisions, confirmation and import history on the V2
 - 2026-11-10 planner: added the absent-account question to the review step by owner decision.
 - 2026-11-10 planner: owner approved Gate A for the V2 MVP scope of this ticket on 2026-11-10 and released it (status ready).
 - 2026-11-18 claude-code/opus-5.5: ENG-113 migrated this ticket to the spec format without changing any wording: moved "Expected behaviour", "Scope" and "Implementation notes" from Context into Requirements and numbered the acceptance criteria AC-APP-011D-01 to 09. Spec hash sha256:0c597433e5a0769ec0d413329823746c94b9dc551ad54ea12123b036506476c5, awaiting the owner's confirmation.
+- 2026-11-18 claude-code/opus-5.5: the owner confirmed the migrated text of this ticket in conversation with "Confirm all 29", the batch listed in ENG-113 decision 3; `spec_approved` records sha256:0c597433e5a0769ec0d413329823746c94b9dc551ad54ea12123b036506476c5.

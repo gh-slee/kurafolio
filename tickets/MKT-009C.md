@@ -16,6 +16,7 @@ review: independent
 branch:
 pr:
 spec:
+spec_approved: sha256:2dc1a259f993cec292fb8cf63ead552d0051c0801f722a3dde1121d7570ff55f
 updated: 2026-11-18
 ---
 
@@ -101,3 +102,4 @@ The owner wants to switch the whole app to other popular currencies at the lates
 - 2026-11-11 planner: split out of MKT-009. The owner's answer of 2026-11-10 (more currencies at the latest rate, Bank of Canada plus Frankfurter) is recorded here; the exact list is proposed for Gate A.
 - 2026-11-11 planner: owner approved Gate A for this ticket on 2026-11-11 and released it (status ready). The owner also approved the proposed list of twelve currencies.
 - 2026-11-18 claude-code/opus-5.5: ENG-113 migrated this ticket to the spec format without changing any wording: moved the "Owner decision 2026-11-10" bullet of Current behaviour, "Expected behaviour", "Scope" and "Implementation notes" from Context into Requirements and numbered the acceptance criteria AC-MKT-009C-01 to 07. Spec hash sha256:2dc1a259f993cec292fb8cf63ead552d0051c0801f722a3dde1121d7570ff55f, awaiting the owner's confirmation.
+- 2026-11-18 claude-code/opus-5.5: the owner confirmed the migrated text of this ticket in conversation with "Confirm all 29", the batch listed in ENG-113 decision 3; `spec_approved` records sha256:2dc1a259f993cec292fb8cf63ead552d0051c0801f722a3dde1121d7570ff55f.

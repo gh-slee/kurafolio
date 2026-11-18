@@ -16,6 +16,7 @@ review: independent
 branch: ticket/wl-p0-011i-tell-an-invitee-whether-their-invitation
 pr: 
 spec: docs/specs/v2-drafts/WL-P0-011.md
+spec_approved: sha256:4b2a286b772f4c5edbdde50b081fafbaa69205f535dda1002a55419cc2fa13af
 updated: 2026-11-18
 ---
 
@@ -146,3 +147,4 @@ revision after `0004_ingestion` (option (b)).
 - 2026-11-12 claude-code/opus-5.5: AUTH-101 decided (option (b), revision `0005_invite_status`); added the migration path to Handoff, depends on IMP-007D, status ready.
 - 2026-11-12 claude-code/opus-5.5: added AUTH-101 review findings (replacement baseline, profile plumbing, budget trade-off, state mapping) and the owner's fallback for `identity`/`sources` instances.
 - 2026-11-18 claude-code/opus-5.5: ENG-113 migrated this ticket to the spec format without changing any wording: moved "Expected behaviour", "Owner decision recorded 2026-11-12" and "Scope" from Context into Requirements and numbered the acceptance criteria AC-APP-011I-01 to 04. Spec hash sha256:4b2a286b772f4c5edbdde50b081fafbaa69205f535dda1002a55419cc2fa13af, awaiting the owner's confirmation.
+- 2026-11-18 claude-code/opus-5.5: the owner confirmed the migrated text of this ticket in conversation with "Confirm all 29", the batch listed in ENG-113 decision 3; `spec_approved` records sha256:4b2a286b772f4c5edbdde50b081fafbaa69205f535dda1002a55419cc2fa13af.

@@ -16,6 +16,7 @@ review: independent
 branch:
 pr:
 spec:
+spec_approved: sha256:53960af1621f336883b66c3411adc1efaa2d1e16fec49360ccce80d7afa78ea9
 updated: 2026-11-18
 ---
 
@@ -116,3 +117,4 @@ The operator can change each value in configuration. The intervals never go belo
 - 2026-11-11 planner: split out of MKT-009 so the store and scheduler can be built without waiting for the official provider choice.
 - 2026-11-11 planner: owner approved Gate A for this ticket on 2026-11-11 and released it (status ready). The owner also approved the proposed refresh intervals.
 - 2026-11-18 claude-code/opus-5.5: ENG-113 migrated this ticket to the spec format without changing any wording: moved "Expected behaviour", "Defaults approved by the owner on 2026-11-11", "Scope" and "Implementation notes" from Context into Requirements and numbered the acceptance criteria AC-MKT-009B-01 to 10. Spec hash sha256:53960af1621f336883b66c3411adc1efaa2d1e16fec49360ccce80d7afa78ea9, awaiting the owner's confirmation.
+- 2026-11-18 claude-code/opus-5.5: the owner confirmed the migrated text of this ticket in conversation with "Confirm all 29", the batch listed in ENG-113 decision 3; `spec_approved` records sha256:53960af1621f336883b66c3411adc1efaa2d1e16fec49360ccce80d7afa78ea9.

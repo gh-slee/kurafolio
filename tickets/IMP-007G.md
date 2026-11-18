@@ -16,6 +16,7 @@ review: independent
 branch: 
 pr: 
 spec: docs/specs/imp-007-r7/spec.md
+spec_approved: sha256:664665500763474ff48fd3779d3e8052c27f181133a0db1193bd429171b5e2b0
 updated: 2026-11-18
 ---
 
@@ -88,3 +89,4 @@ Derive every expected value yourself from the fixture files. Do not call the imp
 - 2026-11-13 planner: added the six groups of the 36 approved acceptance cases and three acceptance criteria about recording results. Scope is unchanged.
 - 2026-11-17 planner: the owner confirmed in conversation ("Confirm all six") the changes PR #64 made to this ticket after its approval. The approval in gate_approval covers the text as it stands now.
 - 2026-11-18 claude-code/opus-5.5: ENG-113 migrated this ticket to the spec format without changing any wording: moved the bullet naming the r7 contract bundle, the "Real-PostgreSQL tests" bullet of Where to start and "What to check" from Context into Requirements and numbered the acceptance criteria AC-IMP-007G-01 to 06. Spec hash sha256:664665500763474ff48fd3779d3e8052c27f181133a0db1193bd429171b5e2b0, awaiting the owner's confirmation.
+- 2026-11-18 claude-code/opus-5.5: the owner confirmed the migrated text of this ticket in conversation with "Confirm all 29", the batch listed in ENG-113 decision 3; `spec_approved` records sha256:664665500763474ff48fd3779d3e8052c27f181133a0db1193bd429171b5e2b0.

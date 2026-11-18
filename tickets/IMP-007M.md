@@ -16,6 +16,7 @@ review: independent
 branch: 
 pr: 
 spec: docs/specs/imp-007-r7/spec.md
+spec_approved: sha256:cf968d22fe6dcdfadf0a39af3744c41c18ba150851cc4b05611ef5f8f1fe2aaa
 updated: 2026-11-18
 ---
 
@@ -60,3 +61,4 @@ When `finish_member_v1` ends an attempt with `reupload_required` but its launche
 - 2026-11-12 claude-code/claude-opus-5-5: filed as a follow-up from IMP-007C.
 - 2026-11-12 planner: owner released this ticket on 2026-11-12 so an agent writes the options; the owner still decides. It shares `ingestion-schema-sql` with IMP-007L, so it starts after that claim ends.
 - 2026-11-18 claude-code/opus-5.5: ENG-113 migrated this ticket to the spec format without changing any wording: moved the bullet naming the r7 contract bundle from Context into Requirements and numbered the acceptance criteria AC-IMP-007M-01 to 02. Spec hash sha256:cf968d22fe6dcdfadf0a39af3744c41c18ba150851cc4b05611ef5f8f1fe2aaa, awaiting the owner's confirmation.
+- 2026-11-18 claude-code/opus-5.5: the owner confirmed the migrated text of this ticket in conversation with "Confirm all 29", the batch listed in ENG-113 decision 3; `spec_approved` records sha256:cf968d22fe6dcdfadf0a39af3744c41c18ba150851cc4b05611ef5f8f1fe2aaa.

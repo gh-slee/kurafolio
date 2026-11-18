@@ -16,6 +16,7 @@ review: independent
 branch: 
 pr: 
 spec: docs/specs/v2-drafts/WL-P0-011.md
+spec_approved: sha256:c5804cd88744b3f569ea6473e2297efe526dfad854d0d45206aa9a20584e74a8
 updated: 2026-11-18
 ---
 
@@ -92,3 +93,4 @@ Make the V2 shell decide from real data whether Stock/Bond, Exposures and Crypto
 - 2026-11-12 developer: split from APP-011A by owner decision on 2026-11-12. The shell shipped with an unconditional "Enable a source" offer.
 - 2026-11-12 planner: owner approved Gate A on 2026-11-12 and released the ticket (status ready). Decision: plugins declare asset classes in the catalog and imported holdings always count. Depends on ANL-012A instead of ANL-008, because the holdings check reads the analysis contract.
 - 2026-11-18 claude-code/opus-5.5: ENG-113 migrated this ticket to the spec format without changing any wording: moved "Expected behaviour", "Scope", "Owner decision recorded 2026-11-12" and "Implementation notes" from Context into Requirements and numbered the acceptance criteria AC-APP-011H-01 to 06. Spec hash sha256:c5804cd88744b3f569ea6473e2297efe526dfad854d0d45206aa9a20584e74a8, awaiting the owner's confirmation.
+- 2026-11-18 claude-code/opus-5.5: the owner confirmed the migrated text of this ticket in conversation with "Confirm all 29", the batch listed in ENG-113 decision 3; `spec_approved` records sha256:c5804cd88744b3f569ea6473e2297efe526dfad854d0d45206aa9a20584e74a8.

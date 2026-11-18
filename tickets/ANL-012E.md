@@ -16,6 +16,7 @@ review: independent
 branch:
 pr:
 spec:
+spec_approved: sha256:efc294e61d903d3c7ac994fb9ec430cb62ed93db545c3f6246dcd9731661075f
 updated: 2026-11-18
 ---
 
@@ -94,3 +95,4 @@ Exposures is the approved child of Stock/Bond: top companies through ETFs, and s
 - 2026-11-12 planner: owner approved Gate A on 2026-11-12 and released the ticket (status ready).
 - 2026-11-18 claude-code/opus-5.5 (ENG-114): the owner chose golden case G11 for the "golden exposure fixture" in Acceptance criteria ("Approve all as recommended", 2026-11-18); linked from Context.
 - 2026-11-18 claude-code/opus-5.5: ENG-113 migrated this ticket to the spec format without changing any wording: moved "Spec material", "Expected behaviour", "Scope" and "Implementation notes" from Context into Requirements and numbered the acceptance criteria AC-ANL-012E-01 to 06. Spec hash sha256:efc294e61d903d3c7ac994fb9ec430cb62ed93db545c3f6246dcd9731661075f, awaiting the owner's confirmation.
+- 2026-11-18 claude-code/opus-5.5: the owner confirmed the migrated text of this ticket in conversation with "Confirm all 29", the batch listed in ENG-113 decision 3; `spec_approved` records sha256:efc294e61d903d3c7ac994fb9ec430cb62ed93db545c3f6246dcd9731661075f.

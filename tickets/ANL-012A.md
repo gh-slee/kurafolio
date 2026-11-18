@@ -16,6 +16,7 @@ review: independent
 branch:
 pr:
 spec:
+spec_approved: sha256:53db5ddc3a935a30bdbdefb6bc5d90d43426429e417c2ebb3db32784d205d4ee
 updated: 2026-11-18
 ---
 
@@ -103,3 +104,4 @@ None open. Answered by the owner on 2026-11-10: yes, the first version may value
 - 2026-11-11 planner: named the MKT-009 children that extend this contract after the MVP.
 - 2026-11-13 planner: removed the answered decision and the stale gate wording; the ticket waits only on ANL-008.
 - 2026-11-18 claude-code/opus-5.5: ENG-113 migrated this ticket to the spec format without changing any wording: moved "Expected behaviour", "Scope", "Implementation notes" and "Owner decisions recorded 2026-11-10" from Context into Requirements and numbered the acceptance criteria AC-ANL-012A-01 to 05. Spec hash sha256:53db5ddc3a935a30bdbdefb6bc5d90d43426429e417c2ebb3db32784d205d4ee, awaiting the owner's confirmation.
+- 2026-11-18 claude-code/opus-5.5: the owner confirmed the migrated text of this ticket in conversation with "Confirm all 29", the batch listed in ENG-113 decision 3; `spec_approved` records sha256:53db5ddc3a935a30bdbdefb6bc5d90d43426429e417c2ebb3db32784d205d4ee.

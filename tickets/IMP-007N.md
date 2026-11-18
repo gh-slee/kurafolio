@@ -16,6 +16,7 @@ review: independent
 branch: 
 pr: 
 spec: docs/specs/imp-007-r7/spec.md
+spec_approved: sha256:c3e06c751ef4816ad200095284163430738b7a0e1783e78999605dd5035e92eb
 updated: 2026-11-18
 ---
 
@@ -61,3 +62,4 @@ updated: 2026-11-18
 
 - 2026-11-12 claude-code/claude-opus-5-5: filed from the IMP-007C review finding; owner chose exponential backoff (30s × 2^(n−1), capped at 15 minutes, oldest-first among eligible sets, no new columns).
 - 2026-11-18 claude-code/opus-5.5: ENG-113 migrated this ticket to the spec format without changing any wording: moved the bullet naming the r7 contract bundle from Context into Requirements and numbered the acceptance criteria AC-IMP-007N-01 to 07. Spec hash sha256:c3e06c751ef4816ad200095284163430738b7a0e1783e78999605dd5035e92eb, awaiting the owner's confirmation.
+- 2026-11-18 claude-code/opus-5.5: the owner confirmed the migrated text of this ticket in conversation with "Confirm all 29", the batch listed in ENG-113 decision 3; `spec_approved` records sha256:c3e06c751ef4816ad200095284163430738b7a0e1783e78999605dd5035e92eb.

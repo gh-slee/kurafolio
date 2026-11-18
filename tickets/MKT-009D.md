@@ -16,6 +16,7 @@ review: independent
 branch:
 pr:
 spec:
+spec_approved: sha256:252604cd33c1356c1d2c03905f44d375d8486015eff7a3eb4701484dc9996bb2
 updated: 2026-11-18
 ---
 
@@ -112,3 +113,4 @@ This replaces, for the value curve only, the earlier planning rule that no value
 - 2026-11-11 planner: owner approved Gate A for this ticket on 2026-11-11 and released it (status ready).
 - 2026-11-13 planner: added a gotcha about dividend-adjusted and split-back-adjusted price history. No change to scope or acceptance criteria.
 - 2026-11-18 claude-code/opus-5.5: ENG-113 migrated this ticket to the spec format without changing any wording: moved "Owner decision recorded 2026-11-11", "Expected behaviour", "Scope" and "Implementation notes" from Context into Requirements and numbered the acceptance criteria AC-MKT-009D-01 to 11. Spec hash sha256:252604cd33c1356c1d2c03905f44d375d8486015eff7a3eb4701484dc9996bb2, awaiting the owner's confirmation.
+- 2026-11-18 claude-code/opus-5.5: the owner confirmed the migrated text of this ticket in conversation with "Confirm all 29", the batch listed in ENG-113 decision 3; `spec_approved` records sha256:252604cd33c1356c1d2c03905f44d375d8486015eff7a3eb4701484dc9996bb2.

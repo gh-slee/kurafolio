@@ -16,6 +16,7 @@ review: independent
 branch:
 pr:
 spec:
+spec_approved: sha256:7b41dbf7943ccbadd8916994a5f279a0e25dd00309a28b5c378dd82c9ede5622
 updated: 2026-11-18
 ---
 
@@ -87,3 +88,4 @@ A V2 user viewing any analysis page wants to download what they are looking at. 
 - 2026-11-10 planner: created from the UI/UX feature inventory (tickets/UX_FEATURE_INVENTORY.md).
 - 2026-11-12 planner: owner approved Gate A on 2026-11-12 and released the ticket (status ready). The panel lists Excel as a fourth format.
 - 2026-11-18 claude-code/opus-5.5: ENG-113 migrated this ticket to the spec format without changing any wording: moved "Expected behaviour", "Scope" and "Implementation notes" from Context into Requirements and numbered the acceptance criteria AC-RPT-013B-01 to 06. Spec hash sha256:7b41dbf7943ccbadd8916994a5f279a0e25dd00309a28b5c378dd82c9ede5622, awaiting the owner's confirmation.
+- 2026-11-18 claude-code/opus-5.5: the owner confirmed the migrated text of this ticket in conversation with "Confirm all 29", the batch listed in ENG-113 decision 3; `spec_approved` records sha256:7b41dbf7943ccbadd8916994a5f279a0e25dd00309a28b5c378dd82c9ede5622.

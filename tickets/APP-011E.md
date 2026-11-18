@@ -16,6 +16,7 @@ review: independent
 branch:
 pr:
 spec:
+spec_approved: sha256:3c4a7cd2b13f7fe8a817e6aaa23b8058c6a5a4a01f56df10dad50048674932b8
 updated: 2026-11-18
 ---
 
@@ -94,3 +95,4 @@ The V2 Profile page is specified to hold a user's language, time zone and defaul
 - 2026-11-10 planner: created from the UI/UX feature inventory (tickets/UX_FEATURE_INVENTORY.md).
 - 2026-11-12 planner: owner approved Gate A on 2026-11-12 and released the ticket (status ready). Decisions: locale, time zone and currency on the server (option a); session list deferred (option b).
 - 2026-11-18 claude-code/opus-5.5: ENG-113 migrated this ticket to the spec format without changing any wording: moved "Expected behaviour", "Scope", "Owner decisions recorded 2026-11-12" and "Implementation notes" from Context into Requirements and numbered the acceptance criteria AC-APP-011E-01 to 06. Spec hash sha256:3c4a7cd2b13f7fe8a817e6aaa23b8058c6a5a4a01f56df10dad50048674932b8, awaiting the owner's confirmation.
+- 2026-11-18 claude-code/opus-5.5: the owner confirmed the migrated text of this ticket in conversation with "Confirm all 29", the batch listed in ENG-113 decision 3; `spec_approved` records sha256:3c4a7cd2b13f7fe8a817e6aaa23b8058c6a5a4a01f56df10dad50048674932b8.

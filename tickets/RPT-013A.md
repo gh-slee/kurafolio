@@ -16,6 +16,7 @@ review: independent
 branch:
 pr:
 spec:
+spec_approved: sha256:97e3e0e50ece6a0568b4b743ef67e5ba9b710522928dc9dfa51ba057b5c49aac
 updated: 2026-11-18
 ---
 
@@ -93,3 +94,4 @@ V2 produces PDF, Excel, ODS and Markdown only when the user asks, from exactly t
 - 2026-11-10 planner: created from the UI/UX feature inventory (tickets/UX_FEATURE_INVENTORY.md).
 - 2026-11-12 planner: owner approved Gate A on 2026-11-12 and released the ticket (status ready). Owner chose PDF, Excel, ODS and Markdown for go-live; Excel added, CSV, JSON, PNG and ZIP moved to RPT-101.
 - 2026-11-18 claude-code/opus-5.5: ENG-113 migrated this ticket to the spec format without changing any wording: moved "Expected behaviour", "Scope" and "Implementation notes" from Context into Requirements and numbered the acceptance criteria AC-RPT-013A-01 to 08. Spec hash sha256:97e3e0e50ece6a0568b4b743ef67e5ba9b710522928dc9dfa51ba057b5c49aac, awaiting the owner's confirmation.
+- 2026-11-18 claude-code/opus-5.5: the owner confirmed the migrated text of this ticket in conversation with "Confirm all 29", the batch listed in ENG-113 decision 3; `spec_approved` records sha256:97e3e0e50ece6a0568b4b743ef67e5ba9b710522928dc9dfa51ba057b5c49aac.

@@ -16,6 +16,7 @@ review: independent
 branch:
 pr:
 spec:
+spec_approved: sha256:2137e3a3e730ec66d9d0d535270c97df145f96206587aa559cfe02dcf56c53b4
 updated: 2026-11-18
 ---
 
@@ -109,3 +110,4 @@ None open. The owner recorded Gate A on this ticket itself on 2026-11-10.
 - 2026-11-10 planner: owner approved Gate A for the V2 MVP scope of this ticket on 2026-11-10 and released it (status ready).
 - 2026-11-13 planner: removed the answered gate question and the stale handoff wording.
 - 2026-11-18 claude-code/opus-5.5: ENG-113 migrated this ticket to the spec format without changing any wording: moved the "Nearest shipped page" bullet of Current behaviour, "Expected behaviour", "Scope", "Implementation notes" and "Visual direction" from Context into Requirements and numbered the acceptance criteria AC-ANL-012B-01 to 09. Spec hash sha256:2137e3a3e730ec66d9d0d535270c97df145f96206587aa559cfe02dcf56c53b4, awaiting the owner's confirmation.
+- 2026-11-18 claude-code/opus-5.5: the owner confirmed the migrated text of this ticket in conversation with "Confirm all 29", the batch listed in ENG-113 decision 3; `spec_approved` records sha256:2137e3a3e730ec66d9d0d535270c97df145f96206587aa559cfe02dcf56c53b4.
