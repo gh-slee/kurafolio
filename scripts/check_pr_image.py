@@ -12,9 +12,11 @@ import subprocess
 import sys
 import uuid
 
+from ci_changes import changed_paths, is_ticket_only
 from docker_context import prepare_context
 
 ROOT = Path(__file__).resolve().parents[1]
+BASE_REF = 'origin/main'
 SMOKE = r'''
 import json, os, pathlib, platform, re, secrets, subprocess, time, urllib.error, urllib.request
 from kurafolio.web.auth import password_hash
@@ -92,9 +94,25 @@ def run(args: list[str], output: Path, *, source: str | None = None, timeout=180
     return output.read_text(encoding='utf-8')
 
 
+def ticket_only_skip(root: Path, head: str) -> dict | None:
+    try:
+        paths = changed_paths(root, BASE_REF, head, merge_base=True)
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return None
+    if not is_ticket_only(paths):
+        return None
+    return {'schema_version': 1, 'status': 'skipped', 'head': head, 'base': BASE_REF,
+            'changed_paths': paths,
+            'reason': 'Ticket-only diff against origin/main: every changed path is under '
+                      'tickets/, which is not an image input, so no image was built.'}
+
+
 def check(root: Path) -> dict:
     root = root.resolve()
     head = committed_head(root)
+    skipped = ticket_only_skip(root, head)
+    if skipped is not None:
+        return skipped
     work = root / 'work'
     if work.is_symlink() or (work / 'pr-images').is_symlink():
         raise ValueError('Image evidence directories must not be symlinks')

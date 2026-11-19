@@ -106,7 +106,7 @@ agents (any vendor or model) may work at once, one ticket each:
 - Read the ticket's Handoff first. Keep Handoff current, commit and push the ticket
   branch, and run `heartbeat` at every checkpoint, because a usage limit can stop you
   at any time. Resume someone else's stale claim with `resume` and `takeover`.
-- Edit only your own ticket file (a planning session may also edit the Context, Build plan, Plan and Decisions needed of the tickets it plans); file new tickets for follow-ups. `gate: owner`
+- Edit only your own ticket file (a planning session may also edit the Context, Build plan, Plan and Decisions needed of the tickets it plans, and record a Gate A the owner gave in that conversation); file new tickets for follow-ups. `gate: owner`
   tickets need recorded owner approval before work starts. Use the claim's
   `isolation_id` and `port_base` for Docker, PostgreSQL and ports.
 
@@ -211,8 +211,7 @@ Frontend commands: `npm --prefix frontend ci --ignore-scripts`,
 Use Node 24 LTS (or 22.12+) and see docs/web-frontend.md for browser prerequisites.
 An installable core/contract wheel and SDK are available; see [packaging](docs/parser-sdk.md).
 Before every PR (including documentation-only changes), commit the reviewed scope
-and run `python scripts/check_pr_image.py` from a clean tracked tree. It always
-invokes a source-only candidate build (layer cache allowed), verifies isolated API,
+and run `python scripts/check_pr_image.py` from a clean tracked tree. When every path the branch changes against `origin/main` is under `tickets/`, it exits successfully without a Docker build and says why; that ticket-only case is the only exception. Otherwise it invokes a source-only candidate build (layer cache allowed), verifies isolated API,
 browser assets and worker startup, and saves local image-ID evidence under ignored
 `work/pr-images/`. Build/check failure or unavailable Docker blocks submission;
 never substitute a real instance. See [the pre-PR gate](docs/development.md#pre-pr-candidate-image-gate).

@@ -1,4 +1,6 @@
 """PR candidate failure/privacy gates use a disposable Git tree and fake Docker."""
+import contextlib
+import io
 import json
 from pathlib import Path
 import shutil
@@ -135,3 +137,58 @@ class CandidateTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'symlinks'):
             self.execute()
         self.assertFalse(list(target.iterdir()))
+
+
+    # AC-ENG-120-06: a ticket-only diff against origin/main needs no image.
+    def commit_files(self, files):
+        for name, text in files.items():
+            target = self.root / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(text)
+        self.git('add', '-A')
+        self.git('commit', '-m', 'Synthetic change')
+
+    def based_on_main(self, files=None):
+        self.git('update-ref', 'refs/remotes/origin/main', 'HEAD')
+        if files:
+            self.commit_files(files)
+
+    def test_ticket_only_diff_skips_the_build(self):
+        self.based_on_main({'tickets/ENG-001.md': 'Synthetic ticket\n'})
+        result = self.execute()
+        self.assertEqual(result['status'], 'skipped')
+        self.assertEqual(result['base'], 'origin/main')
+        self.assertEqual(result['changed_paths'], ['tickets/ENG-001.md'])
+        self.assertIn('tickets/', result['reason'])
+        self.assertFalse(self.calls)
+        self.assertFalse((self.root / 'work/pr-images').exists())
+
+    def test_a_non_ticket_path_still_builds(self):
+        self.based_on_main({'tickets/ENG-001.md': 'Synthetic ticket\n', 'LICENSE': 'Changed synthetic file\n'})
+        receipt = self.execute()
+        self.assertEqual(receipt['status'], 'passed')
+        self.assertEqual(sum(c[1] == 'build' for c in self.calls), 1)
+
+    def test_empty_diff_still_builds(self):
+        self.based_on_main()
+        self.assertEqual(self.execute()['status'], 'passed')
+        self.assertEqual(sum(c[1] == 'build' for c in self.calls), 1)
+
+    def test_missing_origin_main_still_builds(self):
+        self.commit_files({'tickets/ENG-001.md': 'Synthetic ticket\n'})
+        self.assertEqual(self.execute()['status'], 'passed')
+
+    def test_dirty_tree_still_stops_before_the_ticket_only_check(self):
+        self.based_on_main({'tickets/ENG-001.md': 'Synthetic ticket\n'})
+        (self.root / 'LICENSE').write_text('Uncommitted synthetic change')
+        with self.assertRaisesRegex(ValueError, 'Commit reviewed'):
+            self.execute()
+        self.assertFalse(self.calls)
+
+    def test_main_prints_the_reason_and_exits_zero(self):
+        self.based_on_main({'tickets/ENG-001.md': 'Synthetic ticket\n'})
+        out = io.StringIO()
+        with mock.patch.object(sys, 'argv', ['check_pr_image.py', '--root', str(self.root)]), \
+                contextlib.redirect_stdout(out):
+            self.assertEqual(candidate.main(), 0)
+        self.assertIn('Ticket-only diff against origin/main', out.getvalue())

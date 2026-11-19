@@ -422,6 +422,43 @@ def cmd_check(root: Path, args) -> int:
     return 1 if errors else 0
 
 
+def own_tickets(tickets: dict[str, dict], branch: str) -> list[dict]:
+    """Tickets whose `branch:` value, stripped, equals `branch`, stripped."""
+    wanted = branch.strip()
+    return [t for t in tickets.values() if (t.get('branch') or '').strip() == wanted]
+
+
+def pr_check_errors(tickets: dict[str, dict], branch: str) -> list[str]:
+    """One message per problem: status is not `done`, or `pr:` is empty."""
+    errors: list[str] = []
+    for t in own_tickets(tickets, branch):
+        tid = t.get('id', t['_path'].stem)
+        if t.get('status') != 'done':
+            errors.append(f"{tid}: status is {t.get('status')}, expected done in the last commit before the owner's review")
+        if not (t.get('pr') or '').strip():
+            errors.append(f'{tid}: pr: is empty')
+    return errors
+
+
+def cmd_pr_check(root: Path, args) -> int:
+    branch = (args.branch or '').strip()
+    if not branch:
+        raise TicketError('pr-check needs the pull request head branch')
+    tickets = load_tickets(root)
+    own = own_tickets(tickets, branch)
+    if not own:
+        print(f'No ticket names branch {branch}; nothing to check.')
+        return 0
+    errors = pr_check_errors(tickets, branch)
+    for e in errors:
+        print('ERROR', e)
+    failed = {e.split(':', 1)[0] for e in errors}
+    for t in own:
+        if t.get('id') not in failed:
+            print(f"{t.get('id')}: done, pr: {t.get('pr')}")
+    return 1 if errors else 0
+
+
 def cmd_list(root: Path, args) -> int:
     tickets = load_tickets(root)
     locks = lock_dir(root)
@@ -807,6 +844,8 @@ def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__.split('\n')[0])
     sub = p.add_subparsers(dest='cmd', required=True)
     sub.add_parser('check', help='validate all ticket files')
+    s = sub.add_parser('pr-check', help="fail when the pull request's own ticket is not done with pr: set")
+    s.add_argument('--branch', required=True, help='the pull request head branch')
     s = sub.add_parser('list', help='board view')
     s.add_argument('--priority', choices=PRIORITIES)
     s.add_argument('--status', choices=STATUSES)
@@ -846,7 +885,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.cmd == 'takeover':
             return cmd_claim(root, args, takeover=True)
-        return {'check': cmd_check, 'list': cmd_list, 'next': cmd_next, 'show': cmd_show, 'spec': cmd_spec,
+        return {'check': cmd_check, 'pr-check': cmd_pr_check, 'list': cmd_list, 'next': cmd_next, 'show': cmd_show, 'spec': cmd_spec,
                 'resume': cmd_resume, 'claim': cmd_claim, 'heartbeat': cmd_heartbeat,
                 'release': cmd_release, 'cleanup': cmd_cleanup}[args.cmd](root, args)
     except TicketError as exc:

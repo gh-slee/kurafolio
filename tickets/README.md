@@ -49,26 +49,30 @@ all work there, never in the primary checkout. Then:
    behaviour, data or an interface you need, write the question under Decisions
    needed, set `status: blocked`, commit, push, tell the owner and stop. Keep the
    claim. Do not guess.
-2. Set `status: in_progress` and `updated:`, add a Log line, and commit.
+2. Set `status: in_progress`, `branch:` (your ticket branch) and `updated:`, add a Log line, and commit.
 3. Work through the Plan checkboxes. After each meaningful step, update Handoff,
    commit (WIP commits are fine on a ticket branch; the owner squashes them at
    merge) and run
    `python3 scripts/tickets.py heartbeat <ID> --note "<one line>"`.
 4. Before you stop for any reason, write the Handoff (see below), commit and push
    the ticket branch. Assume you can be cut off at any moment by a usage limit.
-5. When the acceptance criteria pass and any required independent review is
-   recorded, set `status: done` and `pr:` in the PR's final commit, then open the
-   PR using the repository PR rules. Write the PR title as a one-line summary of the
-   change, because it becomes the subject of the squashed commit on `main` and the
-   PR description becomes its body. Because only the owner merges, the ticket reads
-   `done` on `main` only after the merge. While the PR is open, its branch copy
-   and the live claim show it as under review. If review requests changes, keep
-   the claim and set `status: in_review` until the repair is pushed. In the same
-   final commit, add one outcome line to the Log: the implementing model, the
-   reviewing model, the number of review repair rounds, and anything the spec or Build
-   plan failed to say (or "nothing missing"); update it if review leads to more
-   repairs. Before handing over, run `python3 scripts/tickets.py spec <ID> --base origin/main`:
-   a build must not change the gated sections.
+5. When the acceptance criteria pass, push the branch and open the PR using the
+   repository PR rules. Write the PR title as a one-line summary of the change,
+   because it becomes the subject of the squashed commit on `main` and the PR
+   description becomes its body. Run any required independent review on that PR.
+   While review repairs are outstanding, set `status: in_review`; `in_review` marks
+   only a branch with repairs still outstanding. The last commit you push before the
+   owner's review sets `status: done`, `pr:` (the PR's URL) and the outcome line in
+   the Log, and so does the last commit of every repair round. The outcome line
+   names the implementing model, the reviewing model, the number of review repair
+   rounds and anything the spec or Build plan failed to say (or "nothing missing").
+   CI fails a PR whose own ticket (the ticket whose `branch:` names the PR's head
+   branch) is not `done` with `pr:` set, so that check stays red until this commit
+   is pushed. Because only the owner merges, the ticket reads `done` on `main` when
+   the PR merges, with no follow-up PR. Run `python scripts/check_pr_image.py` again
+   after this commit, as after any commit. Before handing over, run `python3
+   scripts/tickets.py spec <ID> --base origin/main`: a build must not change the
+   gated sections.
 6. Work on one ticket per session, so the session's context holds only that
    ticket. Until the PR is merged, use the session only for that ticket: review
    repairs, CI fixes and the owner's questions about it. Do not claim a second
@@ -235,7 +239,7 @@ In short:
   until the owner approves the new hash. Ticks, Context, Build plan, Plan, Handoff
   and Log can change freely.
 - **Approvals and plans live on `main`.** Build a ticket from its copy on `main`;
-  `spec_approved` and the Build plan arrive there through a merged pull request.
+  `spec_approved` and the Build plan arrive there through a merged pull request. A Gate A record (`gate_approval`, `spec_approved`, `status: ready` for a `backlog` ticket, and the Log line quoting the owner) goes in the pull request that files the ticket or carries its Build plan, not in a pull request of its own, unless the owner asks for a separate one. When the gated text changes before approval, the Build plan is checked against the approved text before the pull request is opened.
   Changing `agent_tier`, `risk`, `review`, `depends_on` or `resources` of an approved
   ticket needs the owner's confirmation in its Log.
 - **Build plan.** The planner writes one for every ticket, of every tier, once the
@@ -245,8 +249,7 @@ In short:
   lists tickets that need one. `next` marks a ticket of any tier without one
   `no build plan`; a builder skips it and reports it as needing planning. Only one planning session works at a time. It
   plans one or more tickets on its own branch from `origin/main` without claiming
-  them, edits only their Context, Build plan, Plan and Decisions needed (the planning
-  exception to the rule below), marks any proposed change to a gated section for the
+  them, edits only their Context, Build plan, Plan and Decisions needed (the planning exception to the rule below), records a Gate A the owner gave in that planning conversation, quoting the owner, marks any proposed change to a gated section for the
   owner, records the plan PR in each ticket's Log and opens one docs pull request.
   Template:
 
@@ -291,8 +294,7 @@ Keep it current. Overwrite it at each checkpoint; the Log keeps history.
   plan), or the next free letter under its epic. `python3 scripts/tickets.py check`
   catches duplicate IDs and broken dependencies after a merge.
 - **Gates:** `gate: owner` tickets need `gate_approval` before work starts. Only the
-  owner grants it, in conversation with an agent, and the agent records the date and
-  scope. Never infer approval from priority, a roadmap or a passed test. For a
+  owner grants it, in conversation with an agent, and the agent records the date and scope. The record goes in the pull request that files the ticket or carries its Build plan. Never infer approval from priority, a roadmap or a passed test. For a
   ticket written as a spec, also record the approved hash in `spec_approved`, and
   only when the owner approved that exact text. Any change to `gate_approval` or
   `spec_approved`, including clearing it, quotes the owner's words in the Log; the
@@ -344,6 +346,7 @@ Keep it current. Overwrite it at each checkpoint; the Log keeps history.
 | `list [--priority P0] [--status ready] [--all]` | Board with live claims. |
 | `next [--tier any\|standard\|frontier]` | Claimable or resumable tickets of every tier; `--tier` narrows the list. A ticket of any tier without a Build plan is marked `no build plan`. |
 | `next --plan` | Ready tickets of every tier that still need a Build plan. |
+| `pr-check --branch NAME` | Fails when the ticket whose `branch:` is NAME is not `done` with `pr:` set; passes when no ticket names NAME. Offline; CI runs it on every pull request. |
 | `spec ID [--base REF]` | Spec hash, approval state, Build plan presence and each acceptance ID with its test mentions; with `--base`, whether the gated sections differ from that ref. Exits 1 when the spec changed since approval. |
 | `show ID` / `resume ID` | Ticket text (newest copy from its branch), claim and git state. |
 | `claim ID --agent NAME [--worktree]` | Atomic claim plus resource locks; writes `work/agent-claim.json` in the worktree. |

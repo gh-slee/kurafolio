@@ -29,6 +29,12 @@ is silent on behaviour, data or an interface, set the ticket `blocked` with the
 question, push and stop. You never plan: do not write or change a Build plan or a
 gated section.
 
+Open the PR before your last commit. The last commit you push before the owner's
+review sets `status: done`, `pr:` and the outcome line in the ticket Log, and so
+does the last commit of every repair round; `in_review` marks only a branch with
+repairs still outstanding (quick start step 5). CI fails the PR until its own
+ticket is `done` with `pr:` set.
+
 For `review: independent`, start the `reviewer` agent with only the ticket, the
 diff against `origin/main` and the repository rules, then fix or answer every
 finding. If you cannot start it, say so: the session that started you runs it, and
