@@ -46,9 +46,9 @@ files, authorization evidence, transcripts or machine-specific paths. -->
 <!-- pr-standard: evidence -->
 ### Required Pre-PR Validation
 
-- <STATUS>: `python scripts/check_pr_image.py` after the final reviewed commit; commit `<SHA>`, image `sha256:<digest>`, and actual smoke results or an explicit gap.
+- <STATUS>: `python scripts/check_pr_image.py` after the final reviewed commit; commit `<SHA>`, image `sha256:<digest>`, and actual smoke results, its ticket-only exit with no image, or an explicit gap.
 <!-- Status values: PASS, FAIL, NOT RUN; CI may use PENDING. A skipped/incomplete
-check is not a PASS. Preserve required checks, privacy and owner approval gates.
+check is not a PASS; the image script's ticket-only exit is. Preserve required checks, privacy and owner approval gates.
 Checkboxes, if used, must represent verified results rather than intentions. -->
 
 ## Behavior & Compatibility

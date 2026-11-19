@@ -160,6 +160,52 @@ class AgentDefinitionTests(unittest.TestCase):
         self.assertFalse(set(manifest['files']) & guard.PUBLIC_AGENT_DEFINITIONS)
         self.assertFalse(any(name.startswith(('.claude/', '.codex/')) for name in manifest['files']))
 
+    # ENG-120: rule texts that cut ticket-only pull requests. Whitespace is normalised
+    # because the files wrap their lines.
+    @staticmethod
+    def flat(text: str) -> str:
+        return ' '.join(text.split())
+
+    @staticmethod
+    def section(text: str, heading: str) -> str:
+        return text.split(heading, 1)[1].split('\n## ', 1)[0]
+
+    def test_builders_mark_done_in_their_last_commit(self):
+        """AC-ENG-120-01: the quick start, the spec guide and both builder files."""
+        quick = (ROOT / 'tickets/README.md').read_text(encoding='utf-8')
+        quick = self.section(quick, '## Quick start for an agent')
+        texts = {
+            'quick start': quick,
+            'spec guide': (ROOT / 'docs/spec-development.md').read_text(encoding='utf-8'),
+            'claude builder': (ROOT / CLAUDE_AGENTS['builder']).read_text(encoding='utf-8'),
+            'codex builder': tomllib.loads((ROOT / CODEX_BUILDER).read_text(encoding='utf-8'))['developer_instructions'],
+        }
+        for name, text in texts.items():
+            flat = self.flat(text)
+            with self.subTest(file=name):
+                self.assertIn('`status: done`, `pr:`', flat)
+                self.assertIn('repair round', flat)
+                self.assertIn('`in_review` marks only a branch with repairs still outstanding', flat)
+
+    def test_gate_a_goes_with_the_filing_or_plan_pull_request(self):
+        """AC-ENG-120-03: no pull request of its own, and a planner may record the owner's Gate A."""
+        for relative in ('docs/spec-development.md', 'tickets/README.md', CLAUDE_AGENTS['planner']):
+            flat = self.flat((ROOT / relative).read_text(encoding='utf-8'))
+            with self.subTest(file=relative):
+                self.assertIn('pull request that files the ticket or carries its Build plan', flat)
+                self.assertIn('quoting the owner', flat)
+
+    def test_image_gate_names_only_the_ticket_only_exception(self):
+        """AC-ENG-120-07: the image gate has one exception and the two documents say so."""
+        agents = self.section((ROOT / 'AGENTS.md').read_text(encoding='utf-8'), '## Verified commands')
+        gate = self.section((ROOT / 'docs/development.md').read_text(encoding='utf-8'),
+                            '## Pre-PR candidate image gate')
+        for name, text in (('AGENTS.md', agents), ('docs/development.md', gate)):
+            flat = self.flat(text)
+            with self.subTest(file=name):
+                self.assertIn('ticket-only', flat)
+                self.assertIn('only exception', flat)
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -27,6 +27,12 @@ silent on behaviour, data or an interface, set the ticket blocked with the
 question, push and stop. You never plan: do not write or change a Build plan or a
 gated section.
 
+Open the PR before your last commit. The last commit you push before the owner's
+review sets `status: done`, `pr:` and the outcome line in the ticket Log, and so
+does the last commit of every repair round; `in_review` marks only a branch with
+repairs still outstanding (quick start step 5). CI fails the PR until its own
+ticket is `done` with `pr:` set.
+
 You cannot start the reviewer model. For review: independent, open the PR with
 the independent review marked NOT RUN and ask the owner to say "review <ID>" in
 Claude Code. A frontier ticket goes to the owner's review only after that review.

@@ -62,7 +62,7 @@ including clearing `spec_approved`, quotes the owner's words in the Log.
 
 **Approvals and plans live on `main`.** A ticket is built from its copy on `main`.
 `spec_approved` and the Build plan reach `main` through a merged pull request before
-the build is claimed. A build branch must not change gated sections:
+the build is claimed. A Gate A record (`gate_approval`, `spec_approved`, `status: ready` for a `backlog` ticket, and the Log line quoting the owner) goes in the pull request that files the ticket or carries its Build plan, not in a pull request of its own, unless the owner asks for a separate one. When the gated text changes before approval, the Build plan is checked against the approved text before the pull request is opened. A build branch must not change gated sections:
 `python3 scripts/tickets.py spec <ID> --base origin/main` shows whether it did, and
 reviewers run it on the pull request head. A linked document that sets expected values
 is part of the spec: link it at a commit, and treat a change to it as a change to the
@@ -71,8 +71,7 @@ tickets that rely on it.
 **Planning.** One planning session at a time works the `next --plan` queue. It
 writes Build plans for one or more tickets on its own branch from `origin/main`,
 without claiming them, and opens one docs pull request. It edits only the Context,
-Build plan, Plan and Decisions needed of the tickets it plans, which is the planning
-exception to "edit only your own ticket file". A change it proposes to a gated section
+Build plan, Plan and Decisions needed of the tickets it plans, which is the planning exception to "edit only your own ticket file". A planning session may also record a Gate A the owner gave in that conversation, quoting the owner's words in the Log: it writes `gate_approval`, `spec_approved`, `status: ready` for a `backlog` ticket, the ticked Gate A step in Plan, the answered Decisions needed, the Handoff and that Log line. Nothing else about who may record an approval changes. A change it proposes to a gated section
 is marked in the pull request for the owner's approval. Each plan starts with the
 `main` commit it was written from, so a plan that predates a later dependency change
 is visible. The tickets become buildable when the owner merges the pull request.
@@ -102,12 +101,7 @@ Build plan must cover and how the result is reviewed:
 
 **Traceability.** Tests name the acceptance IDs they verify, in a test name,
 docstring or comment; `tickets.py spec <ID>` counts the test files that mention each
-ID. Independent QA reports a verdict for every ID, including `[review]` ones. In the
-pull request's final commit before the owner's review, the implementer adds one
-outcome line to the ticket Log: the implementing model, the reviewing model, the
-number of review repair rounds and anything the spec or Build plan failed to say. It
-updates that line if review leads to further repairs, so the next planning session
-learns from evidence.
+ID. Independent QA reports a verdict for every ID, including `[review]` ones. The implementer's last commit before the owner's review sets `status: done`, `pr:` and the outcome line in the ticket Log, including the last commit of every review repair round. The outcome line names the implementing model, the reviewing model, the number of review repair rounds and anything the spec or Build plan failed to say, so the next planning session learns from evidence. `in_review` marks only a branch with repairs still outstanding. CI fails a pull request whose own ticket (the ticket whose `branch:` names its head branch) is not `done` with `pr:` set; `tickets.py` never asks GitHub whether a pull request merged. A pull request closed without merging sets the ticket back to `ready`.
 
 **Scale to risk.** A small low-risk ticket can be a goal, a few requirements and its
 criteria. Financial, authentication, migration and concurrency tickets carry

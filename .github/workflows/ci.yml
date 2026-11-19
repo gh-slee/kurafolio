@@ -9,7 +9,39 @@ permissions:
   contents: read
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      ticket_only: ${{ steps.detect.outputs.ticket_only }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Detect a ticket-only change
+        id: detect
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          PUSH_AFTER: ${{ github.event.after }}
+          PUSH_FORCED: ${{ github.event.forced }}
+        run: |
+          if [ "$EVENT_NAME" = pull_request ]; then
+            base="$PR_BASE_SHA"; head="$PR_HEAD_SHA"
+          else
+            base="$PUSH_BEFORE"; head="$PUSH_AFTER"
+          fi
+          python scripts/ci_changes.py --event "$EVENT_NAME" --base "$base" --head "$head" --forced "$PUSH_FORCED" --github-output "$GITHUB_OUTPUT"
+
   python-312-linux:
+    needs: changes
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
@@ -40,19 +72,36 @@ jobs:
         run: python scripts/check_publication.py --worktree
       - name: Check public index privacy
         run: python scripts/check_publication.py --staged
+      - name: Validate the ticket board
+        run: python scripts/tickets.py check
+      - name: Run the ticket tests
+        if: needs.changes.outputs.ticket_only == 'true'
+        run: PYTHONPATH=src python -m unittest discover -s tests -p 'test_tickets.py' -v
       - name: Run isolated synthetic unit tests
+        if: needs.changes.outputs.ticket_only != 'true'
         run: PYTHONPATH=src python -m unittest discover -s tests -v
       - name: Generate synthetic offline reports with default policy
+        if: needs.changes.outputs.ticket_only != 'true'
         run: python examples/demo.py --output work/demo-default
       - name: Verify explicit BTC cost proxy opt-in
+        if: needs.changes.outputs.ticket_only != 'true'
         run: python examples/demo.py --output work/demo-proxy --btc-cost-policy bull_average_proxy
 
       - name: Verify Traditional Chinese reports
+        if: needs.changes.outputs.ticket_only != 'true'
         run: python examples/demo.py --output work/demo-tc --locale zh-TW
       - name: Verify Simplified Chinese reports
+        if: needs.changes.outputs.ticket_only != 'true'
         run: python examples/demo.py --output work/demo-sc --locale zh-CN
+      - name: Check the pull request's own ticket is done
+        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: python scripts/tickets.py pr-check --branch "$HEAD_REF"
 
   docker-foundation:
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.ticket_only != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -72,6 +121,8 @@ jobs:
         run: PYTHONPATH=src python scripts/run_gated_tests.py --expect-skipped 0 -- discover -s tests -p 'test_web_docker.py'
 
   browser-workflow:
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.ticket_only != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -113,6 +164,8 @@ jobs:
           PY
 
   parser-sdk-packages:
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.ticket_only != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
@@ -145,6 +198,8 @@ jobs:
 
 
   postgres-foundation:
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.ticket_only != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
@@ -193,6 +248,8 @@ jobs:
           fi
 
   postgres-ingestion:
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.ticket_only != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -224,6 +281,8 @@ jobs:
         run: PYTHONPATH=src python scripts/run_gated_tests.py --expect-skipped 0 -- discover -s tests -p 'test_postgres_migration.py'
 
   postgres-identity:
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.ticket_only != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
@@ -262,6 +321,8 @@ jobs:
           fi
 
   postgres-sources:
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.ticket_only != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:

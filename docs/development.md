@@ -60,12 +60,15 @@ checks are:
 python scripts/check_language.py
 python scripts/check_publication.py --worktree
 python scripts/check_publication.py --staged
+python scripts/tickets.py check
 PYTHONPATH=src python -m unittest discover -s tests -v
 python examples/demo.py --output work/demo-default
 python examples/demo.py --output work/demo-proxy --btc-cost-policy bull_average_proxy
 python examples/demo.py --output work/demo-tc --locale zh-TW
 python examples/demo.py --output work/demo-sc --locale zh-CN
 ```
+
+A small `changes` job first decides whether the change is ticket-only (`scripts/ci_changes.py`): every path it adds, modifies, renames or deletes is under `tickets/`, compared with the pull request's base or, for a push, with the branch's previous head. On a ticket-only change, `python-312-linux` still runs the language check, both publication checks, `python scripts/tickets.py check` and `tests/test_tickets.py`, and skips the full unit suite and the report demos; every other job reports as skipped. A new branch, a rewritten history, a manual run or any detection error runs everything. On every pull request, `python scripts/tickets.py pr-check --branch <head branch>` fails when the pull request's own ticket is not `done` with `pr:` set.
 
 These commands use only synthetic/public-format inputs. Run relevant focused tests
 while iterating and the full suite before publication. For financial/report changes,
@@ -85,6 +88,8 @@ changes:
 python scripts/check_pr_image.py
 ```
 
+The only exception is a ticket-only change: when the clean tree's diff against `origin/main`, from their merge base, changes only paths under `tickets/`, the script exits successfully without a Docker build. It prints `"status": "skipped"` with the reason and the changed paths and writes no receipt, because ticket files are not image inputs. A missing `origin/main`, an empty diff or any other path builds as described below.
+
 Use Python 3.12+ and a running Docker daemon. This standard-library development
 helper does not require a local Node or LibreOffice installation. It requires a
 clean tracked Git tree and rejects uncommitted files in the image inputs. It uses
@@ -93,7 +98,7 @@ fonts, frontend inputs and licenses into a fresh context. It does not send the
 checkout, Git history, private instructions or financial workspaces to Docker.
 Normal dependency downloads may occur during build.
 
-Every invocation calls `docker build`; Docker layer caching remains enabled. Even
+Every other invocation calls `docker build`; Docker layer caching remains enabled. Even
 when runtime inputs are unchanged by a documentation edit, a fresh candidate tag
 records the current commit. Tags use `kurafolio:pr-<commit>-<unique-suffix>` and
 never replace a service tag. The receipt binds the exact commit, context hash and
@@ -519,8 +524,7 @@ image/independent evidence and actual merged CI remain separate acceptance gates
 
 The `postgres-ingestion` CI job pulls the image pinned in
 `IngestionAppendOnlyPostgresTests.IMAGE`, sets `KURAFOLIO_INGESTION_TEST=1` and runs
-`test_postgres_migration.py`, so every pull request runs the real ingestion SQL
-fragment tests. Every step that runs an opt-in suite in `docker-foundation`,
+`test_postgres_migration.py`, so every pull request that changes a path outside `tickets/` runs the real ingestion SQL fragment tests. Every step that runs an opt-in suite in `docker-foundation`,
 `postgres-foundation`, `postgres-ingestion`, `postgres-identity` and
 `postgres-sources` goes through `scripts/run_gated_tests.py`. The script runs
 `python -m unittest -v` with the given arguments and fails when the suite reports

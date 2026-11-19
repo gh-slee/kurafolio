@@ -515,5 +515,66 @@ class SpecWorkflowTest(unittest.TestCase):
         self.assertIn('SPC-001.md: spec_approved must be', errors[0])
 
 
+class PrCheckTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.repo = Path(self.tmp.name) / 'repo'
+        (self.repo / 'tickets').mkdir(parents=True)
+        subprocess.run(['git', 'init', '-q', '-b', 'main', str(self.repo)], check=True, capture_output=True)
+
+    def write(self, status, pr='', branch='ticket/eng-001-x'):
+        text = TEMPLATE.format(id='ENG-001', status=status, deps='', res='', tier='standard')
+        text = text.replace('\nbranch:\n', f'\nbranch: {branch}\n', 1)
+        text = text.replace('\npr:\n', f'\npr: {pr}\n' if pr else '\npr:\n', 1)
+        (self.repo / 'tickets/ENG-001.md').write_text(text, encoding='utf-8')
+
+    def check(self, branch='ticket/eng-001-x'):
+        return run(self.repo, 'pr-check', '--branch', branch)
+
+    def test_unfinished_ticket_fails_on_status_and_pr(self):
+        """AC-ENG-120-02."""
+        self.write('in_review')
+        code, out, _ = self.check()
+        self.assertEqual(code, 1)
+        for text in ('ENG-001', 'status is in_review', 'pr: is empty'):
+            self.assertIn(text, out)
+
+    def test_done_without_pr_fails(self):
+        """AC-ENG-120-02."""
+        self.write('done')
+        code, out, _ = self.check()
+        self.assertEqual(code, 1)
+        self.assertIn('pr: is empty', out)
+        self.assertNotIn('status is', out)
+
+    def test_pr_without_done_fails(self):
+        """AC-ENG-120-02."""
+        self.write('in_review', pr='https://example.invalid/pull/1')
+        code, out, _ = self.check()
+        self.assertEqual(code, 1)
+        self.assertIn('status is in_review', out)
+        self.assertNotIn('pr: is empty', out)
+
+    def test_done_with_pr_passes(self):
+        """AC-ENG-120-02."""
+        self.write('done', pr='https://example.invalid/pull/1')
+        code, out, _ = self.check()
+        self.assertEqual(code, 0, out)
+        self.assertIn('ENG-001: done', out)
+
+    def test_pull_request_without_own_ticket_is_not_affected(self):
+        """AC-ENG-120-02: planning, filing and approval-only pull requests."""
+        self.write('in_review')
+        code, out, _ = self.check('planning-branch')
+        self.assertEqual(code, 0)
+        self.assertIn('nothing to check', out)
+
+    def test_blank_branch_is_a_usage_error(self):
+        """AC-ENG-120-02."""
+        self.write('done', pr='x')
+        self.assertEqual(self.check(' ')[0], 2)
+
+
 if __name__ == '__main__':
     unittest.main()
