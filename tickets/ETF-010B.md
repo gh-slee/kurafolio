@@ -16,6 +16,7 @@ review: independent
 branch:
 pr:
 spec:
+spec_approved: sha256:3d9358dda43a3503dc721511b8db389ba90ac5074b4e57c77c082b4d3580d6d4
 updated: 2026-11-18
 ---
 
@@ -37,6 +38,8 @@ The owner wants to see what they own through their ETFs: the largest companies, 
 - ETF-001 (done) made the shipped page show every represented country.
 - ETF-010A provides current fund holdings from PostgreSQL. ANL-012A provides valued positions.
 - No `/api/v2` exposure route exists.
+
+## Requirements
 
 ### Expected behaviour
 
@@ -65,15 +68,15 @@ The owner wants to see what they own through their ETFs: the largest companies, 
 
 ## Acceptance criteria
 
-- [ ] Given an ETF worth CAD 1,000 with US 60%, TW 30%, unknown 8% and cash 2%, a direct TW stock worth CAD 200 and Bitcoin worth CAD 2,520, then countries are US 600, TW 500, unknown 80, cash 20 and direct crypto 2,520, summing to 3,720; TW is 41.67% of securities and 13.44% of total (golden case G11).
-- [ ] Given fund A worth 1,000 that is 50% fund B and 50% US direct, and B is 60% TW, 20% US and 20% unknown, then TW is 300, US 600 and unknown 100; neither fund's own value is added again (golden case G12).
-- [ ] Given a cycle or an unsupported child fund, then that branch is unresolved with its weight and the request finishes.
-- [ ] Given 25 companies, then ranks 1 to 20 are returned with direct, through-fund and total shares of the stated denominator, and the remaining count is 5.
-- [ ] Given 31 represented countries, then 31 country rows are returned.
-- [ ] Given a fund whose holdings are stale, then its amounts are included and the response carries its effective date and the stale status.
-- [ ] Given a Bitcoin ETF and directly held Bitcoin, then they appear in separate buckets and the total counts each once.
-- [ ] Given user A, then no parameter returns user B's data.
-- [ ] OpenAPI lists the route and every field; decimal values are strings.
+- [ ] AC-ETF-010B-01: Given an ETF worth CAD 1,000 with US 60%, TW 30%, unknown 8% and cash 2%, a direct TW stock worth CAD 200 and Bitcoin worth CAD 2,520, then countries are US 600, TW 500, unknown 80, cash 20 and direct crypto 2,520, summing to 3,720; TW is 41.67% of securities and 13.44% of total (golden case G11).
+- [ ] AC-ETF-010B-02: Given fund A worth 1,000 that is 50% fund B and 50% US direct, and B is 60% TW, 20% US and 20% unknown, then TW is 300, US 600 and unknown 100; neither fund's own value is added again (golden case G12).
+- [ ] AC-ETF-010B-03: Given a cycle or an unsupported child fund, then that branch is unresolved with its weight and the request finishes.
+- [ ] AC-ETF-010B-04: Given 25 companies, then ranks 1 to 20 are returned with direct, through-fund and total shares of the stated denominator, and the remaining count is 5.
+- [ ] AC-ETF-010B-05: Given 31 represented countries, then 31 country rows are returned.
+- [ ] AC-ETF-010B-06: Given a fund whose holdings are stale, then its amounts are included and the response carries its effective date and the stale status.
+- [ ] AC-ETF-010B-07: Given a Bitcoin ETF and directly held Bitcoin, then they appear in separate buckets and the total counts each once.
+- [ ] AC-ETF-010B-08: Given user A, then no parameter returns user B's data.
+- [ ] AC-ETF-010B-09: OpenAPI lists the route and every field; decimal values are strings.
 
 ### Tests
 
@@ -99,3 +102,5 @@ The owner wants to see what they own through their ETFs: the largest companies, 
 
 - 2026-11-11 planner: split out of ETF-010; carries its acceptance criteria. Depends on ANL-012A for valued positions instead of the whole MKT-009 epic, so Exposures does not wait for the daily curve or the official provider. That is a planning judgement: if stored market prices prove necessary for a criterion, stop and report.
 - 2026-11-11 planner: owner approved Gate A for this ticket on 2026-11-11 and released it (status ready).
+- 2026-11-18 claude-code/opus-5.5: ENG-113 migrated this ticket to the spec format without changing any wording: moved "Expected behaviour", "Scope" and "Implementation notes" from Context into Requirements and numbered the acceptance criteria AC-ETF-010B-01 to 09. Spec hash sha256:3d9358dda43a3503dc721511b8db389ba90ac5074b4e57c77c082b4d3580d6d4, awaiting the owner's confirmation.
+- 2026-11-18 claude-code/opus-5.5: the owner confirmed the migrated text of this ticket in conversation with "Confirm all 29", the batch listed in ENG-113 decision 3; `spec_approved` records sha256:3d9358dda43a3503dc721511b8db389ba90ac5074b4e57c77c082b4d3580d6d4.

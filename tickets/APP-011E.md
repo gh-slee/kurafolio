@@ -16,7 +16,8 @@ review: independent
 branch:
 pr:
 spec:
-updated: 2026-11-12
+spec_approved: sha256:3c4a7cd2b13f7fe8a817e6aaa23b8058c6a5a4a01f56df10dad50048674932b8
+updated: 2026-11-18
 ---
 
 # APP-011E: Add user preferences to the V2 identity API
@@ -32,6 +33,8 @@ The V2 Profile page is specified to hold a user's language, time zone and defaul
 - `src/kurafolio/web_v2/schemas.py:109-112` `Me` returns `user` and `portfolio` only.
 - `src/kurafolio/web_v2/api.py:26-31` lists every V2 route; none reads or writes preferences, and there is no session list or per-session revoke route. Password change exists at `api.py:346` and ends other sessions per [web-v2-identity.md](../docs/web-v2-identity.md).
 - The shipped app keeps interface language in memory (`frontend/src/main.tsx:25`) and hard-codes the zone (`frontend/src/lib/format.ts:52`).
+
+## Requirements
 
 ### Expected behaviour
 
@@ -60,12 +63,12 @@ The V2 Profile page is specified to hold a user's language, time zone and defaul
 
 ## Acceptance criteria
 
-- [ ] Given a signed-in user with no saved preferences, when they GET, then defaults and revision 0 are returned.
-- [ ] Given a valid PUT with the current revision, then the values are stored and the revision increases by one.
-- [ ] Given a stale revision, an unsupported locale, an unknown zone or an unsupported currency, then the request is refused and nothing changes.
-- [ ] Given user A's session, then no request can read or change user B's preferences (SQL-level test, not only HTTP).
-- [ ] Unauthenticated and missing-CSRF requests are refused as other V2 mutations are.
-- [ ] `/api/v2/openapi.json` describes both routes; [web-v2-identity.md](../docs/web-v2-identity.md) documents them.
+- [ ] AC-APP-011E-01: Given a signed-in user with no saved preferences, when they GET, then defaults and revision 0 are returned.
+- [ ] AC-APP-011E-02: Given a valid PUT with the current revision, then the values are stored and the revision increases by one.
+- [ ] AC-APP-011E-03: Given a stale revision, an unsupported locale, an unknown zone or an unsupported currency, then the request is refused and nothing changes.
+- [ ] AC-APP-011E-04: Given user A's session, then no request can read or change user B's preferences (SQL-level test, not only HTTP).
+- [ ] AC-APP-011E-05: Unauthenticated and missing-CSRF requests are refused as other V2 mutations are.
+- [ ] AC-APP-011E-06: `/api/v2/openapi.json` describes both routes; [web-v2-identity.md](../docs/web-v2-identity.md) documents them.
 
 ### Tests
 
@@ -91,3 +94,5 @@ The V2 Profile page is specified to hold a user's language, time zone and defaul
 
 - 2026-11-10 planner: created from the UI/UX feature inventory (tickets/UX_FEATURE_INVENTORY.md).
 - 2026-11-12 planner: owner approved Gate A on 2026-11-12 and released the ticket (status ready). Decisions: locale, time zone and currency on the server (option a); session list deferred (option b).
+- 2026-11-18 claude-code/opus-5.5: ENG-113 migrated this ticket to the spec format without changing any wording: moved "Expected behaviour", "Scope", "Owner decisions recorded 2026-11-12" and "Implementation notes" from Context into Requirements and numbered the acceptance criteria AC-APP-011E-01 to 06. Spec hash sha256:3c4a7cd2b13f7fe8a817e6aaa23b8058c6a5a4a01f56df10dad50048674932b8, awaiting the owner's confirmation.
+- 2026-11-18 claude-code/opus-5.5: the owner confirmed the migrated text of this ticket in conversation with "Confirm all 29", the batch listed in ENG-113 decision 3; `spec_approved` records sha256:3c4a7cd2b13f7fe8a817e6aaa23b8058c6a5a4a01f56df10dad50048674932b8.

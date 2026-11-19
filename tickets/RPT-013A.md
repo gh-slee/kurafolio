@@ -16,7 +16,8 @@ review: independent
 branch:
 pr:
 spec:
-updated: 2026-11-12
+spec_approved: sha256:97e3e0e50ece6a0568b4b743ef67e5ba9b710522928dc9dfa51ba057b5c49aac
+updated: 2026-11-18
 ---
 
 # RPT-013A: Render exports on demand from a pinned calculation
@@ -32,6 +33,8 @@ V2 produces PDF, Excel, ODS and Markdown only when the user asks, from exactly t
 - The shipped application renders report files during import publication (`src/kurafolio/source_publication.py`, `publishing.py`) and serves them as artifacts (`src/kurafolio/web/api.py:336-350`, `web/exports.py:130-137`).
 - Renderers: `src/kurafolio/workbook.py`, `reporting.py`, `source_workbook.py`. They need no LibreOffice. The ODS writer builds the package with `zipfile` and `xml.etree` only (`workbook.py`); there is no Excel writer and no spreadsheet library in the lock files.
 - No `/api/v2/exports` route exists.
+
+## Requirements
 
 ### Expected behaviour
 
@@ -56,14 +59,14 @@ V2 produces PDF, Excel, ODS and Markdown only when the user asks, from exactly t
 
 ## Acceptance criteria
 
-- [ ] Given an import or a refresh, then no export job or file exists until a request is made.
-- [ ] Given a pinned calculation and a later price change, then all four formats show the pinned figures.
-- [ ] Given the same calculation, then the Excel and ODS files hold the same sheets and the same cell values; a test compares them cell by cell.
-- [ ] The Excel file passes a structural check (content types, relationships, shared strings, well-formed XML) and opens without a repair prompt; the PR records the application and version used for the manual open.
-- [ ] ODS charts and formulas and PDF pagination render in a clean environment without LibreOffice.
-- [ ] Given another user's export identifier, then status and download are refused.
-- [ ] Cells beginning with `=`, `+`, `-` or `@` from source text are escaped in ODS and Excel.
-- [ ] Three locales produce complete documents in all four formats, with CJK text intact in the Excel file.
+- [ ] AC-RPT-013A-01: Given an import or a refresh, then no export job or file exists until a request is made.
+- [ ] AC-RPT-013A-02: Given a pinned calculation and a later price change, then all four formats show the pinned figures.
+- [ ] AC-RPT-013A-03: Given the same calculation, then the Excel and ODS files hold the same sheets and the same cell values; a test compares them cell by cell.
+- [ ] AC-RPT-013A-04: The Excel file passes a structural check (content types, relationships, shared strings, well-formed XML) and opens without a repair prompt; the PR records the application and version used for the manual open.
+- [ ] AC-RPT-013A-05: ODS charts and formulas and PDF pagination render in a clean environment without LibreOffice.
+- [ ] AC-RPT-013A-06: Given another user's export identifier, then status and download are refused.
+- [ ] AC-RPT-013A-07: Cells beginning with `=`, `+`, `-` or `@` from source text are escaped in ODS and Excel.
+- [ ] AC-RPT-013A-08: Three locales produce complete documents in all four formats, with CJK text intact in the Excel file.
 
 ### Tests
 
@@ -90,3 +93,5 @@ V2 produces PDF, Excel, ODS and Markdown only when the user asks, from exactly t
 
 - 2026-11-10 planner: created from the UI/UX feature inventory (tickets/UX_FEATURE_INVENTORY.md).
 - 2026-11-12 planner: owner approved Gate A on 2026-11-12 and released the ticket (status ready). Owner chose PDF, Excel, ODS and Markdown for go-live; Excel added, CSV, JSON, PNG and ZIP moved to RPT-101.
+- 2026-11-18 claude-code/opus-5.5: ENG-113 migrated this ticket to the spec format without changing any wording: moved "Expected behaviour", "Scope" and "Implementation notes" from Context into Requirements and numbered the acceptance criteria AC-RPT-013A-01 to 08. Spec hash sha256:97e3e0e50ece6a0568b4b743ef67e5ba9b710522928dc9dfa51ba057b5c49aac, awaiting the owner's confirmation.
+- 2026-11-18 claude-code/opus-5.5: the owner confirmed the migrated text of this ticket in conversation with "Confirm all 29", the batch listed in ENG-113 decision 3; `spec_approved` records sha256:97e3e0e50ece6a0568b4b743ef67e5ba9b710522928dc9dfa51ba057b5c49aac.

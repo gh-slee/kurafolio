@@ -16,6 +16,7 @@ review: independent
 branch: 
 pr: 
 spec: docs/specs/imp-007-r7/spec.md
+spec_approved: sha256:c3e06c751ef4816ad200095284163430738b7a0e1783e78999605dd5035e92eb
 updated: 2026-11-18
 ---
 
@@ -27,18 +28,21 @@ updated: 2026-11-18
 
 ## Context
 
-- Frozen r7 contract bundle, the contract approved as "IMP-007 spec r7": [docs/specs/imp-007-r7/](../docs/specs/imp-007-r7/README.md) (index sha256:75a859f65d7ee4564a20220b756b88ff44cf4449644167e2df2a87fd081e7fe7; the index lists the SHA-256 of each file), notably [spec.md](../docs/specs/imp-007-r7/spec.md), [sql-appendix.md](../docs/specs/imp-007-r7/sql-appendix.md), [sql-inventory.json](../docs/specs/imp-007-r7/sql-inventory.json), [contract-appendix.md](../docs/specs/imp-007-r7/contract-appendix.md) and [acceptance.md](../docs/specs/imp-007-r7/acceptance.md). The r7 inventory is the frozen baseline [sql-inventory.json](../docs/specs/imp-007-r7/sql-inventory.json). The inventory the code is tested against is the `sql-inventory` key of `tests/fixtures/ingestion/oracle.json`, checked by `tests/test_postgres_migration.py`; it is the r7 baseline plus later approved additions.
 - Background only: the revision 1 planning draft [docs/specs/v2-drafts/WL-P0-007.md](../docs/specs/v2-drafts/WL-P0-007.md) (sha256:fa0971a0da787cb327484c92144e4a5ecd916db4ad0328e03b408d647190acd5), which the r7 bundle supersedes.
+
+## Requirements
+
+- Frozen r7 contract bundle, the contract approved as "IMP-007 spec r7": [docs/specs/imp-007-r7/](../docs/specs/imp-007-r7/README.md) (index sha256:75a859f65d7ee4564a20220b756b88ff44cf4449644167e2df2a87fd081e7fe7; the index lists the SHA-256 of each file), notably [spec.md](../docs/specs/imp-007-r7/spec.md), [sql-appendix.md](../docs/specs/imp-007-r7/sql-appendix.md), [sql-inventory.json](../docs/specs/imp-007-r7/sql-inventory.json), [contract-appendix.md](../docs/specs/imp-007-r7/contract-appendix.md) and [acceptance.md](../docs/specs/imp-007-r7/acceptance.md). The r7 inventory is the frozen baseline [sql-inventory.json](../docs/specs/imp-007-r7/sql-inventory.json). The inventory the code is tested against is the `sql-inventory` key of `tests/fixtures/ingestion/oracle.json`, checked by `tests/test_postgres_migration.py`; it is the r7 baseline plus later approved additions.
 
 ## Acceptance criteria
 
-- [ ] A set with n earlier cleanup leases is eligible only when it has none, or when the database clock is at or past its latest cleanup lease's `created_at` plus `LEAST(30 seconds × 2^(n−1), 15 minutes)`.
-- [ ] Among eligible sets the order stays oldest-first (`created_at`, then set ID), as owner decision 6 requires.
-- [ ] A set in backoff never blocks a newer eligible set. When only backed-off sets remain, the claim returns `no_work`.
-- [ ] No new table, column or index: the rule uses only existing lease rows, so the r7 inventory does not change.
-- [ ] Overdue non-terminal sets (no cleanup lease yet) stay eligible at once and are expired before cleanup, as today.
-- [ ] Opt-in PostgreSQL tests cover: a stuck set skipped for a newer one; the stuck set claimable again after its window; the window doubling across attempts; the 15-minute cap; `no_work` when only backed-off sets remain; replay of an existing claim unaffected.
-- [ ] `docs/web-v2-imports.md` describes the backoff.
+- [ ] AC-IMP-007N-01: A set with n earlier cleanup leases is eligible only when it has none, or when the database clock is at or past its latest cleanup lease's `created_at` plus `LEAST(30 seconds × 2^(n−1), 15 minutes)`.
+- [ ] AC-IMP-007N-02: Among eligible sets the order stays oldest-first (`created_at`, then set ID), as owner decision 6 requires.
+- [ ] AC-IMP-007N-03: A set in backoff never blocks a newer eligible set. When only backed-off sets remain, the claim returns `no_work`.
+- [ ] AC-IMP-007N-04: No new table, column or index: the rule uses only existing lease rows, so the r7 inventory does not change.
+- [ ] AC-IMP-007N-05: Overdue non-terminal sets (no cleanup lease yet) stay eligible at once and are expired before cleanup, as today.
+- [ ] AC-IMP-007N-06: Opt-in PostgreSQL tests cover: a stuck set skipped for a newer one; the stuck set claimable again after its window; the window doubling across attempts; the 15-minute cap; `no_work` when only backed-off sets remain; replay of an existing claim unaffected.
+- [ ] AC-IMP-007N-07: `docs/web-v2-imports.md` describes the backoff.
 
 ## Plan
 
@@ -57,3 +61,5 @@ updated: 2026-11-18
 ## Log
 
 - 2026-11-12 claude-code/claude-opus-5-5: filed from the IMP-007C review finding; owner chose exponential backoff (30s × 2^(n−1), capped at 15 minutes, oldest-first among eligible sets, no new columns).
+- 2026-11-18 claude-code/opus-5.5: ENG-113 migrated this ticket to the spec format without changing any wording: moved the bullet naming the r7 contract bundle from Context into Requirements and numbered the acceptance criteria AC-IMP-007N-01 to 07. Spec hash sha256:c3e06c751ef4816ad200095284163430738b7a0e1783e78999605dd5035e92eb, awaiting the owner's confirmation.
+- 2026-11-18 claude-code/opus-5.5: the owner confirmed the migrated text of this ticket in conversation with "Confirm all 29", the batch listed in ENG-113 decision 3; `spec_approved` records sha256:c3e06c751ef4816ad200095284163430738b7a0e1783e78999605dd5035e92eb.

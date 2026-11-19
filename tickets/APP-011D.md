@@ -16,6 +16,7 @@ review: independent
 branch: 
 pr: 
 spec: docs/specs/v2-drafts/WL-P0-011.md
+spec_approved: sha256:0c597433e5a0769ec0d413329823746c94b9dc551ad54ea12123b036506476c5
 updated: 2026-11-18
 ---
 
@@ -33,6 +34,8 @@ Upload, reconciled preview, decisions, confirmation and import history on the V2
 - Routes come from IMP-007E (not built). Backend status and the meaning of preview, decision and confirmation: [web-v2-imports.md](../docs/web-v2-imports.md).
 - The shipped import page is `frontend/src/components/imports.tsx` (1,071 lines). Observed on the synthetic fixture on 2026-11-10: step 3 is marked current on arrival (`:170-176`), two near-identical introductions (`:393-394`), timestamps typed with a UTC offset (`:507,521`), "Snapshot kind" and "reference JSON" fields, and history rows that show only a job type and time (`:1040-1060`).
 - Its confirmation dialog (`:996-1030`) and its rule that unsent input survives errors are worth keeping.
+
+## Requirements
 
 ### Expected behaviour
 
@@ -60,15 +63,15 @@ Upload, reconciled preview, decisions, confirmation and import history on the V2
 
 ## Acceptance criteria
 
-- [ ] Given a new user with one enabled source, when they upload a valid file and confirm, then they reach the analysis page without creating a portfolio, choosing a snapshot kind or entering a timestamp.
-- [ ] Given the page is opened with earlier imports in history, then step 1 is current.
-- [ ] Given a source the user has not enabled, then it is not offered and a link leads to the Parser Plugin Store.
-- [ ] Given a preview with conflicts, then each shows old and proposed values and confirmation is disabled until every conflict has a decision.
-- [ ] Given a stale or expired preview at confirmation, then the reason and "Upload again" are shown and nothing is booked.
-- [ ] Given an uncertain network result on confirmation, then retry reuses the same digest and token and the import is booked once.
-- [ ] Given two past imports, then their history rows differ in visible text (source, file name, date, outcome).
-- [ ] Given a wrong format or an oversized file, then the message names the problem and the accepted format.
-- [ ] Keyboard reachable with visible focus, one `h1` per page, labelled controls, no colour-only meaning; en-CA, zh-TW, zh-CN; light and dark; 375 px and 1024 px.
+- [ ] AC-APP-011D-01: Given a new user with one enabled source, when they upload a valid file and confirm, then they reach the analysis page without creating a portfolio, choosing a snapshot kind or entering a timestamp.
+- [ ] AC-APP-011D-02: Given the page is opened with earlier imports in history, then step 1 is current.
+- [ ] AC-APP-011D-03: Given a source the user has not enabled, then it is not offered and a link leads to the Parser Plugin Store.
+- [ ] AC-APP-011D-04: Given a preview with conflicts, then each shows old and proposed values and confirmation is disabled until every conflict has a decision.
+- [ ] AC-APP-011D-05: Given a stale or expired preview at confirmation, then the reason and "Upload again" are shown and nothing is booked.
+- [ ] AC-APP-011D-06: Given an uncertain network result on confirmation, then retry reuses the same digest and token and the import is booked once.
+- [ ] AC-APP-011D-07: Given two past imports, then their history rows differ in visible text (source, file name, date, outcome).
+- [ ] AC-APP-011D-08: Given a wrong format or an oversized file, then the message names the problem and the accepted format.
+- [ ] AC-APP-011D-09: Keyboard reachable with visible focus, one `h1` per page, labelled controls, no colour-only meaning; en-CA, zh-TW, zh-CN; light and dark; 375 px and 1024 px.
 
 ### Tests
 
@@ -98,3 +101,5 @@ Upload, reconciled preview, decisions, confirmation and import history on the V2
 - 2026-11-10 planner: destination name updated to "Parser Plugin Store".
 - 2026-11-10 planner: added the absent-account question to the review step by owner decision.
 - 2026-11-10 planner: owner approved Gate A for the V2 MVP scope of this ticket on 2026-11-10 and released it (status ready).
+- 2026-11-18 claude-code/opus-5.5: ENG-113 migrated this ticket to the spec format without changing any wording: moved "Expected behaviour", "Scope" and "Implementation notes" from Context into Requirements and numbered the acceptance criteria AC-APP-011D-01 to 09. Spec hash sha256:0c597433e5a0769ec0d413329823746c94b9dc551ad54ea12123b036506476c5, awaiting the owner's confirmation.
+- 2026-11-18 claude-code/opus-5.5: the owner confirmed the migrated text of this ticket in conversation with "Confirm all 29", the batch listed in ENG-113 decision 3; `spec_approved` records sha256:0c597433e5a0769ec0d413329823746c94b9dc551ad54ea12123b036506476c5.

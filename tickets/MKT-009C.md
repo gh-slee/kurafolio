@@ -16,6 +16,7 @@ review: independent
 branch:
 pr:
 spec:
+spec_approved: sha256:2dc1a259f993cec292fb8cf63ead552d0051c0801f722a3dde1121d7570ff55f
 updated: 2026-11-18
 ---
 
@@ -36,6 +37,9 @@ The owner wants to switch the whole app to other popular currencies at the lates
 - USD/CAD comes from the Bank of Canada Valet API and TWD from a page of the Central Bank of the Republic of China (`src/kurafolio/fx.py:12-13`, `resolve_rates` at line 71). Both are saved as files in a project directory, which V2 does not have.
 - The MVP analysis contract accepts `currency` and supports CAD, USD and TWD (ANL-012A).
 - The user's chosen currency is stored by the preferences API (APP-011E).
+
+## Requirements
+
 - Owner decision 2026-11-10: Bank of Canada daily rates stay the source for CAD pairs; Frankfurter, a keyless service that republishes European Central Bank daily reference rates, covers the other currencies. No keyless intraday source was found, so FX is daily.
 
 ### Expected behaviour
@@ -64,13 +68,13 @@ The owner wants to switch the whole app to other popular currencies at the lates
 
 ## Acceptance criteria
 
-- [ ] Given the fixed-rate oracle, then securities CAD 2,200 with Bitcoin gives combined CAD 4,720.00, USD 3,371.43 and TWD 107,885.71 on every analysis endpoint (golden case G07).
-- [ ] Given each additional listed currency and a fixed synthetic rate, then the converted total equals native total times that rate to the currency's minor unit.
-- [ ] Given a missing USD to TWD path, then the TWD `complete_total` is null with a reason and the CAD and USD values are unchanged (golden case G09).
-- [ ] Given a Saturday, then Friday's rate is used and its date is shown.
-- [ ] Given a currency code not on the list, then the API answers with a typed validation error, not a default currency.
-- [ ] `GET /api/v2/currencies` lists every approved currency with name in en-CA, zh-TW and zh-CN, digits and latest rate date.
-- [ ] No test opens a network connection.
+- [ ] AC-MKT-009C-01: Given the fixed-rate oracle, then securities CAD 2,200 with Bitcoin gives combined CAD 4,720.00, USD 3,371.43 and TWD 107,885.71 on every analysis endpoint (golden case G07).
+- [ ] AC-MKT-009C-02: Given each additional listed currency and a fixed synthetic rate, then the converted total equals native total times that rate to the currency's minor unit.
+- [ ] AC-MKT-009C-03: Given a missing USD to TWD path, then the TWD `complete_total` is null with a reason and the CAD and USD values are unchanged (golden case G09).
+- [ ] AC-MKT-009C-04: Given a Saturday, then Friday's rate is used and its date is shown.
+- [ ] AC-MKT-009C-05: Given a currency code not on the list, then the API answers with a typed validation error, not a default currency.
+- [ ] AC-MKT-009C-06: `GET /api/v2/currencies` lists every approved currency with name in en-CA, zh-TW and zh-CN, digits and latest rate date.
+- [ ] AC-MKT-009C-07: No test opens a network connection.
 
 ### Tests
 
@@ -97,3 +101,5 @@ The owner wants to switch the whole app to other popular currencies at the lates
 
 - 2026-11-11 planner: split out of MKT-009. The owner's answer of 2026-11-10 (more currencies at the latest rate, Bank of Canada plus Frankfurter) is recorded here; the exact list is proposed for Gate A.
 - 2026-11-11 planner: owner approved Gate A for this ticket on 2026-11-11 and released it (status ready). The owner also approved the proposed list of twelve currencies.
+- 2026-11-18 claude-code/opus-5.5: ENG-113 migrated this ticket to the spec format without changing any wording: moved the "Owner decision 2026-11-10" bullet of Current behaviour, "Expected behaviour", "Scope" and "Implementation notes" from Context into Requirements and numbered the acceptance criteria AC-MKT-009C-01 to 07. Spec hash sha256:2dc1a259f993cec292fb8cf63ead552d0051c0801f722a3dde1121d7570ff55f, awaiting the owner's confirmation.
+- 2026-11-18 claude-code/opus-5.5: the owner confirmed the migrated text of this ticket in conversation with "Confirm all 29", the batch listed in ENG-113 decision 3; `spec_approved` records sha256:2dc1a259f993cec292fb8cf63ead552d0051c0801f722a3dde1121d7570ff55f.

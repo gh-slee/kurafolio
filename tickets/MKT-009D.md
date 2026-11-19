@@ -16,6 +16,7 @@ review: independent
 branch:
 pr:
 spec:
+spec_approved: sha256:252604cd33c1356c1d2c03905f44d375d8486015eff7a3eb4701484dc9996bb2
 updated: 2026-11-18
 ---
 
@@ -36,6 +37,8 @@ The owner wants the value chart to be a daily line, not a few points on import d
 - After the MVP the value series has one point per import date (ANL-012A, first version).
 - MKT-009A defines daily history on the adapter interface. MKT-009B stores latest prices and MKT-009C daily FX; neither backfills earlier days.
 - The wide chart with range buttons on Stock/Bond, Crypto and Total (ANL-012B, 012C, 012D) draws whatever series the contract returns.
+
+## Requirements
 
 ### Owner decision recorded 2026-11-11
 
@@ -70,17 +73,17 @@ This replaces, for the value curve only, the earlier planning rule that no value
 
 ## Acceptance criteria
 
-- [ ] Given holdings imports on 15 January and 15 March and fixed daily closes, then every day of February has a point equal to the January quantities times that day's close, with basis `estimated` and source date 15 January.
-- [ ] Given the same data, then the points of 15 January and 15 March equal the values the imports show and have basis `observed`.
-- [ ] Given a position present in January and absent in March, then it contributes through 14 March and not from 15 March.
-- [ ] Given Bitcoin purchases on three dates, then each day's quantity is the sum of purchases minus sales up to that day and every point is `observed`.
-- [ ] Given a Sunday, then Friday's close is used.
-- [ ] Given a listing with no price before 1 February, then its January points are `unavailable`, the total for those days is a known subtotal, and nothing is zero.
-- [ ] Given a split between the import and a later close, then that holding's later days are `unavailable` with the reason.
-- [ ] Given `currency=TWD`, then each day is converted with that day's rate or the latest earlier one.
-- [ ] Given any estimated point in the visible range, then the page shows the notice; with none, it does not.
-- [ ] No response field or page text derives a return, gain for a period or contribution from estimated points.
-- [ ] Backfill stopped halfway resumes without refetching completed days.
+- [ ] AC-MKT-009D-01: Given holdings imports on 15 January and 15 March and fixed daily closes, then every day of February has a point equal to the January quantities times that day's close, with basis `estimated` and source date 15 January.
+- [ ] AC-MKT-009D-02: Given the same data, then the points of 15 January and 15 March equal the values the imports show and have basis `observed`.
+- [ ] AC-MKT-009D-03: Given a position present in January and absent in March, then it contributes through 14 March and not from 15 March.
+- [ ] AC-MKT-009D-04: Given Bitcoin purchases on three dates, then each day's quantity is the sum of purchases minus sales up to that day and every point is `observed`.
+- [ ] AC-MKT-009D-05: Given a Sunday, then Friday's close is used.
+- [ ] AC-MKT-009D-06: Given a listing with no price before 1 February, then its January points are `unavailable`, the total for those days is a known subtotal, and nothing is zero.
+- [ ] AC-MKT-009D-07: Given a split between the import and a later close, then that holding's later days are `unavailable` with the reason.
+- [ ] AC-MKT-009D-08: Given `currency=TWD`, then each day is converted with that day's rate or the latest earlier one.
+- [ ] AC-MKT-009D-09: Given any estimated point in the visible range, then the page shows the notice; with none, it does not.
+- [ ] AC-MKT-009D-10: No response field or page text derives a return, gain for a period or contribution from estimated points.
+- [ ] AC-MKT-009D-11: Backfill stopped halfway resumes without refetching completed days.
 
 ### Tests
 
@@ -109,3 +112,5 @@ This replaces, for the value curve only, the earlier planning rule that no value
 - 2026-11-11 planner: split out of MKT-009. Owner chose on 2026-11-11 to carry the previous import's quantities forward between imports and mark those days as estimates.
 - 2026-11-11 planner: owner approved Gate A for this ticket on 2026-11-11 and released it (status ready).
 - 2026-11-13 planner: added a gotcha about dividend-adjusted and split-back-adjusted price history. No change to scope or acceptance criteria.
+- 2026-11-18 claude-code/opus-5.5: ENG-113 migrated this ticket to the spec format without changing any wording: moved "Owner decision recorded 2026-11-11", "Expected behaviour", "Scope" and "Implementation notes" from Context into Requirements and numbered the acceptance criteria AC-MKT-009D-01 to 11. Spec hash sha256:252604cd33c1356c1d2c03905f44d375d8486015eff7a3eb4701484dc9996bb2, awaiting the owner's confirmation.
+- 2026-11-18 claude-code/opus-5.5: the owner confirmed the migrated text of this ticket in conversation with "Confirm all 29", the batch listed in ENG-113 decision 3; `spec_approved` records sha256:252604cd33c1356c1d2c03905f44d375d8486015eff7a3eb4701484dc9996bb2.

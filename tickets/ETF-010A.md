@@ -16,7 +16,8 @@ review: independent
 branch:
 pr:
 spec:
-updated: 2026-11-11
+spec_approved: sha256:276a0a8c4db2f21a84d274a71f52a7048621d82f293d2823afcf838a88d57c18
+updated: 2026-11-18
 ---
 
 # ETF-010A: Store official ETF holdings in PostgreSQL and refresh them for held funds
@@ -33,6 +34,8 @@ To show what a user really owns through their ETFs, V2 needs each fund's underly
 - `src/kurafolio/lookthrough.py` resolves funds inside funds and matches company identities (`Identities`, line 57; `calculate`, line 126).
 - A fund that is not in the registry has no holdings; the shipped page reports it as unsupported.
 - MKT-009B adds a shared market reference store and a refresh process.
+
+## Requirements
 
 ### Expected behaviour
 
@@ -60,15 +63,15 @@ To show what a user really owns through their ETFs, V2 needs each fund's underly
 
 ## Acceptance criteria
 
-- [ ] Given a user who holds a registered fund with no stored holdings, when the refresh process runs, then the holdings are stored with issuer, effective date, fetch time, hash and parser version.
-- [ ] Given a stored copy younger than the fund's maximum age, then no download happens.
-- [ ] Given a newer effective date from the issuer, then both dates exist and the newer one is current.
-- [ ] Given a download error or an invalid file, then the previous copy stays current and is marked stale with the reason.
-- [ ] Given a held fund that is not in the registry, then its status is unsupported and no request is made for it.
-- [ ] Given two users holding the same fund, then one download happens.
-- [ ] Given a fund no user holds any more, then it is no longer refreshed and its stored rows remain.
-- [ ] Given user A, then the status route lists only funds A holds.
-- [ ] The existing parser and look-through tests still pass unchanged.
+- [ ] AC-ETF-010A-01: Given a user who holds a registered fund with no stored holdings, when the refresh process runs, then the holdings are stored with issuer, effective date, fetch time, hash and parser version.
+- [ ] AC-ETF-010A-02: Given a stored copy younger than the fund's maximum age, then no download happens.
+- [ ] AC-ETF-010A-03: Given a newer effective date from the issuer, then both dates exist and the newer one is current.
+- [ ] AC-ETF-010A-04: Given a download error or an invalid file, then the previous copy stays current and is marked stale with the reason.
+- [ ] AC-ETF-010A-05: Given a held fund that is not in the registry, then its status is unsupported and no request is made for it.
+- [ ] AC-ETF-010A-06: Given two users holding the same fund, then one download happens.
+- [ ] AC-ETF-010A-07: Given a fund no user holds any more, then it is no longer refreshed and its stored rows remain.
+- [ ] AC-ETF-010A-08: Given user A, then the status route lists only funds A holds.
+- [ ] AC-ETF-010A-09: The existing parser and look-through tests still pass unchanged.
 
 ### Tests
 
@@ -95,3 +98,5 @@ To show what a user really owns through their ETFs, V2 needs each fund's underly
 
 - 2026-11-11 planner: split out of ETF-010 so the reference data can be built before positions and analysis are complete.
 - 2026-11-11 planner: owner approved Gate A for this ticket on 2026-11-11 and released it (status ready).
+- 2026-11-18 claude-code/opus-5.5: ENG-113 migrated this ticket to the spec format without changing any wording: moved "Expected behaviour", "Scope" and "Implementation notes" from Context into Requirements and numbered the acceptance criteria AC-ETF-010A-01 to 09. Spec hash sha256:276a0a8c4db2f21a84d274a71f52a7048621d82f293d2823afcf838a88d57c18, awaiting the owner's confirmation.
+- 2026-11-18 claude-code/opus-5.5: the owner confirmed the migrated text of this ticket in conversation with "Confirm all 29", the batch listed in ENG-113 decision 3; `spec_approved` records sha256:276a0a8c4db2f21a84d274a71f52a7048621d82f293d2823afcf838a88d57c18.

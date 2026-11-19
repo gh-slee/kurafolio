@@ -16,7 +16,8 @@ review: independent
 branch:
 pr:
 spec:
-updated: 2026-11-12
+spec_approved: sha256:d5ad3972d46a3b9c06b503d92c39cfc5bd5ff9874c528b8a894de73dac3bed7d
+updated: 2026-11-18
 ---
 
 # APP-011F: Add the V2 App Settings and Profile pages
@@ -32,6 +33,8 @@ Two of the eight approved destinations, App Settings and User Profile, have no t
 - The V2 shell exists (APP-011A, `frontend/src/v2/shell.tsx`, shared states in `frontend/src/v2/page-state.tsx`), with setup, login and invitations (APP-011B, `frontend/src/v2/auth-pages.tsx`, `invitations.tsx`). The V2 API client is `frontend/src/v2/api.ts`.
 - The shipped Settings page (`frontend/src/App.tsx:589-715`) mixes report language, Bitcoin cost policy and password under a portfolio-scoped route. Its password form has one new-password field and ends with an unrelated sentence.
 - V2 routes available: `GET /api/v2/me` (`web_v2/api.py:328`), `POST /api/v2/auth/password` (`:346`, new password at least 15 characters, `schemas.py:23`). Preferences arrive with APP-011E.
+
+## Requirements
 
 ### Expected behaviour
 
@@ -55,12 +58,12 @@ Two of the eight approved destinations, App Settings and User Profile, have no t
 
 ## Acceptance criteria
 
-- [ ] Given a signed-in user, when they change language, time zone or currency and save, then a reload on a fresh browser profile shows the saved values.
-- [ ] Given two different new-password entries or fewer than 15 characters, then submit is blocked with a message linked to the field.
-- [ ] Given a successful password change, then the user is told other sessions were ended.
-- [ ] Given a member account, then the operator block is absent; given the instance admin, it is present and contains links only.
-- [ ] Given the preferences request fails, then the form keeps the entered values and offers retry.
-- [ ] Keyboard reachable with visible focus, one `h1`, labelled controls, chart data available as a table, no colour-only meaning; en-CA, zh-TW, zh-CN; light and dark; 375 px and 1024 px.
+- [ ] AC-APP-011F-01: Given a signed-in user, when they change language, time zone or currency and save, then a reload on a fresh browser profile shows the saved values.
+- [ ] AC-APP-011F-02: Given two different new-password entries or fewer than 15 characters, then submit is blocked with a message linked to the field.
+- [ ] AC-APP-011F-03: Given a successful password change, then the user is told other sessions were ended.
+- [ ] AC-APP-011F-04: Given a member account, then the operator block is absent; given the instance admin, it is present and contains links only.
+- [ ] AC-APP-011F-05: Given the preferences request fails, then the form keeps the entered values and offers retry.
+- [ ] AC-APP-011F-06: Keyboard reachable with visible focus, one `h1`, labelled controls, chart data available as a table, no colour-only meaning; en-CA, zh-TW, zh-CN; light and dark; 375 px and 1024 px.
 
 ### Tests
 
@@ -85,3 +88,5 @@ Two of the eight approved destinations, App Settings and User Profile, have no t
 
 - 2026-11-10 planner: created from the UI/UX feature inventory (tickets/UX_FEATURE_INVENTORY.md).
 - 2026-11-12 planner: owner approved Gate A on 2026-11-12 and released the ticket (status ready).
+- 2026-11-18 claude-code/opus-5.5: ENG-113 migrated this ticket to the spec format without changing any wording: moved "Expected behaviour", "Scope" and "Implementation notes" from Context into Requirements and numbered the acceptance criteria AC-APP-011F-01 to 06. Spec hash sha256:d5ad3972d46a3b9c06b503d92c39cfc5bd5ff9874c528b8a894de73dac3bed7d, awaiting the owner's confirmation.
+- 2026-11-18 claude-code/opus-5.5: the owner confirmed the migrated text of this ticket in conversation with "Confirm all 29", the batch listed in ENG-113 decision 3; `spec_approved` records sha256:d5ad3972d46a3b9c06b503d92c39cfc5bd5ff9874c528b8a894de73dac3bed7d.

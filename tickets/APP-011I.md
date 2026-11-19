@@ -16,6 +16,7 @@ review: independent
 branch: ticket/wl-p0-011i-tell-an-invitee-whether-their-invitation
 pr: 
 spec: docs/specs/v2-drafts/WL-P0-011.md
+spec_approved: sha256:4b2a286b772f4c5edbdde50b081fafbaa69205f535dda1002a55419cc2fa13af
 updated: 2026-11-18
 ---
 
@@ -37,6 +38,8 @@ When someone opens an invitation link that has expired, been revoked or already 
 - `POST /api/v2/auth/register` (`src/kurafolio/web_v2/api.py`) answers an inactive invitation and a taken username with the same code, `registration_rejected` (`register_commit_v1` in `src/kurafolio/persistence/identity_schema.py`). It answers only after the person has filled in the form.
 - No endpoint reports an invitation's state from its token.
 - APP-011B therefore keeps the form after `registration_rejected` and shows one message that names both causes. A missing or malformed token already shows a message and no form.
+
+## Requirements
 
 ### Expected behaviour
 
@@ -68,10 +71,10 @@ Notes from the APP-011B product review:
 
 ## Acceptance criteria
 
-- [ ] Given an expired, revoked or consumed invitation on an instance at `0005_invite_status` or later, then a distinct message is shown and no form.
-- [ ] Given an instance on the `identity` (`0002`) or `sources` (`0003`) profile, then the page shows the form and keeps the current combined `registration_rejected` message, with no error from the missing status check.
-- [ ] Given a usable invitation and a taken username, then the username field shows its own message and the form stays.
-- [ ] Anonymous callers learn nothing about other tokens, users or invitations; budgets apply as for registration.
+- [ ] AC-APP-011I-01: Given an expired, revoked or consumed invitation on an instance at `0005_invite_status` or later, then a distinct message is shown and no form.
+- [ ] AC-APP-011I-02: Given an instance on the `identity` (`0002`) or `sources` (`0003`) profile, then the page shows the form and keeps the current combined `registration_rejected` message, with no error from the missing status check.
+- [ ] AC-APP-011I-03: Given a usable invitation and a taken username, then the username field shows its own message and the form stays.
+- [ ] AC-APP-011I-04: Anonymous callers learn nothing about other tokens, users or invitations; budgets apply as for registration.
 
 ## Plan
 
@@ -143,3 +146,5 @@ revision after `0004_ingestion` (option (b)).
 - 2026-11-12 claude-code/opus-5.5: claimed; found that the identity schema is a frozen provider, so the new function needs a migration decision. Owner chose to pause; filed AUTH-101 and set status blocked.
 - 2026-11-12 claude-code/opus-5.5: AUTH-101 decided (option (b), revision `0005_invite_status`); added the migration path to Handoff, depends on IMP-007D, status ready.
 - 2026-11-12 claude-code/opus-5.5: added AUTH-101 review findings (replacement baseline, profile plumbing, budget trade-off, state mapping) and the owner's fallback for `identity`/`sources` instances.
+- 2026-11-18 claude-code/opus-5.5: ENG-113 migrated this ticket to the spec format without changing any wording: moved "Expected behaviour", "Owner decision recorded 2026-11-12" and "Scope" from Context into Requirements and numbered the acceptance criteria AC-APP-011I-01 to 04. Spec hash sha256:4b2a286b772f4c5edbdde50b081fafbaa69205f535dda1002a55419cc2fa13af, awaiting the owner's confirmation.
+- 2026-11-18 claude-code/opus-5.5: the owner confirmed the migrated text of this ticket in conversation with "Confirm all 29", the batch listed in ENG-113 decision 3; `spec_approved` records sha256:4b2a286b772f4c5edbdde50b081fafbaa69205f535dda1002a55419cc2fa13af.
