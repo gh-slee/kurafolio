@@ -77,18 +77,28 @@ is marked in the pull request for the owner's approval. Each plan starts with th
 `main` commit it was written from, so a plan that predates a later dependency change
 is visible. The tickets become buildable when the owner merges the pull request.
 
-**Design before build.** For a `standard`-tier ticket, a frontier-tier planning
-session writes the Build plan after the ticket's dependencies have merged, from the
-merged code rather than from earlier plans. `python3 scripts/tickets.py next --plan`
-lists ready tickets that still need one, including frontier tickets a planner may
-choose to plan. A builder follows the Build plan. When the
+**Design before build.** Every ticket, of every tier, needs a Build plan merged to
+`main` before a build is claimed. The planner model
+([Models and roles](../AGENTS.md#models-and-roles)) writes it after the ticket's
+dependencies have merged, from the merged code rather than from earlier plans, and
+opens a docs pull request; once the owner merges it, a builder in any of the three
+tools may pick the ticket up from `main`. No ticket is planned and built in the same
+session. `python3 scripts/tickets.py next --plan` lists ready tickets of every tier
+that still need one. A builder follows the Build plan. When the
 plan or spec is silent on behaviour, data or an interface, the builder records the
 question under Decisions needed, sets `status: blocked`, pushes the branch, tells the
 owner and stops instead of guessing; the claim stays. Until the pilot (ENG-116) shows the gate can be enforced, `next` still
-offers a standard ticket without a Build plan and marks it `no build plan`; a
-builder skips it and reports it as needing planning unless the owner says to build it. A
-frontier ticket may be planned and built in the same session; an `any`-tier ticket
-needs no Build plan.
+offers a ticket without a Build plan and marks it `no build plan`; a builder skips
+it and reports it as needing planning.
+
+**Tier.** `agent_tier` does not decide which model may build. It sets how much the
+Build plan must cover and how the result is reviewed:
+
+| Tier | Build plan | Review |
+|---|---|---|
+| `any` | Short: files, the test per acceptance ID and when to stop and ask | As the ticket's `review` field says |
+| `standard` | Full, as the template in [tickets/README.md](../tickets/README.md#writing-a-ticket-as-a-spec) describes | As the ticket's `review` field says |
+| `frontier` | Full, plus independent expected values, negative cases, rollback and the points where the builder must stop and ask | The reviewer model's independent review is required before the owner's review |
 
 **Traceability.** Tests name the acceptance IDs they verify, in a test name,
 docstring or comment; `tickets.py spec <ID>` counts the test files that mention each
@@ -141,11 +151,13 @@ Role guidance lives in exactly four repository skill files:
 [Architect](../.agents/skills/kurafolio-software-architect/SKILL.md),
 [Developer](../.agents/skills/kurafolio-fullstack-developer/SKILL.md),
 [QA](../.agents/skills/kurafolio-qa-automation/SKILL.md).
-In the ticket workflow, a frontier-tier planning session takes the PM and Architect
-roles, writing the gated sections and later the Build plan; a builder at the
-ticket's `agent_tier` takes the Developer role; a fresh-context reviewer takes QA;
-the owner holds Gate A and Gate B. Which model fills each tier is decided separately
-(ENG-115). Use an explicitly assigned role or an authorized SDD workflow. Discovering these
+In the ticket workflow, the planner model takes the PM and Architect roles, writing
+the gated sections and later the Build plan, and never builds; any builder model
+takes the Developer role on a ticket of any tier; the reviewer model, in a fresh
+context, takes QA and Architect review; the owner holds Gate A and Gate B.
+[AGENTS.md](../AGENTS.md#models-and-roles) names the models, their effort and the
+agent file each tool uses. Use an explicitly assigned role or an authorized SDD
+workflow; asking to plan, pick up or review a ticket assigns the matching role agent. Discovering these
 files does not launch four agents. Delegate only with explicit authorization;
 scale independent review to risk. A low-risk text edit need not run four concurrent
 roles; financial/auth/migration changes require relevant independent review. A

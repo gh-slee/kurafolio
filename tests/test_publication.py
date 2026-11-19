@@ -457,6 +457,100 @@ create_pr = true
         self.run_git('commit', '-m', 'Remove role symlinks')
         self.assertFalse(guard.scan_history(self.root, all_history=True)['passed'])
 
+    def test_exact_agent_definitions_are_public_and_not_ignored(self):
+        """AC-ENG-115-06: the four role agent files are public, not ignored, and audited."""
+        self.write('.gitignore', (SCRIPTS.parent / '.gitignore').read_text())
+        self.assertEqual(guard.PUBLIC_AGENT_DEFINITIONS, {
+            '.claude/agents/planner.md', '.claude/agents/builder.md',
+            '.claude/agents/reviewer.md', '.codex/agents/builder.toml'})
+        for relative in sorted(guard.PUBLIC_AGENT_DEFINITIONS):
+            self.assertTrue(guard.path_allowed(relative), relative)
+            self.write(relative, 'name = "synthetic"\n')
+            checked = subprocess.run(['git', '-C', str(self.root), 'check-ignore', '-q', '--', relative])
+            self.assertEqual(checked.returncode, 1, relative)
+            self.run_git('add', '--', relative)
+        # Local tool state beside them stays out of the worktree manifest.
+        self.write('.claude/settings.local.json', '{"synthetic": true}\n')
+        self.write('.codex/config.toml', 'model = "synthetic"\n')
+        result = guard.scan_worktree(self.root)
+        self.assertTrue(result['passed'], result['violations'])
+        manifest = {row['path'] for row in result['files']}
+        self.assertTrue(guard.PUBLIC_AGENT_DEFINITIONS <= manifest)
+        self.assertFalse({'.claude/settings.local.json', '.codex/config.toml'} & manifest)
+        self.assertTrue(guard.scan_staged(self.root)['passed'])
+        self.run_git('commit', '-m', 'Synthetic agent files')
+        self.assertTrue(guard.scan_history(self.root, all_history=True)['passed'])
+
+    def test_agent_definition_exception_rejects_neighbours(self):
+        """AC-ENG-115-06: the rest of .claude/, .codex/, .agents/ and .opencode/ stays private."""
+        self.run_git('config', 'core.ignorecase', 'false')
+        self.write('.gitignore', (SCRIPTS.parent / '.gitignore').read_text())
+        paths = ('.claude/settings.json', '.claude/settings.local.json', '.claude/agents/other.md',
+                 '.claude/agents/nested/builder.md', '.claude/agents/builder.md.bak',
+                 '.claude/agents/Builder.md', '.claude/agents/planner.md/private.md',
+                 '.claude/skills/example/SKILL.md', '.claude/commands/plan.md',
+                 '.claude/worktrees/example/README.md',
+                 '.codex/config.toml', '.codex/agents/other.toml', '.codex/agents/builder.md',
+                 '.codex/agents/builder.toml/private.toml', '.codex/skills/example/SKILL.md',
+                 '.opencode/agents/builder.md', '.opencode/opencode.json',
+                 '.agents/agents/builder.toml', '.agents/skills/builder/SKILL.md')
+        for relative in paths:
+            self.assertFalse(guard.path_allowed(relative), relative)
+            self.write(relative, '# Private synthetic instruction\n')
+            self.run_git('check-ignore', '-q', '--', relative)
+        manifest = {row['path'] for row in guard.scan_worktree(self.root)['files']}
+        self.assertFalse(set(paths) & manifest)
+        for relative in paths:
+            self.run_git('add', '-f', '--', relative)
+        result = guard.scan_staged(self.root)
+        self.assertFalse(result['passed'])
+        self.assertTrue(set(paths) <= {row['path'] for row in result['violations']})
+        self.run_git('commit', '-m', 'Synthetic forbidden agent tool files')
+        self.run_git('rm', '-r', '-q', '--', '.claude', '.codex', '.opencode', '.agents')
+        self.run_git('commit', '-m', 'Remove forbidden fixtures')
+        self.assertTrue(guard.scan_staged(self.root)['passed'])
+        result = guard.scan_history(self.root, all_history=True)
+        self.assertFalse(result['passed'])
+        self.assertTrue(set(paths) <= {row['path'] for row in result['violations']})
+        allowed = '.claude/agents/builder.md'
+        for malformed in ('./' + allowed, '/' + allowed, allowed.replace('/', '//', 1),
+                          allowed.replace('/agents/', '/agents/../agents/'), allowed.replace('/', '\\'),
+                          allowed + '/', '.Claude/agents/builder.md', '.codex/agents/Builder.toml'):
+            self.assertFalse(guard.path_allowed(malformed), malformed)
+
+    def test_agent_definition_symlinks_and_secrets_fail(self):
+        """AC-ENG-115-06: agent files get the role-skill link checks and the content scan."""
+        read_bytes = Path.read_bytes
+        for relative in ('.claude/agents/planner.md', '.codex/agents/builder.toml'):
+            with self.subTest(relative=relative):
+                root_dir = self.root / relative.split('/')[0]
+                if root_dir.exists():
+                    shutil.rmtree(root_dir)
+                link = self.root / relative
+                link.parent.mkdir(parents=True)
+                self.write('private/target.md', 'Synthetic private target')
+                link.symlink_to(self.root / 'private/target.md')
+                def safe_read(path):
+                    if path.relative_to(self.root).parts[0] in {'.claude', '.codex', 'private'}:
+                        raise AssertionError('Unsafe agent target was read')
+                    return read_bytes(path)
+                with mock.patch.object(Path, 'read_bytes', safe_read):
+                    result = guard.scan_worktree(self.root)
+                self.assertIn(relative, {row['path'] for row in result['violations']})
+        shutil.rmtree(self.root / '.claude')
+        shutil.rmtree(self.root / '.codex')
+        self.write('.claude/agents/builder.md', 'Read /Users/' + 'example/notes.md first.\n')
+        self.write('.codex/agents/builder.toml', 'token = "ghp_' + 'A' * 30 + '"\n')
+        self.assertFalse(guard.scan_worktree(self.root)['passed'])
+        self.run_git('add', '--', '.claude/agents/builder.md', '.codex/agents/builder.toml')
+        result = guard.scan_staged(self.root)
+        self.assertEqual({row['path'] for row in result['violations']},
+                         {'.claude/agents/builder.md', '.codex/agents/builder.toml'})
+        self.run_git('commit', '-m', 'Synthetic leaking agent files')
+        self.run_git('rm', '-r', '-q', '--', '.claude', '.codex')
+        self.run_git('commit', '-m', 'Remove them')
+        self.assertFalse(guard.scan_history(self.root, all_history=True)['passed'])
+
     def test_history_accepts_public_github_system_committer_only(self):
         with mock.patch.dict(os.environ, {'GIT_COMMITTER_EMAIL': 'noreply@github.com'}):
             self.run_git('commit', '--allow-empty', '-m', 'Synthetic web merge')

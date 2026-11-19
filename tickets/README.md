@@ -12,7 +12,10 @@ authority for safety, finance and publication rules. A ticket never widens those
 
 - [ROADMAP.md](ROADMAP.md) has the end-to-end plan, phases and parallel lanes.
 - `python3 scripts/tickets.py list` shows the live board.
-- `python3 scripts/tickets.py next --tier <tier>` lists the tickets you may claim.
+- `python3 scripts/tickets.py next` lists the tickets ready to claim, of every tier;
+  `next --plan` lists those that still need a Build plan.
+- [AGENTS.md](../AGENTS.md#models-and-roles) names the planner, builder and reviewer
+  models and how each tool routes "plan", "pick up" and "review" a ticket.
 
 ## Quick start for an agent
 
@@ -22,10 +25,18 @@ Git directory itself, so it works from the primary checkout or any worktree.
 ```bash
 git fetch origin
 python3 scripts/tickets.py cleanup
-python3 scripts/tickets.py next --tier standard
+python3 scripts/tickets.py next
+git show origin/main:tickets/ENG-018.md
 python3 scripts/tickets.py resume ENG-018
 python3 scripts/tickets.py claim ENG-018 --agent opencode/deepseek-flash --worktree
 ```
+
+Before you claim, check that the ticket's copy on `origin/main` has a Build plan
+with content (`git show origin/main:tickets/<ID>.md`). `next` reads the ticket
+files of the checkout it runs in, so run it on an up-to-date `main`. If there is no
+Build plan, do not claim: report that the ticket needs planning and stop. If you
+already claimed it, `release` it before you stop, so the planner sees it in
+`next --plan`.
 
 `claim` creates or attaches `work/worktrees/<ticket-id>` on the ticket branch. Do
 all work there, never in the primary checkout. Then:
@@ -74,17 +85,21 @@ all work there, never in the primary checkout. Then:
 
 ## Capability tiers
 
-Each ticket has an `agent_tier`. Pass your own tier to `next`; it shows tickets
-at or below it.
+Each ticket has an `agent_tier`. It does not decide which model may build: the
+planner model plans every ticket and any builder model in
+[AGENTS.md](../AGENTS.md#models-and-roles) may build a ticket of any tier once its
+Build plan is on `main`. The tier sets how much the Build plan must cover and how
+the result is reviewed.
 
-| Tier | Typical agents | Tickets |
-|---|---|---|
-| `any` | fast or small models, for example DeepSeek Flash | Low-risk, well-specified chores, docs and tests with no financial, SQL, auth or migration semantics |
-| `standard` | mid-size coding models | Normal features with clear contracts; medium risk |
-| `frontier` | the strongest available models | Critical or high-risk finance, SQL/RLS, auth, migration, concurrency and recovery |
+| Tier | Tickets | Build plan | Review |
+|---|---|---|---|
+| `any` | Low-risk, well-specified chores, docs and tests with no financial, SQL, auth or migration semantics | Short: files, the test per acceptance ID and when to stop and ask | As the ticket's `review` field says |
+| `standard` | Normal features with clear contracts; medium risk | Full, as the [template](#writing-a-ticket-as-a-spec) describes | As the ticket's `review` field says |
+| `frontier` | Critical or high-risk finance, SQL/RLS, auth, migration, concurrency and recovery | Full, plus independent expected values, negative cases, rollback and the points where the builder must stop and ask | The reviewer model's independent review is required before the owner's review |
 
-A smaller model may still *review* or *write tests* for a higher-tier ticket if a
-ticket of type `review` says so. It must not implement one.
+A `frontier` ticket always gets the reviewer model's independent review, even if
+its `review` field says `self`. `next` and `next --plan` list every tier; `--tier`
+only narrows the list to tickets at or below a tier.
 
 ## Running several agents at once
 
@@ -125,7 +140,7 @@ for example by a 5-hour or weekly usage limit.
 
 ```bash
 python3 scripts/tickets.py resume IMP-007A     # ticket from its branch, claim, git state
-python3 scripts/tickets.py takeover IMP-007A --agent codex/gpt-5.5 --worktree --reason "previous agent hit usage limit"
+python3 scripts/tickets.py takeover IMP-007A --agent codex/gpt-6.1-sol --worktree --reason "previous agent hit usage limit"
 ```
 
 Before you take over, confirm that no process is still writing in that worktree. Then:
@@ -223,11 +238,12 @@ In short:
   `spec_approved` and the Build plan arrive there through a merged pull request.
   Changing `agent_tier`, `risk`, `review`, `depends_on` or `resources` of an approved
   ticket needs the owner's confirmation in its Log.
-- **Build plan.** A frontier-tier planning session writes it once the ticket's
-  dependencies have merged, from the merged code. `python3 scripts/tickets.py next --plan`
-  lists tickets that need one. `next` marks a `standard` ticket without one
-  `no build plan`; a builder skips it and reports it as needing planning unless the
-  owner says to build it. Only one planning session works at a time. It
+- **Build plan.** The planner writes one for every ticket, of every tier, once the
+  ticket's dependencies have merged, from the merged code. Its depth follows the
+  [tier](#capability-tiers). It merges to `main` before a build is claimed; no ticket
+  is planned and built in one session. `python3 scripts/tickets.py next --plan`
+  lists tickets that need one. `next` marks a ticket of any tier without one
+  `no build plan`; a builder skips it and reports it as needing planning. Only one planning session works at a time. It
   plans one or more tickets on its own branch from `origin/main` without claiming
   them, edits only their Context, Build plan, Plan and Decisions needed (the planning
   exception to the rule below), marks any proposed change to a gated section for the
@@ -281,14 +297,16 @@ Keep it current. Overwrite it at each checkpoint; the Log keeps history.
   only when the owner approved that exact text. Any change to `gate_approval` or
   `spec_approved`, including clearing it, quotes the owner's words in the Log; the
   script cannot tell who approved, so the owner checks this at review.
-- **Reviews:** `review: independent` means a different agent session than the
+- **Reviews:** `review: independent`, and every `frontier` ticket whatever its
+  `review` field says, means a different agent session than the
   implementer reviews the diff against the acceptance criteria. The same session
   cannot self-certify. Using a different model is welcome but does not by itself
   count as independence. The implementer starts this review itself, without
   being asked, once the work is pushed and before it hands the PR to the owner:
-  1. Start a reviewer with a fresh context (a subagent or a separate session).
-     Give it the ticket file, the diff against the base branch and the repository
-     rules. Do not give it your conversation or your reasoning.
+  1. Start a reviewer with a fresh context (a subagent or a separate session) on
+     the reviewer model; in Claude Code that is the `reviewer` agent. Give it the
+     ticket file, the diff against the base branch and the repository rules. Do
+     not give it your conversation or your reasoning.
   2. The reviewer follows `.agents/skills/kurafolio-qa-automation/SKILL.md` on
      every ticket. For `risk: high` or `critical`, a second reviewer follows
      `.agents/skills/kurafolio-software-architect/SKILL.md`. For a ticket that
@@ -301,8 +319,10 @@ Keep it current. Overwrite it at each checkpoint; the Log keeps history.
   4. The implementer fixes or answers every finding and reports the result under
      "Independent QA / Architecture Review" in the PR description. Open findings
      are listed there, not hidden.
-  5. If the tool cannot start a reviewer, write "NOT RUN" with the reason in the
-     PR and the Handoff. Never describe your own checks as independent review.
+  5. If the tool cannot start a reviewer on the reviewer model (Codex and OpenCode
+     cannot), write "NOT RUN" with the reason in the PR and the Handoff, and ask the
+     owner to say "review <ID>" in Claude Code. A `frontier` ticket waits for that
+     review before the owner's. Never describe your own checks as independent review.
   The owner reviews last, on GitHub, and is the only one who merges.
 - **Squash merge:** every PR lands on `main` as one squashed commit, so a branch's
   WIP and Handoff commits stay off the main history. While a PR is open, bring in
@@ -322,8 +342,8 @@ Keep it current. Overwrite it at each checkpoint; the Log keeps history.
 |---|---|
 | `check` | Validate every ticket file (fields, enums, dependencies, cycles, sections, privacy). Runs in the test suite. |
 | `list [--priority P0] [--status ready] [--all]` | Board with live claims. |
-| `next [--tier any\|standard\|frontier]` | Claimable or resumable tickets for your tier. Standard tickets without a Build plan are marked. |
-| `next --plan` | Ready tickets above the `any` tier that still need a Build plan. |
+| `next [--tier any\|standard\|frontier]` | Claimable or resumable tickets of every tier; `--tier` narrows the list. A ticket of any tier without a Build plan is marked `no build plan`. |
+| `next --plan` | Ready tickets of every tier that still need a Build plan. |
 | `spec ID [--base REF]` | Spec hash, approval state, Build plan presence and each acceptance ID with its test mentions; with `--base`, whether the gated sections differ from that ref. Exits 1 when the spec changed since approval. |
 | `show ID` / `resume ID` | Ticket text (newest copy from its branch), claim and git state. |
 | `claim ID --agent NAME [--worktree]` | Atomic claim plus resource locks; writes `work/agent-claim.json` in the worktree. |
@@ -345,5 +365,6 @@ Ignored files inside a removed worktree, such as `node_modules/` or `work/`
 evidence, are deleted with it, so move anything you still need first. Run
 `git fetch origin` before it so the base is current.
 
-Agent names use `tool/model`, for example `codex/gpt-5.5`, `claude/opus-5.5` or
-`opencode/deepseek-flash`. The board uses them to show who is working.
+Agent names use `tool/model`. Use the board names in
+[AGENTS.md](../AGENTS.md#models-and-roles), for example `claude-code/sonnet-5.5`,
+`codex/gpt-6.1-sol` or `opencode/deepseek-flash`. The board uses them to show who is working.

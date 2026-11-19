@@ -56,6 +56,29 @@ class LanguagePolicyTests(unittest.TestCase):
             (root / 'README.md').write_text('# \u4e2d\u6587\n', encoding='utf-8')
             self.assertFalse(check_language.scan(root)['passed'])
 
+    def test_agent_files_are_checked_but_private_tool_files_are_not(self):
+        """AC-ENG-115-06: the four agent files are read by exact path; other tool files are not."""
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'README.md').write_text('# English\n', encoding='utf-8')
+            for relative in check_language.PUBLIC_EXACT_PRIVATE_ROOT_FILES - check_language.PUBLIC_ROLE_SKILLS:
+                path = root / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text('name = "English"\n', encoding='utf-8')
+            for relative in ('.claude/settings.local.json', '.claude/agents/private.md',
+                             '.codex/agents/private.toml', '.opencode/agents/builder.md'):
+                path = root / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text('\u4e2d\u6587', encoding='utf-8')
+            result = check_language.scan(root)
+            self.assertTrue(result['passed'], result['violations'])
+            self.assertEqual(result['files_checked'], 5)
+            for relative in ('.claude/agents/reviewer.md', '.codex/agents/builder.toml'):
+                (root / relative).write_text('# \u4e2d\u6587\n', encoding='utf-8')
+            result = check_language.scan(root)
+            self.assertEqual({row['path'] for row in result['violations']},
+                             {'.claude/agents/reviewer.md', '.codex/agents/builder.toml'})
+
     def test_public_role_skills_are_checked_but_private_agent_instructions_are_not(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

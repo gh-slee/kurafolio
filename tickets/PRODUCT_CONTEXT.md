@@ -189,7 +189,7 @@ colours or wording are copied.
 |---|---|---|
 | Changes the triage (PR #64) made to six approved tickets | Confirmed as approved | IMP-007E, IMP-007F, IMP-007G, OPS-021, OPS-015 and MKT-101 stay claimable on their current text; each Log records it |
 | Workflow | Make the agentic workflow fully spec-driven | ENG-112 (the ticket is the spec), with ENG-113 to ENG-116 as follow-ups |
-| Model routing | Claude Opus 5.5 (high effort) plans and reviews every ticket and never builds; Claude Sonnet 5.5 (medium), GPT-6.1 Sol (high) and DeepSeek Flash build tickets of every tier; Build plans merge to `main` before a build; Claude Code and Codex agent files are published, OpenCode stays rule-only | ENG-115 carries it; `agent_tier` becomes plan depth and review strictness. Current rules apply until ENG-115 merges |
+| Model routing | Claude Opus 5.5 (high effort) plans and reviews every ticket and never builds; Claude Sonnet 5.5 (medium), GPT-6.1 Sol (high) and DeepSeek Flash build tickets of every tier; Build plans merge to `main` before a build; Claude Code and Codex agent files are published, OpenCode stays rule-only | ENG-115 carries it; `agent_tier` becomes plan depth and review strictness. In force from ENG-115's merge; the earlier rules applied until then |
 
 ## Still open
 

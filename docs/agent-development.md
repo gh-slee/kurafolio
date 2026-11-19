@@ -69,9 +69,57 @@ not invent the original owner's preferences or publication authorization.
 
 Vendor instruction files, if needed, should be thin adapters pointing to AGENTS.md;
 retain genuinely tool-specific settings, not a second copy of project rules.
-Only use subagents when explicitly requested. Give each the applicable shared rules,
+Only use subagents when explicitly requested. Asking to plan, pick up or review a
+ticket is such a request for the role agents below. Give each the applicable shared rules,
 necessary private constraints and bounded task context. Do not assume full chat
 inheritance or expose private data in a public/remote agent context.
+
+## Model routing and agent files
+
+[AGENTS.md](../AGENTS.md#models-and-roles) names the planner, builder and reviewer
+models and how each tool routes a request. The repository publishes one agent file
+per role and tool, so routing does not depend on anyone's personal settings:
+
+| File | Tool | Role |
+|---|---|---|
+| `.claude/agents/planner.md` | Claude Code | Planner |
+| `.claude/agents/builder.md` | Claude Code | Builder |
+| `.claude/agents/reviewer.md` | Claude Code | Reviewer (no edit tools; its instructions forbid writing through the shell) |
+| `.codex/agents/builder.toml` | Codex | Builder |
+
+Each file pins a full model ID and an effort level, never a floating alias, and
+holds only role rules that point back to AGENTS.md. OpenCode has no file: each user
+configures DeepSeek Flash with their own provider, and no tracked file carries a
+provider-specific model ID. Keep such configuration in the ignored `.opencode/`
+directory or in user-level settings.
+
+Known limits:
+
+- Claude Code picks up a new `.claude/agents/` directory only in a session started
+  after the directory exists. Edits to existing files load without a restart.
+- In the Claude desktop app, a session that runs in a worktree the app created
+  from the main checkout did not load the worktree's agent files. It saw only the
+  agents of the folder the session was opened on, and the main checkout had none
+  yet. A session opened directly on the worktree folder loaded all three. Keep the
+  main checkout's `main` current so its `.claude/agents/` matches; if a session
+  does not list `planner`, `builder` and `reviewer`, it stops as AGENTS.md says.
+- Codex loads project `.codex/` layers, including agents, only when the project or
+  worktree is trusted in the user's Codex configuration. An untrusted worktree has
+  no builder agent, and the session stops as AGENTS.md says.
+- Personal settings can override the files: in Claude Code,
+  `CLAUDE_CODE_SUBAGENT_MODEL` with `CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1` replaces the
+  model, `CLAUDE_CODE_EFFORT_LEVEL` replaces the effort, and a model allowlist can
+  substitute another model. Each agent states its model in its first output line and
+  stops when its system prompt names a different one, but that line is the model's
+  own report. The model recorded in the session transcript, or the `/tasks` row in
+  Claude Code, is the evidence.
+- The files route work; they do not enforce the Build plan rule. `next` marks a
+  ticket without a plan, and refusing such a claim is ENG-116.
+
+To check a fresh Claude Code session, open it on a clone or worktree of the
+branch as the session's own folder, ask it to list the available agent types, and ask each role agent to state
+its model and effort and stop. Compare the answer with the subagent transcript.
+For Codex, start a session in a trusted checkout and ask the `builder` agent the same.
 
 ## Fresh-session verification
 
@@ -114,19 +162,21 @@ Each references the single shared AGENTS.md and the canonical
 authorized SDD stage. Discovery is availability, not approval to implement,
 delegate or start four agents. No global configuration or runtime AI is required.
 
-Only these four exact `.agents/skills/<role>/SKILL.md` files have Git traversal and
-publication exceptions. Everything else under `.agents/`, all `.codex/`, private
-overrides and local planning artifacts remain outside the public allowlist. Do not
+Only these four exact `.agents/skills/<role>/SKILL.md` files and the four agent
+files in [Model routing and agent files](#model-routing-and-agent-files) have Git
+traversal and publication exceptions. Everything else under `.agents/`, `.claude/`,
+`.codex/` and `.opencode/`, private overrides and local planning artifacts remain
+outside the public allowlist. Do not
 add a broad exception or `agents/openai.yaml`. Git ignore matching can vary with
 filesystem case behavior and `core.ignorecase`; ignoring alone is never publication
 authorization. The guard requires literal allowlisted paths and actual component
-spelling. Worktree inspection reads the four
+spelling. Worktree inspection reads the eight
 candidates only after checking every component for regular-file/directory safety;
 symlinks, including dangling file or ancestor links, fail before reading targets.
 Index and reachable-history checks still reject forbidden force-added content,
-even when later deleted. Public role prose participates in the English check;
-private instructions remain excluded. Source-only Docker contexts and Python
-package source/artifact allowlists exclude role skills independently.
+even when later deleted. Public role and agent prose participates in the English
+check; private instructions remain excluded. Source-only Docker contexts and Python
+package source/artifact allowlists exclude role skills and agent files independently.
 
 In a fresh session, additionally ask it to list the four available role names and
 descriptions without invoking them, explicitly read the assigned skill and its
