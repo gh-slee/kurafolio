@@ -97,6 +97,12 @@ Known limits:
 
 - Claude Code picks up a new `.claude/agents/` directory only in a session started
   after the directory exists. Edits to existing files load without a restart.
+- In the Claude desktop app, a session that runs in a worktree the app created
+  from the main checkout did not load the worktree's agent files. It saw only the
+  agents of the folder the session was opened on, and the main checkout had none
+  yet. A session opened directly on the worktree folder loaded all three. Keep the
+  main checkout's `main` current so its `.claude/agents/` matches; if a session
+  does not list `planner`, `builder` and `reviewer`, it stops as AGENTS.md says.
 - Codex loads project `.codex/` layers, including agents, only when the project or
   worktree is trusted in the user's Codex configuration. An untrusted worktree has
   no builder agent, and the session stops as AGENTS.md says.
@@ -110,8 +116,8 @@ Known limits:
 - The files route work; they do not enforce the Build plan rule. `next` marks a
   ticket without a plan, and refusing such a claim is ENG-116.
 
-To check a fresh Claude Code session, start it in a clone or worktree of the
-branch, ask it to list the available agent types, and ask each role agent to state
+To check a fresh Claude Code session, open it on a clone or worktree of the
+branch as the session's own folder, ask it to list the available agent types, and ask each role agent to state
 its model and effort and stop. Compare the answer with the subagent transcript.
 For Codex, start a session in a trusted checkout and ask the `builder` agent the same.
 
