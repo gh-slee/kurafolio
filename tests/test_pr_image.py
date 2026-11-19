@@ -154,6 +154,7 @@ class CandidateTests(unittest.TestCase):
             self.commit_files(files)
 
     def test_ticket_only_diff_skips_the_build(self):
+        """AC-ENG-120-06."""
         self.based_on_main({'tickets/ENG-001.md': 'Synthetic ticket\n'})
         result = self.execute()
         self.assertEqual(result['status'], 'skipped')
@@ -164,21 +165,25 @@ class CandidateTests(unittest.TestCase):
         self.assertFalse((self.root / 'work/pr-images').exists())
 
     def test_a_non_ticket_path_still_builds(self):
+        """AC-ENG-120-06."""
         self.based_on_main({'tickets/ENG-001.md': 'Synthetic ticket\n', 'LICENSE': 'Changed synthetic file\n'})
         receipt = self.execute()
         self.assertEqual(receipt['status'], 'passed')
         self.assertEqual(sum(c[1] == 'build' for c in self.calls), 1)
 
     def test_empty_diff_still_builds(self):
+        """AC-ENG-120-06."""
         self.based_on_main()
         self.assertEqual(self.execute()['status'], 'passed')
         self.assertEqual(sum(c[1] == 'build' for c in self.calls), 1)
 
     def test_missing_origin_main_still_builds(self):
+        """AC-ENG-120-06."""
         self.commit_files({'tickets/ENG-001.md': 'Synthetic ticket\n'})
         self.assertEqual(self.execute()['status'], 'passed')
 
     def test_dirty_tree_still_stops_before_the_ticket_only_check(self):
+        """AC-ENG-120-06."""
         self.based_on_main({'tickets/ENG-001.md': 'Synthetic ticket\n'})
         (self.root / 'LICENSE').write_text('Uncommitted synthetic change')
         with self.assertRaisesRegex(ValueError, 'Commit reviewed'):
@@ -186,6 +191,7 @@ class CandidateTests(unittest.TestCase):
         self.assertFalse(self.calls)
 
     def test_main_prints_the_reason_and_exits_zero(self):
+        """AC-ENG-120-06."""
         self.based_on_main({'tickets/ENG-001.md': 'Synthetic ticket\n'})
         out = io.StringIO()
         with mock.patch.object(sys, 'argv', ['check_pr_image.py', '--root', str(self.root)]), \
