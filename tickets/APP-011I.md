@@ -359,12 +359,19 @@ Notes from the APP-011B product review:
     following [i18n-plan.md](../docs/i18n-plan.md). "Revoked" matches the existing
     invitee and administrator wording.
 
-    | Key | en-CA | zh-TW | zh-CN |
-    |---|---|---|---|
-    | `wlP0011i.register.expired` | This invitation has expired. Ask the person who invited you for a new one. | 此邀請已過期。請向邀請你的人索取新的邀請。 | 此邀请已过期。请向邀请你的人索取新的邀请。 |
-    | `wlP0011i.register.revoked` | This invitation was revoked. Ask the person who invited you for a new one. | 此邀請已被撤銷。請向邀請你的人索取新的邀請。 | 此邀请已被撤销。请向邀请你的人索取新的邀请。 |
-    | `wlP0011i.register.consumed` | This invitation was already used to create an account. Sign in with that account. | 此邀請已用於建立帳號。請使用該帳號登入。 | 此邀请已用于创建账号。请使用该账号登录。 |
-    | `wlP0011i.username.taken` | This username is not available. Choose a different one. | 此使用者名稱無法使用。請選擇其他名稱。 | 此用户名不可用。请选择其他用户名。 |
+    | Key | en-CA |
+    |---|---|
+    | `wlP0011i.register.expired` | This invitation has expired. Ask the person who invited you for a new one. |
+    | `wlP0011i.register.revoked` | This invitation was revoked. Ask the person who invited you for a new one. |
+    | `wlP0011i.register.consumed` | This invitation was already used to create an account. Sign in with that account. |
+    | `wlP0011i.username.taken` | This username is not available. Choose a different one. |
+
+    Translate each text into zh-TW and zh-CN with no new terms: take the words for
+    "invitation", "expired", "revoked", "used" and "ask the person who invited you
+    for a new one" from each catalog's `wlP0011b.register.rejected`; "account" and
+    "create" from `wlP0011b.register.title`; "sign in" from `wlP0011b.goToSignIn`;
+    and "username" from `username`. Tickets carry English only
+    (`scripts/check_language.py`), so the translations live only in the catalogs.
 
 17. Docs, all required:
     - [web-v2-identity.md](../docs/web-v2-identity.md): the route in the HTTP
