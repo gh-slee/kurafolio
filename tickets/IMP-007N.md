@@ -2,7 +2,7 @@
 id: IMP-007N
 title: Back off cleanup claims for sets whose cleanup keeps failing
 priority: P0
-status: ready
+status: in_progress
 type: feature
 parent: IMP-007
 depends_on: [IMP-007C]
@@ -13,11 +13,11 @@ agent_tier: frontier
 gate: owner
 gate_approval: "owner 2026-11-12, exponential backoff 30s x 2^(n-1) capped at 15 minutes, oldest-first among eligible sets, no new columns"
 review: independent
-branch: 
+branch: ticket/imp-007n-back-off-cleanup-claims-for-sets-whose-c
 pr: 
 spec: docs/specs/imp-007-r7/spec.md
 spec_approved: sha256:c3e06c751ef4816ad200095284163430738b7a0e1783e78999605dd5035e92eb
-updated: 2026-11-18
+updated: 2026-11-20
 ---
 
 # IMP-007N: Back off cleanup claims for sets whose cleanup keeps failing
@@ -220,8 +220,8 @@ Revert the commit. The change has no data migration, no table, column or index c
 
 ## Plan
 
-- [ ] Add `_cleanup_backoff_sql`, the two placeholders, the locked recheck and `next_fence:=earlier+1` to `CLAIM_PLAN_DDL`, with the static test and the extra fragment check.
-- [ ] Give the three existing gated cleanup tests older lease times; add the helper methods and the five gated tests; raise the `postgres-foundation` skip count and comment in `.github/workflows/ci.yml`.
+- [x] Add `_cleanup_backoff_sql`, the two placeholders, the locked recheck and `next_fence:=earlier+1` to `CLAIM_PLAN_DDL`, with the static test and the extra fragment check.
+- [x] Give the three existing gated cleanup tests older lease times; add the helper methods and the five gated tests; raise the `postgres-foundation` skip count and comment in `.github/workflows/ci.yml`.
 - [ ] Update `docs/web-v2-imports.md`; run the ingestion PostgreSQL and full suites; start the independent review; open the PR.
 
 ## Decisions needed
@@ -230,10 +230,10 @@ None. The owner's Gate A of 2026-11-12 (30 s × 2^(n−1), capped at 15 minutes;
 
 ## Handoff
 
-- State: Not started. The owner chose exponential backoff on 2026-11-12, after the IMP-007C reviews found that one failing set can starve cleanup of every other set.
-- Next step: Read `CLAIM_PLAN_DDL` and the cleanup-lease tests (`test_cleanup_*`, `test_claim_*`) in `tests/test_postgres_migration.py`.
-- Verify: `KURAFOLIO_INGESTION_TEST=1 PYTHONPATH=src .venv/bin/python -m unittest tests.test_postgres_migration -v` and `PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -v`
-- Gotchas: n counts every earlier cleanup lease for the set, including expired ones. Keep `FOR UPDATE SKIP LOCKED` on candidate roots and the READ COMMITTED check. A lapsed lease is still closed as expired before a new claim.
+- State: codex/gpt-6.1-sol implemented the planned shared SQL rule, locked recheck, five gated regression methods, static check, CI skip-count update and docs in the five approved paths. Changes remain local. Static tests pass (17); non-opt-in migration tests report 139 run with 122 expected skips. Language, worktree/history publication and ticket checks pass; the approved spec is unchanged.
+- Next step: Complete the actual opt-in PostgreSQL suite and full Python suite, then commit the reviewed scope and run the candidate-image gate. Independent Claude Opus 5.5 review is NOT RUN because that reviewer is unavailable in Codex; request `review IMP-007N` in Claude Code after publication approval and PR creation.
+- Verify: `KURAFOLIO_INGESTION_TEST=1 PYTHONPATH=src ../../../.venv/bin/python scripts/run_gated_tests.py --expect-skipped 0 -- discover -s tests -p 'test_postgres_migration.py'`; `PYTHONPATH=src ../../../.venv/bin/python -m unittest discover -s tests -v`. Local logs and the validated PR draft are under ignored `work/imp-007n/`.
+- Gotchas: Count every earlier cleanup lease, including expired and cancelled rows. Replay and prepare are unchanged; filter before `LIMIT 8` and reread under the locks. Git and Docker socket operations need local administrative permission.
 - Open questions: None.
 
 ## Log
@@ -242,3 +242,7 @@ None. The owner's Gate A of 2026-11-12 (30 s × 2^(n−1), capped at 15 minutes;
 - 2026-11-18 claude-code/opus-5.5: ENG-113 migrated this ticket to the spec format without changing any wording: moved the bullet naming the r7 contract bundle from Context into Requirements and numbered the acceptance criteria AC-IMP-007N-01 to 07. Spec hash sha256:c3e06c751ef4816ad200095284163430738b7a0e1783e78999605dd5035e92eb, awaiting the owner's confirmation.
 - 2026-11-18 claude-code/opus-5.5: the owner confirmed the migrated text of this ticket in conversation with "Confirm all 29", the batch listed in ENG-113 decision 3; `spec_approved` records sha256:c3e06c751ef4816ad200095284163430738b7a0e1783e78999605dd5035e92eb.
 - 2026-11-19 claude-code/opus-5.5: wrote the Build plan, Context and Plan from `main` at `a2f5f2b` in plan PR https://github.com/gh-slee/kurafolio/pull/81, finishing and correcting an unreviewed earlier draft; no Decisions needed and no gated section changed.
+
+- 2026-11-20 codex/gpt-6.1-sol: claimed the ticket from `d902717` after verifying the merged Build plan and unchanged approved spec; implementation and synthetic verification starting.
+
+- 2026-11-20 codex/gpt-6.1-sol: implemented the five planned paths, with 17 static tests passing and gated PostgreSQL execution still required; no gated section, frozen r7 file, inventory or oracle changed.
