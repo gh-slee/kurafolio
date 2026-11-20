@@ -115,7 +115,7 @@ Rules that reviewers will check:
 ## Build plan
 
 - Based on: `main` at `a2f5f2b`.
-- The plan assumes the recommended answers under Decisions needed (1a, 2a, 3a, 4a). The owner answers them before merging this plan. If any answer differs, the planner revises the plan before it merges.
+- The plan assumes the recommended answers under Decisions needed (1a, 2a, 3a, 4a, 5a). The owner answers them before merging this plan. If any answer differs, the planner revises the plan before it merges.
 - Build order:
   1. Part A (profile).
   2. Parts B to D (gateway caller, DTOs, the eight JSON routes).
@@ -274,6 +274,10 @@ Every change is additive. The `identity` and `sources` profiles keep their exact
   - Replace "No route signs or verifies cursors yet" and the "Remaining acceptance" lines that this ticket settles.
   - Add a section listing the nine routes (method, path, request DTO, success status) and every error code with its status, taken from `error_status`. List the `serve` flags of the `ingestion` profile.
   - State plainly that the profile still needs activation (Decision 4) and a worker (IMP-007F) before an upload completes.
+  - Say what `import_busy` (429) on the upload route means and what the client does (Decision 5). The API sends only the code and the existing generic message; it never picks a message per cause.
+    - The user's raw rate window is used up (10 reservations in 300 seconds): wait and retry.
+    - The user's one raw slot is held, either by an upload still in progress or by an earlier attempt whose slot could not be proved free. With the SQL on `main`, such a slot is released only when its set ends. The user cancels that set (or lets it expire), waits for cleanup, then starts a new set. This holds every upload of that user, not only that set.
+    - Mark the second case as current behaviour pending IMP-007M, and do not describe a fix that IMP-007M has not decided.
 - `docs/web-v2-sources.md`: one line saying the source routes are also served on `ingestion`.
 - Keep the language and publication checks passing. Quote no non-English strings.
 
@@ -378,7 +382,7 @@ CI and the skip guard:
 
 ## Decisions needed
 
-The owner answers these before merging the plan. Items 1, 3 and 4 need no change to this ticket's gated sections under the recommended option. Item 2 needs a new ticket, or a gated change here.
+The owner answers these before merging the plan. Items 1, 3, 4 and 5 need no change to this ticket's gated sections under the recommended option. Item 2 needs a new ticket, or a gated change here.
 
 1. **Which ticket builds the ingestion runtime profile?** Sibling plans APP-011I (PR #82, its Decision 1) and APP-011E (PR #84, its Decision 1) depend on the answer.
    - What this ticket's routes need from the profile is listed in Context and in Build plan Part A:
@@ -430,6 +434,13 @@ The owner answers these before merging the plan. Items 1, 3 and 4 need no change
      - (b) IMP-007F takes it, which changes IMP-007F's gated text. Its planner raises that.
      - (c) IMP-007E takes it. This changes this ticket's Requirements, and the step needs the worker identity that IMP-007F defines.
    - Recommendation: (a). This plan does not depend on the answer, but the V2 MVP cannot run without it.
+
+5. **What does a client learn from `import_busy` on an upload?** Input from the IMP-007M plan (PR #85): the raw slot is held per user, and with the SQL on `main` an attempt whose slot could not be proved free blocks every reservation of that user until its set ends and cleanup releases the slot. The owner has not chosen IMP-007M's fix.
+   - `reserve_member_v1` answers `import_busy` both for an exhausted raw rate window and for a held slot, and the wire contract gives the API only the code and a generic message. The API cannot tell the two apart.
+   - Options:
+     - (a) Keep the one code. `docs/web-v2-imports.md` (Part F) lists both causes and the action for each: wait for the rate window, or cancel the set that holds the slot, wait for cleanup and start a new set. APP-011D shows that guidance. The second action is marked as current behaviour until IMP-007M decides. No gated change.
+     - (b) Add a distinct code for a held slot. This amends the r7 wire contract and the SQL in `reserve_member_v1`, which is a new SQL ticket or part of IMP-007M's follow-up, and changes APP-011D's input.
+   - Recommendation: (a). It needs nothing beyond this ticket's AC-09, and it does not assume IMP-007M's answer. If IMP-007M's fix changes the action, that ticket updates the paragraph.
 
 ## Handoff
 
