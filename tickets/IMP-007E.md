@@ -67,6 +67,11 @@ Expose create, upload, read, decide, accept and cancel through authenticated Fas
 - `read_sets_v1` and `read_preview_v1` return an unsigned `next` payload, which the API must sign with `ingestion/cursors.py`.
 - A worker checks a hand-off token as `sha256(bytes.fromhex(token))` in hex (`ingestion_schema.py:4660`).
 - `requirements-pg-test.lock` has no FastAPI. The CI job that runs real-PostgreSQL HTTP tests must also install `requirements-web-test.lock`.
+- `ingestion/contracts.py` already holds `ERROR_STATUS`, a read-only map equal to `wire-contracts.json` `error_status`.
+- Inputs from the IMP-007F plan (PR #86, not merged):
+  - Its worker serves `POST /internal/v1/handoffs`. It answers 202 with a `HandoffAck`; it refuses with status `contracts.ERROR_STATUS[code]` and the body `{"code": <code>}` and nothing else. It refuses `Transfer-Encoding`, `Content-Encoding` and `Expect`, and bodies over `4 + MAX_CONTROL + MAX_CONTEXT + MAX_RAW` bytes. It keeps the context and raw bytes from the frame for the launch, which confirms that the API must send the context bytes (Decisions needed, item 2). Part E follows this shape.
+  - Its D1 recommends that IMP-007F register the worker row and that the ticket building the runtime profile load the wrapper catalog and set `ready`. It also notes that nothing outside tests writes `wl_ingestion.instance_budgets`. See Decisions needed, item 4.
+  - Its D2 finds that no merged code builds a `ReviewBundle`, so no worker can prepare a preview yet. IMP-007E's routes only read previews and confirm them, so this ticket does not depend on that answer; its tests seed a READY set with a preview from the oracle vectors.
 
 ## Requirements
 
@@ -174,10 +179,10 @@ Every change is additive. The `identity` and `sources` profiles keep their exact
   - `admit(principal, bucket)` calls `admit_rate_v1`, whose sixth argument is `text`, with `bucket` in `{'read', 'control'}`. It commits in its own transaction and returns nothing. The success value is `NULL`, so do not apply `SourceStore`'s "value is a dict" rule to it.
   - Result mapping:
     - `{'ok': True, 'value': dict}` returns the value.
-    - `{'ok': False, 'code': c}` raises `RequestError(c, IMPORT_STATUS[c])` when `c` is a key of `IMPORT_STATUS`. Otherwise it raises `SourceError(c)` for codes in `lifecycle_v1.STATUS`, `IdentityError(c)` for codes in `identity.STATUS`, and `IdentityError()` for anything else.
+    - `{'ok': False, 'code': c}` raises `RequestError(c, ERROR_STATUS[c])` when `c` starts with `import_` and is a key of `contracts.ERROR_STATUS`. Otherwise it raises `SourceError(c)` for codes in `lifecycle_v1.STATUS`, `IdentityError(c)` for codes in `identity.STATUS`, and `IdentityError()` for anything else.
     - A commit that fails after the function ran raises `import_commit_uncertain` (503) for `create_set_v1`, `decide_set_v1`, `accept_preview_v1`, `cancel_set_v1` and `reserve_member_v1`, and `IdentityError()` for reads.
   - No SQL text, parameter, payload or driver message reaches an exception or a log.
-- `IMPORT_STATUS`: a code-owned `dict` in `src/kurafolio/web_v2/schemas.py`, copied by hand from `wire-contracts.json` `error_status`. A test compares it with the file. Do not load the bundle at runtime.
+- Statuses come from `kurafolio.ingestion.contracts.ERROR_STATUS`, which already matches `wire-contracts.json` `error_status`. Add a test that compares the two. Do not load the bundle at runtime and do not keep a second copy.
 
 ### Part C: DTOs and error codes
 
@@ -255,11 +260,12 @@ Every change is additive. The `identity` and `sources` profiles keep their exact
   - One HTTPS `POST /internal/v1/handoffs` with `Content-Type: application/octet-stream`, an exact `Content-Length` and no chunking or compression.
   - TLS 1.3 through `HandoffSettings.peer_tls().context()`, and `verify_peer` on the connection before the first body byte.
   - The deadline is the earlier of the bind's `expires_at` and 20 seconds.
-  - The response must be a JSON `HandoffAck` of at most 16,384 bytes, validated with `codec.validate`.
-  - Outcomes:
-    - `owned`, `already_owned` or `stage_already_admitted`: success.
-    - `reupload_required`: 409 `import_reupload_required`.
-    - Any connect, TLS, timeout, status or shape failure: 503 `import_runner_unavailable`.
+  - Send no `Expect`, `Transfer-Encoding` or `Content-Encoding` header. The API's client certificate must carry the URI `urn:wealth-ledger:instance:<instance_id>:peer:api`, which the worker checks; Part F documents this for the operator.
+  - Read at most 16,384 response bytes. The response shapes match the IMP-007F plan (PR #86):
+    - Status 202 with a JSON `HandoffAck`, validated with `codec.validate`, whose `job_id`, `member_id` and `fence` equal the frame's. Outcome `owned`, `already_owned` or `stage_already_admitted` is success. Outcome `reupload_required` is 409 `import_reupload_required`.
+    - Any other status with the exact body `{"code": c}`, where `ERROR_STATUS[c]` equals that status. The codes `import_reupload_required`, `import_expired`, `import_stale` and `session_changed` pass through with their status, because they are the database's verdict on this attempt. Every other code is 503 `import_runner_unavailable`, because the API sent a valid frame.
+    - Any connect, TLS, timeout or shape failure, or a status and body that match neither form: 503 `import_runner_unavailable`.
+  - If IMP-007F merges with a different response shape, stop and ask.
   - Never retry the hand-off with new bytes. A retry needs a new upload.
 - Raw retention:
   - Keep the received bytes only in the local variables of `upload`.
@@ -273,6 +279,7 @@ Every change is additive. The `identity` and `sources` profiles keep their exact
 - `docs/web-v2-imports.md`:
   - Replace "No route signs or verifies cursors yet" and the "Remaining acceptance" lines that this ticket settles.
   - Add a section listing the nine routes (method, path, request DTO, success status) and every error code with its status, taken from `error_status`. List the `serve` flags of the `ingestion` profile.
+  - Document the hand-off settings for the operator: the worker URL and DNS name, the instance ID, and the API's client certificate with the URI `urn:wealth-ledger:instance:<instance_id>:peer:api`.
   - State plainly that the profile still needs activation (Decision 4) and a worker (IMP-007F) before an upload completes.
   - Say what `import_busy` (429) on the upload route means and what the client does (Decision 5). The API sends only the code and the existing generic message; it never picks a message per cause.
     - The user's raw rate window is used up (10 reservations in 300 seconds): wait and retry.
@@ -289,8 +296,9 @@ Real-PostgreSQL tests go in `tests/test_postgres_import_routes.py` (new), gated 
 
 1. `scripts/postgres.py test-identity-environment`.
 2. `migrate-identity`, then `migrate-sources`, then `migrate-ingestion`.
-3. Activate the synthetic instance through the owner connection, in a test-only helper that is never shipped: a wrapper catalog for the synthetic source fixture, a runtime profile digest, an enabled `workers` row for the worker role and `ready = true`.
-4. Serve `create_app` on `ingestion` with a fake worker. The fake is an in-process TLS 1.3 server using disposable certificates, like the existing runner tests, that answers `/internal/v1/handoffs` with a `HandoffAck`.
+3. Activate the synthetic instance through the owner connection, in a test-only helper that is never shipped: a wrapper catalog for the synthetic source fixture, a runtime profile digest, the `instance_budgets` rows, an enabled `workers` row for the worker role and `ready = true`. Seed them the way `tests/test_postgres_migration.py` does today. If IMP-007F's plan moves those helpers into `tests/ingestion_pg_support.py`, reuse that file.
+4. Serve `create_app` on `ingestion` with a fake worker. The fake is an in-process TLS 1.3 server using disposable certificates, like the existing runner tests. It answers `/internal/v1/handoffs` in the IMP-007F shapes: 202 with a `HandoffAck`, or `ERROR_STATUS[code]` with `{"code": code}`.
+5. For the preview, confirm and receipt routes, seed a READY set with a stored preview from the oracle vectors through the owner connection, the way the existing `accept_seed` helper does. No worker prepares a preview yet (IMP-007F's D2).
 
 Every test names its AC ID.
 
@@ -312,6 +320,7 @@ Every test names its AC ID.
 | 04 | Body shorter than its length, then end of stream | 400 `invalid_length` |
 | 04 | Idle longer than the (patched) idle limit / total longer than the (patched) total limit | 408 `request_timeout` |
 | 04 | Exactly 10,485,760 bytes, real PG and fake worker | 202 `SetResult`; the worker received exactly those bytes once |
+| 05 | Fake worker answers 409 `{"code": "import_reupload_required"}` / 503 `{"code": "instance_not_ready"}` / 202 with a `HandoffAck` for another fence / 200 with `{}` | 409 `import_reupload_required` / 503 `import_runner_unavailable` / 503 `import_runner_unavailable` / 503 `import_runner_unavailable` |
 | 04 | Constants | `UPLOAD_TOTAL_SECONDS == 30.0`, `UPLOAD_IDLE_SECONDS == 5.0` |
 | 04 | Real PG, after a successful upload and after a failed one | The owner connection finds the marker bytes in no `bytea` or `text` column of `wl_ingestion`, `wl_sources`, `wl_identity` or `wl_pg` |
 | 05 | One success case per route, and one per refusal code that route can return | Status and code as in the expected values below |
@@ -426,14 +435,15 @@ The owner answers these before merging the plan. Items 1, 3, 4 and 5 need no cha
    - Recommendation: (a). The plan has a stop point in case `RECEIVING` turns out to change the revision.
 
 4. **Which ticket activates the ingestion profile on a database?**
-   - Activation means installing the wrapper catalog and the runtime profile digest, registering the worker in `wl_ingestion.workers` and setting `wl_ingestion.instance_state.ready`.
-   - No merged code does it, and no ticket's text assigns it. IMP-007F's text covers the worker and launcher but not this operator step.
-   - Without it, every import route answers `instance_not_ready` on a real instance. This ticket's tests activate their synthetic database through a test-only helper.
-   - Options:
-     - (a) The owner files a new operator ticket, for example `operator activate-ingestion`. It verifies the `0004` inventory and the native-control readiness that r7 requires, then sets `ready` last. It depends on IMP-007E and IMP-007F.
-     - (b) IMP-007F takes it, which changes IMP-007F's gated text. Its planner raises that.
-     - (c) IMP-007E takes it. This changes this ticket's Requirements, and the step needs the worker identity that IMP-007F defines.
-   - Recommendation: (a). This plan does not depend on the answer, but the V2 MVP cannot run without it.
+   - Activation means installing the wrapper catalog and the runtime profile digest, writing the `wl_ingestion.instance_budgets` rows, registering the worker in `wl_ingestion.workers` and setting `wl_ingestion.instance_state.ready` last.
+   - No merged code does it, and no approved ticket text assigns it. The IMP-007F plan (PR #86, its D1) reports the same gap.
+   - Without it, every import route answers `instance_not_ready` on a real instance, and `reserve_member_v1` cannot find a worker. This ticket's tests activate their synthetic database through a test-only helper.
+   - This needs one answer for both tickets. Options:
+     - (a) The split that IMP-007F's D1 recommends. IMP-007F adds `operator register-ingestion-worker`. IMP-007E adds an operator command that, after `verify_inventory`, loads the wrapper catalog, writes the budgets and runtime profile digest and sets `ready`. The r7 "Profile integration and readiness" section supports putting readiness with the profile, but this ticket's "What to build" lists only routes. So the owner confirms the added scope, and IMP-007E adds IMP-007F to `depends_on`, because r7 sets `ready` only after native-control readiness, which the launcher provides. Both need the owner's confirmation in the Log, and the routes then wait for the worker.
+     - (b) One new operator ticket does all of it, for example `operator activate-ingestion`, and depends on IMP-007E and IMP-007F. No gated text or dependency of either ticket changes.
+     - (c) IMP-007F does all of it, which changes IMP-007F's gated text.
+   - Recommendation: (b). It keeps the routes free of a dependency on the worker and launcher, and it keeps both approved scopes as they are. If the owner prefers (a), the planner adds the operator command to Part A and the dependency before this plan merges.
+   - The Build plan does not depend on the answer, but the V2 MVP cannot run without one.
 
 5. **What does a client learn from `import_busy` on an upload?** Input from the IMP-007M plan (PR #85): the raw slot is held per user, and with the SQL on `main` an attempt whose slot could not be proved free blocks every reservation of that user until its set ends and cleanup releases the slot. The owner has not chosen IMP-007M's fix.
    - `reserve_member_v1` answers `import_busy` both for an exhausted raw rate window and for a held slot, and the wire contract gives the API only the code and a generic message. The API cannot tell the two apart.
@@ -460,3 +470,4 @@ The owner answers these before merging the plan. Items 1, 3, 4 and 5 need no cha
 - 2026-11-18 claude-code/opus-5.5: ENG-113 migrated this ticket to the spec format without changing any wording: moved the bullet naming the r7 contract bundle, the "Real-PostgreSQL tests" bullet of Where to start and "What to build" from Context into Requirements and numbered the acceptance criteria AC-IMP-007E-01 to 09. Spec hash sha256:6db6a5ba54ea92a37456cd15bf51124498e73d86d19d24cb6da26d4dcbac652b, awaiting the owner's confirmation.
 - 2026-11-18 claude-code/opus-5.5: the owner confirmed the migrated text of this ticket in conversation with "Confirm all 29", the batch listed in ENG-113 decision 3; `spec_approved` records sha256:6db6a5ba54ea92a37456cd15bf51124498e73d86d19d24cb6da26d4dcbac652b.
 - 2026-11-20 claude-code/opus-5.5: wrote the frontier Build plan from `main` at `a2f5f2b` (plan pull request #87). Added findings to Context and five items to Decisions needed, including which ticket builds the ingestion runtime profile; item 5 came from the IMP-007M plan (#85). Goal, Requirements and Acceptance criteria are unchanged.
+- 2026-11-20 claude-code/opus-5.5: aligned Part E's hand-off responses with the IMP-007F plan (PR #86), took statuses from `contracts.ERROR_STATUS`, added the preview seeding the tests need while no worker builds a ReviewBundle, and widened Decisions needed item 4 to cover IMP-007F's D1. Gated sections unchanged.
