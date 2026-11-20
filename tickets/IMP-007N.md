@@ -2,7 +2,7 @@
 id: IMP-007N
 title: Back off cleanup claims for sets whose cleanup keeps failing
 priority: P0
-status: in_progress
+status: done
 type: feature
 parent: IMP-007
 depends_on: [IMP-007C]
@@ -14,7 +14,7 @@ gate: owner
 gate_approval: "owner 2026-11-12, exponential backoff 30s x 2^(n-1) capped at 15 minutes, oldest-first among eligible sets, no new columns"
 review: independent
 branch: ticket/imp-007n-back-off-cleanup-claims-for-sets-whose-c
-pr: 
+pr: https://github.com/gh-slee/kurafolio/pull/88
 spec: docs/specs/imp-007-r7/spec.md
 spec_approved: sha256:c3e06c751ef4816ad200095284163430738b7a0e1783e78999605dd5035e92eb
 updated: 2026-11-20
@@ -230,10 +230,10 @@ None. The owner's Gate A of 2026-11-12 (30 s × 2^(n−1), capped at 15 minutes;
 
 ## Handoff
 
-- State: codex/gpt-6.1-sol completed the planned implementation in the five approved paths; the ticket checkpoint is committed at `a22fcf6`, and the remaining implementation is ready for its local commit. Actual opt-in PostgreSQL passes: 139 tests, zero skips/failures/errors (97.585 s). The full Python suite passes: 1385 tests, 251 skips (723.380 s); 248 are optional/opt-in, two lacked optional PostgreSQL dependencies and one was denied a loopback socket by the sandbox. The two configuration tests and the native restart test pass in targeted reruns with no skips. Static DDL tests pass (17), and the inventory/oracle/r7 bundle and approved spec remain unchanged. Language, worktree/history publication and ticket checks pass. Candidate image and independent review remain outstanding.
-- Next step: Commit the reviewed scope, run `.venv/bin/python scripts/check_pr_image.py` from the clean tracked tree and retain the exact receipt. After publication approval, open the PR with independent review marked NOT RUN and request `review IMP-007N` in Claude Code. The configured Claude Opus 5.5 reviewer is unavailable in Codex; owner review follows that independent review.
-- Verify: `KURAFOLIO_INGESTION_TEST=1 PYTHONPATH=src .venv/bin/python scripts/run_gated_tests.py --expect-skipped 0 -- discover -s tests -p 'test_postgres_migration.py'`; `PYTHONPATH=src ../../../.venv/bin/python -m unittest discover -s tests -v`; `PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -p 'test_web.py' -k test_native_server_restart_preserves_session_and_settings -v`. Local logs and the validated PR draft are under ignored `work/imp-007n/`.
-- Gotchas: Count every earlier cleanup lease, including expired and cancelled rows. Replay and prepare are unchanged; filter before `LIMIT 8` and reread under the locks. Git and Docker socket operations need local administrative permission. The initial dotted native-test invocation failed on a sibling import; use discovery as above. No code repair was needed.
+- State: Builder implementation is complete at `abe7c38`, published in Draft PR https://github.com/gh-slee/kurafolio/pull/88. This ticket-only closeout records `status: done` and the PR URL required by the PR ticket check. Independent Claude Opus 5.5 review is NOT RUN, so this frontier ticket is not ready for the owner's review. Actual PostgreSQL passes (139 tests, zero skips/failures/errors, 97.585 s). The full Python suite passes (1385 tests, 251 skips, 723.380 s): 248 skips are optional/opt-in; two missing-dependency cases and one sandbox-denied loopback case pass in targeted reruns. Static DDL tests pass (17). The candidate image for `abe7c38` passed health, browser assets, anonymous API 401 and worker smoke. No code, schema, oracle, frozen r7 file or approved spec changes are part of this metadata closeout.
+- Next step: Retain a passing `.venv/bin/python scripts/check_pr_image.py` receipt for the exact metadata HEAD, publish the ticket closeout when authorized, then recheck CI and request `review IMP-007N` in Claude Code. Keep PR #88 as Draft and wait for that independent review before owner review; use `in_review` only if review repairs are outstanding.
+- Verify: `python3 scripts/tickets.py check`; `python3 scripts/tickets.py pr-check --branch ticket/imp-007n-back-off-cleanup-claims-for-sets-whose-c`; `python3 scripts/tickets.py spec IMP-007N --base origin/main`. The existing code-test logs and candidate receipt for `abe7c38` remain under ignored `work/imp-007n/` and `work/pr-images/`; a new image receipt must match the metadata commit. No full-suite repeat is needed for this ticket-only change.
+- Gotchas: The configured reviewer cannot be started from Codex; developer self-tests are not independent acceptance. `done` and `pr:` satisfy the ticket metadata gate but do not establish CI success, independent review, owner review or merge. A future review repair round needs its own final `done`/`pr:`/outcome checkpoint and fresh image gate. Preserve the live claim until merge and outstanding work are resolved.
 - Open questions: None.
 
 ## Log
@@ -250,3 +250,7 @@ None. The owner's Gate A of 2026-11-12 (30 s × 2^(n−1), capped at 15 minutes;
 - 2026-11-20 codex/gpt-6.1-sol: full Python suite passed (1385 run, 251 skips (248 optional/opt-in, two missing optional PostgreSQL dependencies and one sandbox-denied loopback test), zero failures/errors, 723.380 s); installed the existing locked PostgreSQL test dependencies in an ignored local venv. Actual PostgreSQL acceptance, the sandbox-denied native restart check, candidate image and independent review remain separate gates.
 
 - 2026-11-20 codex/gpt-6.1-sol: actual opt-in PostgreSQL passed (139 tests, 97.585 s, zero skips/failures/errors), including every new backoff case and the unchanged inventory check. Targeted PostgreSQL configuration (two tests) and native restart (one test, 1.354 s) passed without skips; the earlier native invocation failure was an import-path issue. No code repair or unplanned behaviour was needed. Candidate image and independent Claude Opus 5.5 review are still outstanding; no PR exists.
+
+- 2026-11-20 codex/gpt-6.1-sol: implementation `abe7c38` was published in Draft PR https://github.com/gh-slee/kurafolio/pull/88. Prepared this ticket-only metadata closeout with `status: done` and `pr:` as required by the PR check. The candidate for `abe7c38` passed all smoke checks; a separate exact-HEAD image receipt is required for the metadata commit. Independent review remains NOT RUN and the Draft is not ready for owner review.
+
+- 2026-11-20 codex/gpt-6.1-sol: outcome: implemented by codex/gpt-6.1-sol; configured reviewing model claude-code/opus-5.5 (Claude Opus 5.5), NOT RUN because it is unavailable in Codex; review repair rounds: 0; spec or Build plan omissions: nothing missing. Required independent review and subsequent owner review remain outstanding.
