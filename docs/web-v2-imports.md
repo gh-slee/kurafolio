@@ -341,7 +341,12 @@ for tracking and reports. Existing Web/CLI workspaces remain on SQLite.
   after the originating session has ended. `claim_plan_v1` with
   `work_kind: cleanup` takes a worker-generated token (the worker must not reuse
   one; the database does not check) and picks the oldest set that is terminal
-  with cleanup `pending` or `failed` and has no live cleanup lease. A set past its
+  with cleanup `pending` or `failed`, has no live cleanup lease and is not waiting
+  out a backoff. By owner decision, a set that has had n cleanup leases waits
+  30 seconds × 2^(n−1), capped at 15 minutes, from the creation of its latest
+  cleanup lease on the database clock. Every earlier cleanup lease counts,
+  including expired and cancelled ones. A waiting set never blocks a newer one,
+  and when only waiting sets remain the claim returns `no_work`. A set past its
   expiry is first expired under its lock, exactly as a user call would expire it.
   A set whose root another call holds is skipped rather than waited for, and the
   trigger refuses a second live cleanup lease for one set. The claim stores the token's digest on a 30-second cleanup
@@ -366,15 +371,16 @@ for tracking and reports. Existing Web/CLI workspaces remain on SQLite.
   `not_created`, and the proofs are stored on that attempt. When no slot is left
   held, `_purge_v1` removes the transient rows and releases the storage
   reservation (`purged`). Otherwise, by owner decision, the proofs are kept, the
-  set stays `failed` with its storage held, and the next claim retries it
-  (`cleanup_pending`). The finished lease stores its acknowledgement for replay.
+  set stays `failed` with its storage held, and a later claim retries it once
+  its backoff has passed (`cleanup_pending`). The finished lease stores its
+  acknowledgement for replay.
   Both functions refuse to run outside READ COMMITTED, which their lock
   rechecks rely on. The lease trigger enforces the same rules: a slot moves only from `held` to
   `released`, a recorded proof is never removed, and a closed attempt can change
   nothing else. Opt-in PostgreSQL tests cover cancel during reception, cancel
   before claim, expiry before claim, a slot already released by finish, pending
-  and failed proofs, oldest-first selection, replay and every refusal leaving
-  the lease and slot unchanged. No worker process calls them yet.
+  and failed proofs, oldest-first selection, backoff, replay and every refusal
+  leaving the lease and slot unchanged. No worker process calls them yet.
   The `prepare` branch of `claim_plan_v1` verifies the session that completed
   the last admitted upload or submitted the current decision. It also checks
   every admitted stage and its source pins. It records the set revision and

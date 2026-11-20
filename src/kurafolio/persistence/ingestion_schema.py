@@ -3175,6 +3175,18 @@ CLEANUP_SESSION_DIGEST = hashlib.sha256(b'kurafolio.ingestion.cleanup-lease.v1')
 
 _TERMINAL_SQL = "('COMMITTED','REJECTED','CANCELLED','EXPIRED')"
 
+
+def _cleanup_backoff_sql(count, latest):
+    """True while earlier cleanup leases keep a set in backoff on database clock n.
+
+    Owner decision 2026-11-12 (IMP-007N): wait LEAST(30 s x 2^(count-1), 15 min)
+    after the latest cleanup lease's created_at. Clamp the exponent to 0..5
+    before shifting so no bigint count can overflow or wrap the shift.
+    """
+    return ("(" + count + ">0 AND n<" + latest + "+LEAST(interval '30 seconds'*(1<<(GREATEST(LEAST(" + count +
+            ",6),1)-1)::integer),interval '15 minutes'))")
+
+
 _WORKER_CODES_SQL = ("('import_invalid','import_conflict','import_stale','import_expired','import_busy','not_found',"
                      "'authentication_required','credentials_changed','instance_not_ready','session_changed','source_unavailable')")
 
@@ -3291,6 +3303,7 @@ CREATE FUNCTION wl_ingestion.claim_plan_v1(p_worker uuid,p_token text,p_request 
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $claim_plan$
 DECLARE guard jsonb;selected wl_ingestion.sets%ROWTYPE;held wl_ingestion.leases%ROWTYPE;candidate record;
  n timestamptz;until timestamptz;request_digest text;code text;next_fence bigint;lease uuid;
+ earlier bigint;latest_cleanup timestamptz;
  replay boolean;tenant uuid;portfolio uuid;origin_digest text;origin_version bigint;admitted integer;generation bigint;
  root wl_ingestion.roots%ROWTYPE;mem wl_ingestion.members%ROWTYPE;
  st wl_pg.instance_state%ROWTYPE;ss wl_identity.sessions%ROWTYPE;u wl_identity.users%ROWTYPE;
@@ -3356,6 +3369,7 @@ BEGIN
    ((x.state IN TERMINAL AND x.cleanup_state IN ('pending','failed')) OR (x.state NOT IN TERMINAL AND n>=x.expires_at)) AND
    NOT EXISTS(SELECT 1 FROM wl_ingestion.leases l WHERE l.tenant_id=x.tenant_id AND l.portfolio_id=x.portfolio_id AND
     l.set_id=x.id AND l.work_kind='cleanup' AND l.state IN ('offered','active') AND l.expires_at>n)
+   AND NOT BACKOFF_CANDIDATE
    ORDER BY x.created_at,x.id::text COLLATE "C" LIMIT 8 LOOP
   -- Root, set, members and leases in the declared order; then recheck under the
   -- locks. A root another call holds is skipped, never waited for, so claims
@@ -3383,13 +3397,17 @@ BEGIN
     portfolio_id=candidate.portfolio_id AND id=candidate.id;
   END IF;
   CONTINUE WHEN selected.state NOT IN TERMINAL OR selected.cleanup_state NOT IN ('pending','failed');
+  SELECT pg_catalog.count(*),pg_catalog.max(l.created_at) INTO earlier,latest_cleanup FROM wl_ingestion.leases l
+   WHERE l.tenant_id=selected.tenant_id AND l.portfolio_id=selected.portfolio_id AND l.set_id=selected.id
+    AND l.work_kind='cleanup';
+  -- Owner decision 2026-11-12: a set whose cleanup keeps failing waits, and newer sets go first.
+  CONTINUE WHEN BACKOFF_LOCKED;
   -- A lapsed cleanup lease is closed before another one starts.
   UPDATE wl_ingestion.leases SET state='expired' WHERE tenant_id=selected.tenant_id AND portfolio_id=selected.portfolio_id
    AND set_id=selected.id AND work_kind='cleanup' AND state IN ('offered','active') AND expires_at<=n;
   CONTINUE WHEN EXISTS(SELECT 1 FROM wl_ingestion.leases l WHERE l.tenant_id=selected.tenant_id AND
    l.portfolio_id=selected.portfolio_id AND l.set_id=selected.id AND l.work_kind='cleanup' AND l.state IN ('offered','active'));
-  SELECT pg_catalog.count(*)+1 INTO next_fence FROM wl_ingestion.leases l WHERE l.tenant_id=selected.tenant_id AND
-   l.portfolio_id=selected.portfolio_id AND l.set_id=selected.id AND l.work_kind='cleanup';
+  next_fence:=earlier+1;
   until:=pg_catalog.date_trunc('second',n+interval '30 seconds');
   lease:=pg_catalog.gen_random_uuid();
   INSERT INTO wl_ingestion.leases(tenant_id,portfolio_id,id,set_id,member_id,work_kind,attempt,fence,worker_id,token_digest,
@@ -3436,6 +3454,13 @@ CLAIM_PLAN_DDL = (CLAIM_PLAN_DDL.replace('ACK_HELD', _plan_lease_ack_sql('alread
                            .replace('MEMBER_PINS', _MEMBER_PIN_SQL)
                            .replace('PREPARE_ACK_HELD', _plan_lease_ack_sql('already_claimed', _FINGERPRINT_SQL))
                            .replace('PREPARE_ACK_CLAIMED', _plan_lease_ack_sql('claimed', _FINGERPRINT_SQL)))
+                  .replace('BACKOFF_CANDIDATE',
+                           "EXISTS(SELECT 1 FROM (SELECT pg_catalog.count(*) AS lease_count,"
+                           "pg_catalog.max(l.created_at) AS last_created FROM wl_ingestion.leases l WHERE "
+                           "l.tenant_id=x.tenant_id AND l.portfolio_id=x.portfolio_id AND l.set_id=x.id "
+                           "AND l.work_kind='cleanup') b WHERE " +
+                           _cleanup_backoff_sql('b.lease_count', 'b.last_created') + ")")
+                  .replace('BACKOFF_LOCKED', _cleanup_backoff_sql('earlier', 'latest_cleanup'))
                   .replace('TERMINAL', _TERMINAL_SQL)
                   .replace('CLEANUP_SESSION', CLEANUP_SESSION_DIGEST).replace('CODES', _WORKER_CODES_SQL)
                   .replace('UUID_RE', _UUID_RE))

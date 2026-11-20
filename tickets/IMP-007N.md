@@ -45,13 +45,13 @@ updated: 2026-11-20
 
 ## Acceptance criteria
 
-- [ ] AC-IMP-007N-01: A set with n earlier cleanup leases is eligible only when it has none, or when the database clock is at or past its latest cleanup lease's `created_at` plus `LEAST(30 seconds × 2^(n−1), 15 minutes)`.
-- [ ] AC-IMP-007N-02: Among eligible sets the order stays oldest-first (`created_at`, then set ID), as owner decision 6 requires.
-- [ ] AC-IMP-007N-03: A set in backoff never blocks a newer eligible set. When only backed-off sets remain, the claim returns `no_work`.
-- [ ] AC-IMP-007N-04: No new table, column or index: the rule uses only existing lease rows, so the r7 inventory does not change.
-- [ ] AC-IMP-007N-05: Overdue non-terminal sets (no cleanup lease yet) stay eligible at once and are expired before cleanup, as today.
-- [ ] AC-IMP-007N-06: Opt-in PostgreSQL tests cover: a stuck set skipped for a newer one; the stuck set claimable again after its window; the window doubling across attempts; the 15-minute cap; `no_work` when only backed-off sets remain; replay of an existing claim unaffected.
-- [ ] AC-IMP-007N-07: `docs/web-v2-imports.md` describes the backoff.
+- [x] AC-IMP-007N-01: A set with n earlier cleanup leases is eligible only when it has none, or when the database clock is at or past its latest cleanup lease's `created_at` plus `LEAST(30 seconds × 2^(n−1), 15 minutes)`.
+- [x] AC-IMP-007N-02: Among eligible sets the order stays oldest-first (`created_at`, then set ID), as owner decision 6 requires.
+- [x] AC-IMP-007N-03: A set in backoff never blocks a newer eligible set. When only backed-off sets remain, the claim returns `no_work`.
+- [x] AC-IMP-007N-04: No new table, column or index: the rule uses only existing lease rows, so the r7 inventory does not change.
+- [x] AC-IMP-007N-05: Overdue non-terminal sets (no cleanup lease yet) stay eligible at once and are expired before cleanup, as today.
+- [x] AC-IMP-007N-06: Opt-in PostgreSQL tests cover: a stuck set skipped for a newer one; the stuck set claimable again after its window; the window doubling across attempts; the 15-minute cap; `no_work` when only backed-off sets remain; replay of an existing claim unaffected.
+- [x] AC-IMP-007N-07: `docs/web-v2-imports.md` describes the backoff.
 
 ## Build plan
 
@@ -230,10 +230,10 @@ None. The owner's Gate A of 2026-11-12 (30 s × 2^(n−1), capped at 15 minutes;
 
 ## Handoff
 
-- State: codex/gpt-6.1-sol implemented the planned shared SQL rule, locked recheck, five gated regression methods, static check, CI skip-count update and docs in the five approved paths. Changes remain local. Static tests pass (17); non-opt-in migration tests report 139 run with 122 expected skips. Language, worktree/history publication and ticket checks pass; the approved spec is unchanged.
-- Next step: Complete the actual opt-in PostgreSQL suite and full Python suite, then commit the reviewed scope and run the candidate-image gate. Independent Claude Opus 5.5 review is NOT RUN because that reviewer is unavailable in Codex; request `review IMP-007N` in Claude Code after publication approval and PR creation.
-- Verify: `KURAFOLIO_INGESTION_TEST=1 PYTHONPATH=src ../../../.venv/bin/python scripts/run_gated_tests.py --expect-skipped 0 -- discover -s tests -p 'test_postgres_migration.py'`; `PYTHONPATH=src ../../../.venv/bin/python -m unittest discover -s tests -v`. Local logs and the validated PR draft are under ignored `work/imp-007n/`.
-- Gotchas: Count every earlier cleanup lease, including expired and cancelled rows. Replay and prepare are unchanged; filter before `LIMIT 8` and reread under the locks. Git and Docker socket operations need local administrative permission.
+- State: codex/gpt-6.1-sol completed the planned implementation in the five approved paths; the ticket checkpoint is committed at `a22fcf6`, and the remaining implementation is ready for its local commit. Actual opt-in PostgreSQL passes: 139 tests, zero skips/failures/errors (97.585 s). The full Python suite passes: 1385 tests, 251 skips (723.380 s); 248 are optional/opt-in, two lacked optional PostgreSQL dependencies and one was denied a loopback socket by the sandbox. The two configuration tests and the native restart test pass in targeted reruns with no skips. Static DDL tests pass (17), and the inventory/oracle/r7 bundle and approved spec remain unchanged. Language, worktree/history publication and ticket checks pass. Candidate image and independent review remain outstanding.
+- Next step: Commit the reviewed scope, run `.venv/bin/python scripts/check_pr_image.py` from the clean tracked tree and retain the exact receipt. After publication approval, open the PR with independent review marked NOT RUN and request `review IMP-007N` in Claude Code. The configured Claude Opus 5.5 reviewer is unavailable in Codex; owner review follows that independent review.
+- Verify: `KURAFOLIO_INGESTION_TEST=1 PYTHONPATH=src .venv/bin/python scripts/run_gated_tests.py --expect-skipped 0 -- discover -s tests -p 'test_postgres_migration.py'`; `PYTHONPATH=src ../../../.venv/bin/python -m unittest discover -s tests -v`; `PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -p 'test_web.py' -k test_native_server_restart_preserves_session_and_settings -v`. Local logs and the validated PR draft are under ignored `work/imp-007n/`.
+- Gotchas: Count every earlier cleanup lease, including expired and cancelled rows. Replay and prepare are unchanged; filter before `LIMIT 8` and reread under the locks. Git and Docker socket operations need local administrative permission. The initial dotted native-test invocation failed on a sibling import; use discovery as above. No code repair was needed.
 - Open questions: None.
 
 ## Log
@@ -246,3 +246,7 @@ None. The owner's Gate A of 2026-11-12 (30 s × 2^(n−1), capped at 15 minutes;
 - 2026-11-20 codex/gpt-6.1-sol: claimed the ticket from `d902717` after verifying the merged Build plan and unchanged approved spec; implementation and synthetic verification starting.
 
 - 2026-11-20 codex/gpt-6.1-sol: implemented the five planned paths, with 17 static tests passing and gated PostgreSQL execution still required; no gated section, frozen r7 file, inventory or oracle changed.
+
+- 2026-11-20 codex/gpt-6.1-sol: full Python suite passed (1385 run, 251 skips (248 optional/opt-in, two missing optional PostgreSQL dependencies and one sandbox-denied loopback test), zero failures/errors, 723.380 s); installed the existing locked PostgreSQL test dependencies in an ignored local venv. Actual PostgreSQL acceptance, the sandbox-denied native restart check, candidate image and independent review remain separate gates.
+
+- 2026-11-20 codex/gpt-6.1-sol: actual opt-in PostgreSQL passed (139 tests, 97.585 s, zero skips/failures/errors), including every new backoff case and the unchanged inventory check. Targeted PostgreSQL configuration (two tests) and native restart (one test, 1.354 s) passed without skips; the earlier native invocation failure was an import-path issue. No code repair or unplanned behaviour was needed. Candidate image and independent Claude Opus 5.5 review are still outstanding; no PR exists.
