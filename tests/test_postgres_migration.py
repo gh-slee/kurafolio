@@ -1,5 +1,6 @@
 """Fixed ingestion storage structure; this is not full migration acceptance."""
 import json
+import importlib.util
 import hashlib
 import os
 import secrets
@@ -274,6 +275,305 @@ class IngestionStorageDDLTests(unittest.TestCase):
         self.assertIn("pg_catalog.jsonb_array_length(p_request->'cleanup_proofs')>12", schema.CLEANUP_SET_DDL)
         self.assertIn("q.value->'job_id' IS DISTINCT FROM p_request->'job_id'", schema.FINISH_DDL)
         self.assertNotIn("q.value->'job_id' IS DISTINCT FROM p_request->'job_id'", schema.CLEANUP_SET_DDL)
+
+
+
+@unittest.skipUnless(os.environ.get('KURAFOLIO_INGESTION_TEST') == '1',
+                     'Opt-in isolated ingestion PostgreSQL runtime inventory acceptance')
+class IngestionRuntimeInventoryPostgresTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        import sys
+        import psycopg
+        from psycopg import sql
+        from psycopg.conninfo import conninfo_to_dict
+        from kurafolio.data_sources.contract_v1 import CatalogSnapshot
+        from kurafolio.persistence.config import PostgresConfig
+        from kurafolio.persistence.context import Database, execute
+        from kurafolio.persistence.ingestion_migration import migrate_ingestion
+        from kurafolio.persistence.source_migration import migrate_sources
+
+        cls.directory = tempfile.TemporaryDirectory(prefix='wl-imp-007w-runtime-')
+        cls.path = Path(cls.directory.name) / 'fixture'
+        cls.script = Path(__file__).resolve().parents[1] / 'scripts/postgres.py'
+        cls.databases = []
+        cls.addClassCleanup(cls._cleanup)
+        subprocess.run([sys.executable, str(cls.script), 'test-identity-environment',
+                        '--output', str(cls.path)], check=True, capture_output=True, timeout=120)
+        fixture = json.loads((cls.path / 'test-config.json').read_text())
+        cls.roles = (fixture['runtime_role'], fixture['identity_role'], 'synthetic_ingestion_worker')
+        options = conninfo_to_dict(PostgresConfig.from_secret_file(cls.path / 'migration.conninfo').conninfo)
+        cls.admin = dict(options, user='postgres', password=(cls.path / 'bootstrap.secret').read_text())
+        with psycopg.connect(**cls.admin, autocommit=True) as conn:
+            conn.execute(sql.SQL('CREATE ROLE {} LOGIN').format(sql.Identifier(cls.roles[2])))
+        for name in ('migration', 'runtime', 'identity'):
+            cls.databases.append(Database(PostgresConfig.from_secret_file(cls.path / (name + '.conninfo')),
+                                          schema_mode='sources'))
+        cls.operator, cls.runtime, cls.gateway = cls.databases
+        cls.arguments = dict(zip(('runtime_role', 'gateway_role', 'worker_role'), cls.roles))
+        key = hashlib.sha256((cls.path / 'identity.key').read_bytes()).hexdigest()
+        catalog = CatalogSnapshot(1, '0', (), (), ())
+        migrate_sources(cls.operator, *cls.roles[:2], key, catalog)
+        with cls.operator.engine.begin() as conn:
+            tenant, portfolio = uuid.uuid4(), uuid.uuid4()
+            execute(conn, 'INSERT INTO wl_pg.tenant_roots(tenant_id,portfolio_id) VALUES(:t,:p)',
+                    t=tenant, p=portfolio)
+            execute(conn, 'INSERT INTO wl_pg.portfolios(tenant_id,portfolio_id) VALUES(:t,:p)',
+                    t=tenant, p=portfolio)
+            execute(conn, """
+                INSERT INTO wl_identity.users(id,portfolio_id,username,username_key,argon_hash,
+                                             credential_incarnation,credential_epoch,created_at)
+                SELECT :t,:p,'SyntheticOperator','syntheticoperator','synthetic-unused',
+                       incarnation,restore_epoch,clock_timestamp() FROM wl_pg.instance_state WHERE id=1
+            """, t=tenant, p=portfolio)
+            execute(conn, 'UPDATE wl_identity.instance_auth_state SET bootstrap_closed=true,admin_user_id=:t WHERE id=1',
+                    t=tenant)
+        migrate_ingestion(cls.operator, *cls.roles, key, catalog)
+
+    @classmethod
+    def _cleanup(cls):
+        import sys
+        for database in cls.databases:
+            database.close()
+        config = cls.path / 'test-config.json'
+        if config.exists():
+            subprocess.run([sys.executable, str(cls.script), 'cleanup-test-environment',
+                            '--config', str(config)], check=True, capture_output=True, timeout=45)
+        cls.directory.cleanup()
+
+    def _check(self, database=None, **arguments):
+        from kurafolio.persistence.ingestion_migration import verify_runtime_inventory
+        with (database or self.runtime).engine.begin() as conn:
+            return verify_runtime_inventory(conn, **{**self.arguments, **arguments})
+
+    def _assert_clean(self):
+        self.assertEqual({'schema_revision': '0004_ingestion', 'functions': 68}, self._check())
+
+    def test_ac_01_02_equal_inventory_and_unchanged_privileges(self):
+        """AC-IMP-007W-01; AC-IMP-007W-02: same catalog, no rights changed."""
+        from kurafolio.persistence.context import execute
+        from kurafolio.persistence.ingestion_migration import verify_inventory
+
+        def snapshot():
+            with self.operator.engine.begin() as conn:
+                acls = execute(conn, """
+                    WITH namespaces AS (
+                        SELECT * FROM pg_catalog.pg_namespace
+                        WHERE nspname IN ('wl_pg','wl_identity','wl_sources','wl_ingestion')
+                    ), rights AS (
+                        SELECT n.nspname,'schema' AS kind,n.nspname AS object_name,0 AS column_number,a.*
+                        FROM namespaces n CROSS JOIN LATERAL pg_catalog.aclexplode(
+                            coalesce(n.nspacl,pg_catalog.acldefault('n',n.nspowner))) a
+                        UNION ALL
+                        SELECT n.nspname,'table',c.relname,0,a.*
+                        FROM namespaces n JOIN pg_catalog.pg_class c ON c.relnamespace=n.oid
+                        CROSS JOIN LATERAL pg_catalog.aclexplode(
+                            coalesce(c.relacl,pg_catalog.acldefault('r',c.relowner))) a WHERE c.relkind='r'
+                        UNION ALL
+                        SELECT n.nspname,'column',c.relname,b.attnum,a.*
+                        FROM namespaces n JOIN pg_catalog.pg_class c ON c.relnamespace=n.oid
+                        JOIN pg_catalog.pg_attribute b ON b.attrelid=c.oid AND b.attnum>0
+                        CROSS JOIN LATERAL pg_catalog.aclexplode(b.attacl) a
+                        UNION ALL
+                        SELECT n.nspname,'function',p.proname,0,a.*
+                        FROM namespaces n JOIN pg_catalog.pg_proc p ON p.pronamespace=n.oid
+                        CROSS JOIN LATERAL pg_catalog.aclexplode(
+                            coalesce(p.proacl,pg_catalog.acldefault('f',p.proowner))) a
+                    ) SELECT * FROM rights ORDER BY 1,2,3,4,5,6,7,8
+                """).all()
+                privileges = []
+                for role in self.roles:
+                    privileges.append(execute(conn, """
+                        SELECT pg_catalog.has_database_privilege(:role,current_database(),'CREATE,TEMPORARY')
+                    """, role=role).scalar_one())
+                    privileges.extend(execute(conn, """
+                        SELECT pg_catalog.has_schema_privilege(:role,n.oid,'CREATE')
+                        FROM pg_catalog.pg_namespace n ORDER BY n.nspname
+                    """, role=role).scalars().all())
+                return acls, privileges
+
+        before = snapshot()
+        self.assertTrue(before[0])
+        self.assertFalse(any(before[1]))
+        with self.operator.engine.begin() as conn:
+            operator = verify_inventory(conn, **self.arguments)
+        self.assertEqual({'schema_revision': '0004_ingestion', 'functions': 68}, operator)
+        self.assertEqual(operator, self._check())
+        self.assertEqual(before, snapshot())
+
+    def test_ac_03_operator_check_still_requires_create(self):
+        """AC-IMP-007W-03: the runtime login cannot use the operator entry point."""
+        from kurafolio.persistence.errors import PersistenceError
+        from kurafolio.persistence.ingestion_migration import verify_inventory
+        with self.runtime.engine.begin() as conn:
+            with self.assertRaises(PersistenceError) as caught:
+                verify_inventory(conn, **self.arguments)
+        self.assertEqual('migration_role_required', str(caught.exception))
+
+    def test_ac_04_committed_catalog_drift_and_recovery(self):
+        """AC-IMP-007W-04: reject each committed drift and pass after its reversal."""
+        import psycopg
+        from psycopg import sql
+        from kurafolio.persistence.context import execute
+        from kurafolio.persistence.errors import PersistenceError
+        runtime, gateway, worker = self.roles
+        cases = [
+            ('public_execute', 'GRANT EXECUTE ON FUNCTION wl_ingestion._validate_minimal_v1(bytea) TO PUBLIC',
+             'REVOKE EXECUTE ON FUNCTION wl_ingestion._validate_minimal_v1(bytea) FROM PUBLIC', 'migration_target_invalid'),
+            ('search_path', 'ALTER FUNCTION wl_ingestion.read_plan_basis_v1(uuid,text,jsonb,bytea) RESET search_path',
+             'ALTER FUNCTION wl_ingestion.read_plan_basis_v1(uuid,text,jsonb,bytea) SET search_path=pg_catalog,pg_temp',
+             'migration_target_invalid'),
+            ('gateway_select', f'GRANT SELECT ON wl_pg.alembic_version TO "{gateway}"',
+             f'REVOKE SELECT ON wl_pg.alembic_version FROM "{gateway}"', 'migration_target_invalid'),
+            ('runtime_create', f'GRANT CREATE ON SCHEMA public TO "{runtime}"',
+             f'REVOKE CREATE ON SCHEMA public FROM "{runtime}"', 'migration_target_invalid'),
+            ('revision', "UPDATE wl_pg.alembic_version SET version_num='0003_source_lifecycle'",
+             "UPDATE wl_pg.alembic_version SET version_num='0004_ingestion'", 'schema_unsupported'),
+        ]
+        for name, change, revert, expected in cases:
+            with self.subTest(drift=name):
+                try:
+                    with self.operator.engine.begin() as conn:
+                        execute(conn, change)
+                    with self.assertRaises(PersistenceError) as caught:
+                        self._check()
+                    self.assertEqual(expected, str(caught.exception))
+                finally:
+                    with self.operator.engine.begin() as conn:
+                        execute(conn, revert)
+                self._assert_clean()
+        try:
+            with psycopg.connect(**self.admin, autocommit=True) as conn:
+                conn.execute(sql.SQL('GRANT {} TO {}').format(sql.Identifier(worker), sql.Identifier(runtime)))
+            with self.assertRaises(PersistenceError) as caught:
+                self._check()
+            self.assertEqual('migration_role_required', str(caught.exception))
+        finally:
+            with psycopg.connect(**self.admin, autocommit=True) as conn:
+                conn.execute(sql.SQL('REVOKE {} FROM {}').format(sql.Identifier(worker), sql.Identifier(runtime)))
+        self._assert_clean()
+
+    def test_ac_05_wrong_callers_are_sanitized(self):
+        """AC-IMP-007W-05: gateway/operator logins and a mismatched runtime name refuse."""
+        from kurafolio.persistence.errors import PersistenceError
+        for database, arguments in ((self.gateway, {}), (self.operator, {}),
+                                    (self.runtime, {'runtime_role': self.roles[1]})):
+            with self.subTest(database=database.schema_mode, wrong_name=bool(arguments)):
+                with self.assertRaises(PersistenceError) as caught:
+                    self._check(database, **arguments)
+                self.assertEqual('migration_role_required', str(caught.exception))
+                self.assertIsNone(caught.exception.__cause__)
+
+    def test_ac_07_existing_role_inventory_profile_boundary(self):
+        """AC-IMP-007W-07: sources gateway passes; its legacy runtime check refuses 0004."""
+        from types import SimpleNamespace
+        from kurafolio.persistence.identity import IdentityError, role_inventory
+        with self.gateway.engine.begin() as conn:
+            self.assertEqual(self.roles[1], role_inventory(SimpleNamespace(schema_mode='sources'),
+                                                          gateway=True, connection=conn))
+        with self.runtime.engine.begin() as conn:
+            with self.assertRaises(IdentityError):
+                role_inventory(SimpleNamespace(schema_mode='sources'), gateway=False, connection=conn)
+
+
+@unittest.skipUnless(importlib.util.find_spec('sqlalchemy'),
+                     'Optional PostgreSQL SQLAlchemy dependency is not installed')
+class IngestionRuntimeInventoryUnitTests(unittest.TestCase):
+    class Connection:
+        def __init__(self, answers):
+            self.answers = iter(answers)
+            self.sql = []
+
+        def execute(self, statement, parameters):
+            self.sql.append(statement.text)
+            answer = next(self.answers)
+            if isinstance(answer, Exception):
+                raise answer
+            return self.Result(answer)
+
+        class Result:
+            def __init__(self, value):
+                self.value = value
+
+            def scalar_one(self):
+                return self.value
+
+            def scalars(self):
+                return self
+
+            def all(self):
+                return self.value
+
+    arguments = dict(runtime_role='synthetic_runtime', gateway_role='synthetic_gateway',
+                     worker_role='synthetic_worker')
+    namespaces = [(name, 'synthetic_operator') for name in ('wl_pg', 'wl_identity', 'wl_sources', 'wl_ingestion')]
+
+    def test_ac_05_wrong_caller_reads_no_application_table(self):
+        """AC-IMP-007W-05: reject a mismatched caller before any application read."""
+        from kurafolio.persistence.errors import PersistenceError
+        from kurafolio.persistence.ingestion_migration import verify_runtime_inventory
+        conn = self.Connection([180000, 'synthetic_gateway'])
+        with self.assertRaises(PersistenceError) as caught:
+            verify_runtime_inventory(conn, **self.arguments)
+        self.assertEqual('migration_role_required', str(caught.exception))
+        self.assertEqual(2, len(conn.sql))
+        for statement in conn.sql:
+            self.assertFalse(any(name + '.' in statement for name in ('wl_pg', 'wl_identity', 'wl_sources', 'wl_ingestion')))
+
+    def test_ac_05_driver_error_is_sanitized(self):
+        """AC-IMP-007W-05: hide driver SQL, parameters and diagnostics on revision failure."""
+        import traceback
+        from sqlalchemy.exc import ProgrammingError
+        from kurafolio.persistence.errors import PersistenceError
+        from kurafolio.persistence.ingestion_migration import verify_runtime_inventory
+        conn = self.Connection([180000, 'synthetic_runtime', self.namespaces,
+                                ProgrammingError('private sql', {'private': 'role'}, Exception('private driver'))])
+        with self.assertRaises(PersistenceError) as caught:
+            verify_runtime_inventory(conn, **self.arguments)
+        error = caught.exception
+        self.assertEqual('migration_target_invalid', str(error))
+        self.assertIsNone(error.__cause__)
+        self.assertTrue(error.__suppress_context__)
+        self.assertNotIn('private', ''.join(traceback.format_exception(error)))
+
+    def test_ac_05_role_and_namespace_preconditions(self):
+        """AC-IMP-007W-05: validate role input and catalog ownership before revision reads."""
+        from kurafolio.persistence.errors import PersistenceError
+        from kurafolio.persistence.ingestion_migration import verify_runtime_inventory
+        cases = [([], dict(runtime_role='invalid role'), 'invalid_config'),
+                 ([170000], {}, 'schema_unsupported'),
+                 ([180000, 'synthetic_runtime', self.namespaces[:3]], {}, 'migration_target_invalid'),
+                 ([180000, 'synthetic_runtime', self.namespaces[:3] + [('wl_ingestion', 'another_owner')]],
+                  {}, 'migration_target_invalid'),
+                 ([180000, 'synthetic_runtime', self.namespaces],
+                  dict(worker_role='synthetic_operator'), 'migration_role_required'),
+                 ([180000, 'synthetic_runtime', self.namespaces],
+                  dict(worker_role='synthetic_gateway'), 'migration_role_required')]
+        for answers, arguments, expected in cases:
+            with self.subTest(expected=expected, answers=answers):
+                conn = self.Connection(answers)
+                with self.assertRaises(PersistenceError) as caught:
+                    verify_runtime_inventory(conn, **{**self.arguments, **arguments})
+                self.assertEqual(expected, str(caught.exception))
+                self.assertFalse(any('wl_pg.alembic_version' in query for query in conn.sql))
+
+    def test_ac_06_signature_has_no_owner_or_restored_mode(self):
+        """AC-IMP-007W-06: only the connection and three keyword-only role names are public."""
+        import inspect
+        from kurafolio.persistence.ingestion_migration import verify_runtime_inventory
+        parameters = inspect.signature(verify_runtime_inventory).parameters
+        self.assertEqual(['conn', 'runtime_role', 'gateway_role', 'worker_role'], list(parameters))
+        self.assertEqual(inspect.Parameter.POSITIONAL_OR_KEYWORD, parameters['conn'].kind)
+        for name in ('runtime_role', 'gateway_role', 'worker_role'):
+            self.assertEqual(inspect.Parameter.KEYWORD_ONLY, parameters[name].kind)
+            self.assertEqual(inspect.Parameter.empty, parameters[name].default)
+
+    def test_ac_08_runtime_readiness_documentation(self):
+        """AC-IMP-007W-08: document the runtime check and separate operator entry point."""
+        text = (Path(__file__).resolve().parents[1] / 'docs/web-v2-imports.md').read_text()
+        self.assertIn('`verify_runtime_inventory`', text)
+        self.assertIn('`verify_inventory` remains an operator check', text)
+
 
 @unittest.skipUnless(os.environ.get('KURAFOLIO_INGESTION_TEST') == '1',
                      'Opt-in isolated ingestion PostgreSQL provider acceptance')
