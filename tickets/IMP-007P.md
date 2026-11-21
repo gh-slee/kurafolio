@@ -55,7 +55,7 @@ After every member of an import set is normalized, the import worker must turn t
 
 ## Acceptance criteria
 
-- [ ] AC-IMP-007P-01: For every oracle case with a `*-review.json` or `*-plan.json` vector, a test builds the basis pages from that case's oracle inputs, and the builder's review and Plan equal the vectors byte for byte after `codec.encode`.
+- [ ] AC-IMP-007P-01: For every oracle case with a `*-review.json` or `*-plan.json` vector, and for `plan-first-use.json` and `plan-native-first-use.json`, a test builds the basis pages from that case's oracle inputs, and the builder's review and Plan equal the vectors byte for byte after `codec.encode`.
 - [ ] AC-IMP-007P-02: Every bundle the builder produces passes `approval.validate_review_bundle`, and an opt-in real-PostgreSQL test shows that `prepare_preview_v1` accepts it for the first-use, native first-use, `branch-*`, `snapshot-*`, `authority-only` and `mixed-set` cases.
 - [ ] AC-IMP-007P-03: For the stages of `examples/data/wealthsimple-holdings.csv` and `examples/data/bull-orders.csv`, the review's facts equal `wealthsimple_expected` and `bull_expected` in oracle `builtin-inputs.json`, and no contribution or wallet balance appears.
 - [ ] AC-IMP-007P-04: Building twice from the same basis, and from the same basis delivered with page sizes 1, 7 and 50, gives identical bytes.
