@@ -123,7 +123,7 @@ The V2 Profile page is specified to hold a user's language, time zone and defaul
 - APP-011I's updated plan (pull request #82, not merged) moves that profile to
   `0005_invite_status`. The names this plan builds on:
   - `invite_status_schema.{REVISION, PREDECESSOR, SIGNATURES, FUNCTIONS = 69,
-    guard_replacements(), ddl()}`. `guard_replacements()` returns 28 definitions,
+    guard_replacements(), invite_status_ddl(), ddl()}`. `guard_replacements()` returns 28 definitions,
     and `ddl()` appends `invite_status_v1`, so `0005` leaves 29 functions guarded
     with `'0005_invite_status'`.
   - `invite_status_migration.{grants, verify_inventory, migrate_invite_status}`.
@@ -231,8 +231,9 @@ The V2 Profile page is specified to hold a user's language, time zone and defaul
    - `guard_replacements()` returns `CREATE OR REPLACE` text for the 29 functions
      that `0005_invite_status` leaves guarded, rendered from the merged `0005`
      provider's own renderers: the 28 definitions of
-     `invite_status_schema.guard_replacements()`, plus the `invite_status_v1`
-     definition that `invite_status_schema.ddl()` appends, with its leading
+     `invite_status_schema.guard_replacements()`, plus
+     `invite_status_schema.invite_status_ddl()` (the `invite_status_v1` definition
+     that `ddl()` appends), with its leading
      `CREATE FUNCTION ` changed to `CREATE OR REPLACE FUNCTION ` once. Never start
      from `identity_schema.ddl()`, `source_schema.ddl()` or the `0004` renderers. In
      each, replace `'0005_invite_status'` with `'0006_user_preferences'`. Raise
@@ -565,9 +566,11 @@ HTTP tests: a new class `PreferencesIngestionHttpTests` in `tests/test_web_v2_ap
 and activates a `0006` target with the environment helpers of
 `tests/test_postgres_import_routes.py` (or `tests/ingestion_pg_support.py` if
 IMP-007E put them there), which step 13 extends with `migrate_preferences`, and
-serves `create_app` on `ingestion` with `worker_role`. Import those helpers; do not
-copy them. CI runs the class in `postgres-ingestion` (step 17). Real disposable
-targets only.
+serves `create_app` on `ingestion` with `worker_role`. Import those helpers inside
+the class's `setUpClass`, after its skip guard, not at module level: the default and
+core-only suites import `tests/test_web_v2_api.py`, and a module-level import of
+PostgreSQL helpers could break their discovery. Do not copy the helpers. CI runs the
+class in `postgres-ingestion` (step 17). Real disposable targets only.
 
 | AC | Case | Expected |
 |---|---|---|
