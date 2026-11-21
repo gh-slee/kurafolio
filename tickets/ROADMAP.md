@@ -153,8 +153,8 @@ P2:
 5. Confirm or reverse the two priority changes of the triage (PLG-102 to P2, ENG-111 to P1), the
    proposal to close IMP-102, and the eight new tickets.
 6. Merge the open plan pull requests (#82 to #87) and give Gate A, or ask for changes, for the new backlog
-   tickets IMP-007O, IMP-007P, IMP-007Q, IMP-007R, IMP-007S, IMP-007T, IMP-007U, IMP-007V and PLG-105, and
-   for the new gated text of IMP-007E and IMP-007F.
+   tickets IMP-007O, IMP-007P, IMP-007Q, IMP-007R, IMP-007S, IMP-007T, IMP-007U, IMP-007V and PLG-105. The
+   new gated text of IMP-007E and IMP-007F was approved on 2026-11-21 and is recorded in #87 and #86.
 
 ## Phases
 
