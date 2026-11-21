@@ -6,7 +6,8 @@ on-demand exports. The current CLI and Web app stay usable throughout. This page
 orders the work. Each ticket file holds its own scope, acceptance and handoff;
 `python3 scripts/tickets.py list` is the live status.
 
-Updated 2026-11-20 (triage of 2026-11-13, brought up to date, with the import ticket split of 2026-11-20;
+Updated 2026-11-21 (triage of 2026-11-13, brought up to date, with the import ticket split of 2026-11-20
+and IMP-007W of 2026-11-21;
 see the next three sections). Phases describe
 sequencing, not approval. Tickets with `gate: owner` still need the owner's approval before work starts. The
 sections from "Phases" onward are the history of earlier planning passes; where they disagree with the
@@ -48,9 +49,14 @@ in open plan pull requests and take effect on the board when those merge:
   them yet.
 - APP-011D now also waits on IMP-007U; OPS-021 on IMP-007S and IMP-007U; IMP-007G on IMP-007U and
   IMP-007S (#87). IMP-007G also gains IMP-007V in a small follow-up pull request after #86 and #87 merge.
+- On 2026-11-21 the IMP-007E build stopped before its first part: the only `0004` inventory check needs
+  database CREATE, which the `0004` grants take from every application role, so the API cannot run it at
+  `/readyz`. The owner chose a new prerequisite ticket. IMP-007W adds a check the runtime role can run with
+  its existing rights; IMP-007E waits on it, and the plans of APP-011I and APP-011E add the same check for
+  their revisions `0005` and `0006`.
 
 New backlog tickets awaiting the owner's Gate A: IMP-007O, IMP-007P, IMP-007Q, IMP-007R, IMP-007S,
-IMP-007T, IMP-007U, IMP-007V and PLG-105. IMP-007T and PLG-105 are ANL-008 follow-ups (#83).
+IMP-007T, IMP-007U, IMP-007V, IMP-007W and PLG-105. IMP-007T and PLG-105 are ANL-008 follow-ups (#83).
 
 ## Triage of 2026-11-13
 
@@ -66,24 +72,25 @@ which part of the product a ticket belongs to, and the priority lives only in th
 original V2 plan tickets kept their numbers (`WL-P0-007D` is `IMP-007D`). [ID_MAP.md](ID_MAP.md) has the
 prefixes and every old ID.
 
-### Step 1: a V2 MVP the owner can use (15 tickets left)
+### Step 1: a V2 MVP the owner can use (16 tickets left)
 
 The owner's flow works end to end: register, enable plugins, import, see Stock/Bond, Crypto and Total.
 
 | Order | Ticket | What it delivers | Tier | Waits on |
 |---|---|---|---|---|
-| 1 | IMP-007E | The ingestion runtime profile and the eight JSON import routes the browser calls | frontier | the owner's approval of its new text (#87) |
+| 1 | IMP-007W | A readiness check of the `0004` inventory that the API's runtime role can run | frontier | the owner's Gate A |
 | 1 | IMP-007F | The worker and launcher that parse uploaded files in isolation | frontier | the owner's approval of its new text (#86) |
-| 1 | IMP-007O | The bind result also returns the member's stored context bytes | frontier | the owner's Gate A; IMP-007N (same lock) |
 | 1 | IMP-007P | The ReviewBundle the worker's prepare step passes to the database | frontier | the owner's Gate A |
 | 1 | ANL-008 | Positions from accepted imports, with the owner's rules | frontier | claimable now |
-| 2 | IMP-007U | The upload route, moved out of IMP-007E | frontier | IMP-007E, IMP-007O; the owner's Gate A |
-| 2 | IMP-007S | Operator command that activates an ingestion instance | frontier | IMP-007E, IMP-007F; the owner's Gate A |
+| 2 | IMP-007O | The bind result also returns the member's stored context bytes | frontier | the owner's Gate A; IMP-007W first (same `ingestion-schema-sql` lock) |
+| 2 | IMP-007E | The ingestion runtime profile and the eight JSON import routes the browser calls | frontier | IMP-007W |
 | 2 | IMP-007V | The worker's prepare step, moved out of IMP-007F | frontier | IMP-007F, IMP-007P; the owner's Gate A |
 | 2 | ANL-012A | One analysis contract for securities, crypto and total | frontier | ANL-008 |
-| 3 | APP-011D | Import Data page: upload, review, confirm, history | standard | IMP-007E, IMP-007U |
+| 3 | IMP-007U | The upload route, moved out of IMP-007E | frontier | IMP-007E, IMP-007O; the owner's Gate A |
+| 3 | IMP-007S | Operator command that activates an ingestion instance | frontier | IMP-007E, IMP-007F; the owner's Gate A |
 | 3 | ANL-012B | Stock/Bond page and the shared toolbar | standard | ANL-012A |
-| 3 | OPS-021 | One-command deployment; its pull request says "ready to use" | frontier | IMP-007E, IMP-007F, IMP-007S, IMP-007U, ANL-012A |
+| 4 | APP-011D | Import Data page: upload, review, confirm, history | standard | IMP-007E, IMP-007U |
+| 4 | OPS-021 | One-command deployment; its pull request says "ready to use" | frontier | IMP-007E, IMP-007F, IMP-007S, IMP-007U, ANL-012A |
 | 4 | ANL-012C | Crypto page | standard | ANL-012B |
 | 4 | IMP-007G | Independent acceptance of imports (36 cases) | frontier | IMP-007E, IMP-007F, IMP-007U, IMP-007S; IMP-007V once added |
 | 5 | ANL-012D | Total page and Home | standard | ANL-012C |

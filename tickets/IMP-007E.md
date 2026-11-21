@@ -5,7 +5,7 @@ priority: P0
 status: ready
 type: feature
 parent: IMP-007
-depends_on: [IMP-007D, IMP-007J]
+depends_on: [IMP-007D, IMP-007J, IMP-007W]
 resources: [v2-import-routes, identity-api]
 risk: high
 size: M
@@ -71,6 +71,16 @@ No file under `src/`, `tests/`, `docs/` or `scripts/` changed between `a2f5f2b` 
   - Its D1 asked who registers the worker and sets `ready`. The owner answered that with IMP-007S (Decisions needed, item 4).
   - Its D2 finds that no merged code builds a `ReviewBundle`, so no worker can prepare a preview yet. IMP-007E's routes only read previews and confirm them, so this ticket does not depend on that answer; its tests seed a READY set with a preview from the oracle vectors.
 
+### Readiness at `0004` (2026-11-21, `main` at `cd68c5e`)
+
+- The builder (codex/gpt-6.1-sol) claimed this ticket on 2026-11-21 and stopped before Part A, at the second Stop-and-ask condition. On one isolated synthetic PostgreSQL 18 target migrated to `0004_ingestion`:
+  - The operator call to `ingestion_migration.verify_inventory` passed with 68 functions.
+  - The same call through the runtime role's login raised `migration_role_required`. It calls `migration._operator`, which requires database CREATE, and the approved `0004` grants revoke CREATE from the runtime, gateway and worker roles.
+  - Through the gateway role's login it failed on reading `wl_pg.alembic_version`, because the gateway has no right on `wl_pg`.
+  - No code was changed. Decisions needed item 7 records the question and the owner's answer.
+- A second refusal, found while revising this plan by reading `identity.role_inventory`: with `gateway=False` it requires INSERT on most `wl_pg` columns, but at `0004` the runtime role has SELECT only on `wl_pg`. So `role_inventory(self.financial, gateway=False)`, which `Auth.ready()` calls today, would also refuse a correct `0004` target. The gateway branch should pass. IMP-007W's AC-07 confirms both on real PostgreSQL.
+- IMP-007W adds `ingestion_migration.verify_runtime_inventory(conn, *, runtime_role, gateway_role, worker_role)`. It runs through the runtime login with the rights `0004` gives that role and makes the same checks as the operator verifier. That covers the runtime role's exact grants and role safety, which `role_inventory(gateway=False)` would otherwise check. Part A uses it.
+
 ## Requirements
 
 - Frozen r7 contract bundle, the contract approved as "IMP-007 spec r7": [docs/specs/imp-007-r7/](../docs/specs/imp-007-r7/README.md) (index sha256:75a859f65d7ee4564a20220b756b88ff44cf4449644167e2df2a87fd081e7fe7; the index lists the SHA-256 of each file), notably [spec.md](../docs/specs/imp-007-r7/spec.md), [sql-appendix.md](../docs/specs/imp-007-r7/sql-appendix.md), [sql-inventory.json](../docs/specs/imp-007-r7/sql-inventory.json), [contract-appendix.md](../docs/specs/imp-007-r7/contract-appendix.md) and [acceptance.md](../docs/specs/imp-007-r7/acceptance.md).
@@ -112,7 +122,7 @@ Rules that reviewers will check:
 
 ## Build plan
 
-- Based on: `main` at `a2f5f2b`; rechecked on 2026-11-20 against `main` at `d902717`, with no change under `src/`, `tests/`, `docs/` or `scripts/`.
+- Based on: `main` at `a2f5f2b`; rechecked on 2026-11-20 against `main` at `d902717`, with no change under `src/`, `tests/`, `docs/` or `scripts/`. The readiness parts (Part A `config.py` and `auth.py`, the `/readyz` test rows and Stop and ask) were revised on 2026-11-21 from `main` at `cd68c5e` for the owner's answer to Decisions needed item 7. They use IMP-007W's interface as its plan names it; a builder starts only after IMP-007W is `done`.
 - The plan follows the owner's answers of 2026-11-20 under Decisions needed (items 1 to 5) and the new gated text (item 6). The owner approved the new gated text on 2026-11-21 (item 6), recorded in plan pull request #87. A builder starts only after that record is on `main`.
 - Build order:
   1. Part A (profile).
@@ -131,12 +141,12 @@ Every change is additive. The `identity` and `sources` profiles keep their exact
   - Add `ingestion` to the set checked in `_transaction`'s principal branch and in `RequestDatabase.__post_init__`.
 - `src/kurafolio/persistence/identity.py`:
   - `IdentityStore.__init__` accepts `"ingestion"`.
-  - In `role_inventory`, `source_role_inventory` also runs when `database.schema_mode == "ingestion"`.
+  - In `role_inventory`, `source_role_inventory` also runs when `database.schema_mode == "ingestion"`. On `ingestion`, `Auth.ready()` calls only the gateway branch (`gateway=True`); see `auth.py` below.
   - The other counts stay as they are (22 `wl_identity` functions, 7 identity tables, 22 RLS `wl_pg` tables), because `0004` replaces function bodies but adds no identity or `wl_pg` objects. If a real `0004` database disagrees, stop and ask.
 - `src/kurafolio/persistence/source_store.py`: `SourceStore.__init__(config, catalog, *, schema_mode="sources")` accepts `"sources"` or `"ingestion"`.
 - `src/kurafolio/web_v2/config.py`:
   - `Settings.schema_profile` accepts `"ingestion"`. Like `sources`, `ingestion` requires a valid `source_catalog`.
-  - Add one keyword-only field, `worker_role: str | None`, a PostgreSQL role name. It is `None` unless the profile is `ingestion` and is required for it. Validate it with the same rule as the operator's `--worker-role`. `Auth.ready()` passes it to `verify_inventory`.
+  - Add one keyword-only field, `worker_role: str | None`, a PostgreSQL role name. It is `None` unless the profile is `ingestion` and is required for it. Validate it with the same rule as the operator's `--worker-role`. `Auth.ready()` passes it to `verify_runtime_inventory`.
   - `from_files(..., worker_role=None)` passes it through.
   - The hand-off settings (worker URL, peer DNS name, instance ID and the TLS files) belong to the upload route and are IMP-007U's. Do not add them here.
 - `src/kurafolio/web_v2/__main__.py`:
@@ -147,7 +157,17 @@ Every change is additive. The `identity` and `sources` profiles keep their exact
 - `src/kurafolio/web_v2/auth.py`:
   - For `sources` or `ingestion`, `Auth.__init__` opens `SourceStore(settings.identity, settings.source_catalog, schema_mode=profile)`.
   - For `ingestion` it also opens `self.imports = IngestionStore(settings.identity, settings.source_catalog)` (Part B) and sets `self.cursor_key = cursors.derive_key(settings.key)`. `close()` closes `self.imports`.
-  - `Auth.ready()` on `ingestion` replaces the `sources` verification with `ingestion_migration.verify_inventory(conn, runtime_role=runtime_role, gateway_role=gateway_role, worker_role=self.settings.worker_role)`. That call already covers the identity inventory, the source structure digest, the `0004` structure digest, the functions and the grants. `ready()` keeps the realm comparison and the `wl_sources.catalog_state` digest check.
+  - `Auth.ready()` on `ingestion`, in this order:
+    1. `left = self.instance()` and `gateway_role = role_inventory(self.store.database, gateway=True)`, as today.
+    2. Do not call `role_inventory(self.financial, gateway=False)`. It refuses a correct `0004` target (Context, "Readiness at `0004`").
+    3. In one `self.financial.engine.begin()` transaction:
+       - `runtime_role = execute(conn, "SELECT current_user").scalar_one()`;
+       - `ingestion_migration.verify_runtime_inventory(conn, runtime_role=runtime_role, gateway_role=gateway_role, worker_role=self.settings.worker_role)` (IMP-007W). It covers the identity inventory, both structure digests, the functions, the exact grants and role safety of all three roles, and refuses equal roles;
+       - the `REALM_SNAPSHOT` read and realm comparison;
+       - the `wl_sources.catalog_state` digest check.
+    4. Any exception becomes `IdentityError()`, as today.
+  - The API never calls `ingestion_migration.verify_inventory`, `_checked_roles` or `migration._operator`. They are operator-only.
+  - The `identity` and `sources` branches of `ready()` stay exactly as they are.
   - `ready()` does not read `wl_ingestion.instance_state`. An unactivated instance passes `/readyz`, and every import route answers `instance_not_ready` (503) from SQL. Part F documents this.
 - `src/kurafolio/web_v2/api.py`:
   - On `ingestion`, `Boundary.request` and `create_app` serve the source routes exactly as on `sources`, because `create_set_v1` needs an enabled connection and only the source routes create one. They also serve the import routes from Part D.
@@ -258,6 +278,8 @@ Every test names its AC ID.
 | 01 | Source routes on `ingestion` | Served as on `sources` |
 | 02 | Fake store records every call during the whole run | Names a subset of `ingestion_schema.GATEWAY`; no `INSERT`, `UPDATE`, `DELETE` or `TRUNCATE` text in `api.py` or `ingestion_store.py` |
 | 02 | Real PG: `/readyz` on a migrated `0004` instance | 200; with one extra grant to the gateway role added by the owner connection, 503 |
+| 02 | Real PG: `/readyz` on the same instance with `ingestion_migration.verify_inventory` and `migration._operator` patched to raise `AssertionError` | 200; neither patch is called |
+| 02 | Real PG: `/readyz` after the owner connection grants `CREATE ON SCHEMA public` to the runtime role | 503 |
 | 03 | Each of the 8 routes with no cookie | 401 `authentication_required` |
 | 03 | Each unsafe route with a wrong `Origin` / without `X-CSRF-Token` | 403 `origin_rejected` / 403 `csrf_rejected` |
 | 03 | Real PG: user B reads, decides, cancels or confirms user A's set, preview or receipt | 404 `not_found`; A's set `revision` unchanged |
@@ -300,7 +322,7 @@ CI and the skip guard:
 
 ### Do not touch
 
-- `src/kurafolio/persistence/ingestion_schema.py`, `ingestion_migration.py`, `ingestion_restore.py` and the `0001` to `0004` providers and migration files: no SQL change in this ticket. IMP-007O changes the `0004` bind result separately.
+- `src/kurafolio/persistence/ingestion_schema.py`, `ingestion_migration.py`, `ingestion_restore.py` and the `0001` to `0004` providers and migration files: no SQL change in this ticket. IMP-007O changes the `0004` bind result separately, and IMP-007W adds `verify_runtime_inventory`.
 - The upload route, `web_v2/handoff.py`, the hand-off settings and their `serve` flags: IMP-007U.
 - The operator activation command in `web_v2/operator.py`: IMP-007S.
 - `identity` and `sources` route behaviour, error codes and budgets; the SQLite application and legacy routes.
@@ -311,7 +333,8 @@ CI and the skip guard:
 ### Stop and ask if
 
 - The Gate A record of 2026-11-21 (Decisions needed, item 6) is not on `main`, or `python3 scripts/tickets.py spec IMP-007E` reports a changed spec.
-- `role_inventory`, `source_role_inventory` or `verify_inventory` refuses a correctly migrated `0004` database when called from the runtime or gateway role.
+- IMP-007W is not `done`, or `verify_runtime_inventory` on `main` has another name, signature or result than Part A uses.
+- `verify_runtime_inventory` through the runtime login, or `role_inventory(gateway=True)` (with `source_role_inventory`) through the gateway login, refuses a correctly migrated `0004` database. Do not grant a role more rights, call the operator verifier or skip a check to get past it.
 - A SQL function returns keys that its wire DTO does not have, other than `next`, or a code outside `error_status`, `lifecycle_v1.STATUS` and `identity.STATUS`.
 - A requirement seems to need a SQL change, a new route, a new error code or a new DTO field.
 - A real-PostgreSQL test cannot run in the isolated environment. A skipped test is not acceptance.
@@ -327,7 +350,7 @@ CI and the skip guard:
 
 ## Decisions needed
 
-Items 1 to 5 were answered by the owner on 2026-11-20 and item 6 on 2026-11-21; all are kept here as the record. None is open.
+Items 1 to 5 were answered by the owner on 2026-11-20 and items 6 and 7 on 2026-11-21; all are kept here as the record. None is open.
 
 1. **Which ticket builds the ingestion runtime profile?** Answered 2026-11-20: "IMP-007E (Recommended)", option (a). This ticket builds the profile as Build plan Part A describes, with no gated change for it; `resources` adds `identity-api`; APP-011I and APP-011E add IMP-007E to their `depends_on` in their own plans.
 2. **Where does the API get the member's context bytes for the hand-off?** Answered 2026-11-20: "New SQL ticket (Recommended)", option (a). IMP-007O makes the bind result of `reserve_member_v1` also return the stored context bytes. Because the upload route then moved to IMP-007U (item 6), the dependency on IMP-007O belongs to IMP-007U, and this ticket's `depends_on` does not change.
@@ -341,6 +364,10 @@ Items 1 to 5 were answered by the owner on 2026-11-20 and item 6 on 2026-11-21; 
    - Hashes from `python3 scripts/tickets.py spec IMP-007E`: approved sha256:6db6a5ba54ea92a37456cd15bf51124498e73d86d19d24cb6da26d4dcbac652b; new sha256:aba3bef4df145ca2355ad07c3fafb0954169d04ad8a05609502b23528a1c3d4c.
    - `spec_approved` now records the new hash and `gate_approval` adds the 2026-11-21 approval. Both take effect when plan pull request #87 merges.
    - The Build plan above was checked against the new text.
+7. **How should the ingestion API perform readiness inventory without operator privileges?** Raised by the builder on 2026-11-21 (Context, "Readiness at `0004`"). The merged plan had `Auth.ready()` call `ingestion_migration.verify_inventory` through the runtime connection, but that function requires database CREATE, and a real migrated `0004` synthetic target refused it after the operator call had passed. Options were (a) add a prerequisite ticket providing an approved runtime-safe inventory check, then update this Build plan to use it (recommended; keeps this ticket's ban on migration and provider changes), or (b) widen this ticket's scope and Build plan to include that check, with a new approval for the changed gated text. Answered 2026-11-21: "New prerequisite ticket", option (a).
+   - IMP-007W is that ticket. It is `backlog` until the owner's Gate A.
+   - `depends_on` adds IMP-007W, as the answer's "prerequisite" says.
+   - Part A's `auth.py` and `config.py` bullets, two `/readyz` test rows and Stop and ask now use `verify_runtime_inventory`. The gated sections are unchanged (hash sha256:aba3bef4df145ca2355ad07c3fafb0954169d04ad8a05609502b23528a1c3d4c).
 
 ## Handoff
 
@@ -365,3 +392,5 @@ Items 1 to 5 were answered by the owner on 2026-11-20 and item 6 on 2026-11-21; 
 - 2026-11-20 claude-code/opus-5.5: recorded the owner's answers of 2026-11-20 in Decisions needed: item 1 "IMP-007E (Recommended)"; item 2 "New SQL ticket (Recommended)" (IMP-007O); items 3 and 5 "Accept both (Recommended)"; item 4 "New operator ticket (Recommended)" (IMP-007S). `depends_on` is unchanged.
 - 2026-11-20 claude-code/opus-5.5: the owner chose "Move upload out (Recommended)": "Upload route and its ACs move to a new ticket that depends on IMP-007O. IMP-007E (profile + 8 routes) can be built now and finishes sooner, unblocking APP-011I and APP-011E. Changes IMP-007E's gated text: you approve the new text after the planner drafts it." Drafted the new Goal, Requirements and Acceptance criteria (AC-04, 06 and 08 moved to IMP-007U), removed Part E and the hand-off settings from the Build plan, and filed IMP-007U, IMP-007O and IMP-007S in plan pull request #87. Spec hash changes from sha256:6db6a5ba54ea92a37456cd15bf51124498e73d86d19d24cb6da26d4dcbac652b to sha256:aba3bef4df145ca2355ad07c3fafb0954169d04ad8a05609502b23528a1c3d4c; `spec_approved` and `gate_approval` are unchanged and wait for the owner's Gate A.
 - 2026-11-21 claude-code/opus-5.5: recorded Gate A for the new gated text. The owner was asked "Gate A for IMP-007E's new text (PR #87, hash aba3bef4…). Changes from the approved text: the Goal names the ingestion runtime profile and drops uploads ('upload route is IMP-007U'); Requirements add one paragraph adopting the r7 profile branch (activation is IMP-007S), say 'Eight routes' instead of nine with the upload row removed, and move the upload-order, upload-body and hand-off bullets to IMP-007U; AC-04, AC-06 and AC-08 move to IMP-007U, other AC IDs unchanged. Approve this exact text?" and chose "Approve". `spec_approved` changes from sha256:6db6a5ba54ea92a37456cd15bf51124498e73d86d19d24cb6da26d4dcbac652b to sha256:aba3bef4df145ca2355ad07c3fafb0954169d04ad8a05609502b23528a1c3d4c; `gate_approval` adds "owner 2026-11-21, IMP-007E text after the upload split (Q13)". Decisions needed item 6 resolved. The Build plan was checked against this text. Handoff now names IMP-007U and APP-011E as `identity-api` holders.
+- 2026-11-21 claude-code/opus-5.5: recorded the builder's finding. codex/gpt-6.1-sol claimed this ticket on 2026-11-21 from `cd68c5e` and stopped before Part A at the Stop-and-ask condition on `verify_inventory`. On an isolated synthetic PostgreSQL 18 target at `0004`, the operator verifier passed with 68 functions, the same call through the runtime login raised `migration_role_required`, and the gateway login could not read `wl_pg`. No code changed; the builder's commits stayed on its local branch, and its evidence is under the ignored `work/imp-007e/` of that worktree. The builder raised Decisions needed item 7.
+- 2026-11-21 claude-code/opus-5.5: the owner answered Decisions needed item 7 with "New prerequisite ticket", option (a): "add a prerequisite ticket providing an approved runtime-safe inventory check, then update this Build plan to use it". Filed IMP-007W and added it to `depends_on`; the owner's answer confirms that change. Revised the readiness parts of the Build plan from `main` at `cd68c5e`: `Auth.ready()` on `ingestion` uses `verify_runtime_inventory` and no longer calls `role_inventory(gateway=False)`, which refuses the read-only runtime role at `0004`. Gated sections unchanged (sha256:aba3bef4df145ca2355ad07c3fafb0954169d04ad8a05609502b23528a1c3d4c).

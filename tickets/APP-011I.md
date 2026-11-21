@@ -125,10 +125,18 @@ When someone opens an invitation link that has expired, been revoked or already 
     22 `wl_identity` functions.
   - `Settings` gains `worker_role`; `serve` gains `--schema-profile ingestion` and
     `--worker-role`; the operator `--schema-profile` choice adds `ingestion`.
-  - `Auth.ready()` on `ingestion` calls `ingestion_migration.verify_inventory(conn,
+  - `Auth.ready()` on `ingestion` calls `ingestion_migration.verify_runtime_inventory(conn,
     runtime_role=runtime_role, gateway_role=gateway_role,
-    worker_role=self.settings.worker_role)` and keeps the realm and catalog digest
-    checks.
+    worker_role=self.settings.worker_role)` through the runtime connection, with
+    `runtime_role` from `SELECT current_user`, and keeps the realm and catalog
+    digest checks. It calls `role_inventory` only with `gateway=True`. Revised on
+    2026-11-21: the operator `verify_inventory` needs database CREATE, which `0004`
+    takes from every application role, and `role_inventory(gateway=False)` expects
+    INSERT rights the read-only runtime role lacks at `0004`. IMP-007W (backlog,
+    waiting for Gate A) adds the runtime check with a private
+    `ingestion_migration._runtime_owner(conn, *, runtime_role, gateway_role,
+    worker_role)` and a keyword-only `owner` on `_checked_roles` and
+    `verify_grants`; IMP-007E depends on it.
   - `Boundary.request` and `create_app` serve the source routes and the eight
     import routes on `ingestion`.
   - Real-PostgreSQL HTTP tests in `tests/test_postgres_import_routes.py` build
@@ -191,7 +199,9 @@ Notes from the APP-011B product review:
 
 - Based on: `main` at `a2f5f2b` (2026-11-19); rechecked on 2026-11-21 against
   `main` at `4c87113` (Context, "Rechecked") and against IMP-007E's Build plan
-  Part A in pull request #87.
+  Part A in pull request #87. The readiness check (step 4's
+  `verify_runtime_inventory`, step 9's `Auth.ready()` and one test row) was revised
+  on 2026-11-21 from `main` at `cd68c5e` for IMP-007W.
 - Do not claim this ticket until IMP-007E has merged. IMP-007E's new gated text
   waits for the owner's Gate A, so it cannot be built before that approval is on
   `main`. Part B changes the ingestion runtime profile that IMP-007E adds.
@@ -278,6 +288,16 @@ Notes from the APP-011B product review:
      trigger, and the digest covers no functions); `verify_functions` and
      `verify_grants` with the extensions in step 5. Return
      `{"schema_revision": "0005_invite_status", "functions": 69}`.
+   - `verify_runtime_inventory(conn, *, runtime_role, gateway_role, worker_role)`:
+     the runtime-login counterpart, built the way IMP-007W builds the `0004` one.
+     Put the checks after the owner lookup in one private body that takes the
+     owner, shared with `verify_inventory`. The runtime function takes
+     `owner = ingestion_migration._runtime_owner(conn, runtime_role=...,
+     gateway_role=..., worker_role=...)` first, before any application table read,
+     then makes the same checks with `quarantined=False` and passes `owner=owner`
+     to `verify_grants`. It maps `SQLAlchemyError` to `migration_target_invalid`,
+     has no quarantined mode and returns the same result. `verify_inventory` keeps
+     calling `_operator`.
    - `migrate_invite_status(database, runtime_role, gateway_role, worker_role,
      key_digest, catalog, *, fault=None)`: copy the structure of
      `migrate_ingestion` (key digest and catalog validation, `_checked_roles`, advisory
@@ -351,10 +371,11 @@ Notes from the APP-011B product review:
      the only change to what an IMP-007E test asserts about the revision, apart from
      the `/readyz` case below.
    - `src/kurafolio/web_v2/auth.py`: in `Auth.ready()` on `ingestion`, replace
-     `ingestion_migration.verify_inventory(...)` with
-     `invite_status_migration.verify_inventory(conn, runtime_role=runtime_role,
+     `ingestion_migration.verify_runtime_inventory(...)` with
+     `invite_status_migration.verify_runtime_inventory(conn, runtime_role=runtime_role,
      gateway_role=gateway_role, worker_role=self.settings.worker_role)`. Keep the
-     realm comparison and the `wl_sources.catalog_state` digest check.
+     realm comparison and the `wl_sources.catalog_state` digest check. Never call
+     an operator `verify_inventory` from the API.
    - `src/kurafolio/persistence/identity.py`, `role_inventory`: when
      `database.schema_mode == "ingestion"`, expect exactly 23 `wl_identity`
      functions named `set(SIGNATURES) | set(invite_status_schema.SIGNATURES)`, and
@@ -549,6 +570,7 @@ unpinned targets. Call `invite_status_v1` as the gateway role.
 | 04 | Gateway, runtime, worker and PUBLIC privileges | Only the gateway can execute `invite_status_v1` |
 | 04 | `verify_inventory` after `GRANT EXECUTE ... TO PUBLIC`, after `ALTER FUNCTION ... RESET search_path`, after replacing its body | `migration_target_invalid` each time |
 | 04 | Fresh `0005` target | `verify_inventory` gives 69 functions; `_structure_digest` equals the `0004` `EXPECTED_STRUCTURE_SHA256` |
+| 04 | Fresh `0005` target through the runtime role's login | `verify_runtime_inventory` gives the same result as the operator's `verify_inventory`; `verify_inventory` raises `migration_role_required`; after `GRANT EXECUTE ON FUNCTION wl_identity.invite_status_v1(text) TO PUBLIC` (committed, then reverted), `migration_target_invalid` |
 | 02 | `migrate_invite_status` on `0002` and `0003` targets | `schema_unsupported`; the target is unchanged |
 | 02 | `migrate_invite_status` with `fault` raising at `after_grants` | Still `0004_ingestion`, no `invite_status_v1`, the `0004` `verify_inventory` passes |
 | 02 | A second `migrate_invite_status`; `migrate_ingestion` on `0005` | The same result; `schema_unsupported` |
@@ -756,3 +778,4 @@ here as the record. No question is open.
 - 2026-11-21 claude-code/opus-5.5: added IMP-007E to `depends_on`. The owner confirmed it on 2026-11-20: asked "Which ticket builds the ingestion runtime profile?", they chose "IMP-007E (Recommended)": "its approved r7 scope already covers it; IMP-007E adds the `identity-api` resource; APP-011I and APP-011E add IMP-007E to depends_on." This answers Decision 1 with option (a).
 - 2026-11-21 claude-code/opus-5.5: raised `priority` from P1 to P0. Asked how APP-011E's revision 0006 should follow this ticket's 0005, the owner chose on 2026-11-20 "Raise APP-011I to P0 (Recommended)": "keep 0005 invite status, 0006 preferences; APP-011E depends on APP-011I and the profile ticket (IMP-007E)." `gate_approval` and the gated Requirements still record the 2026-11-12 choice of P1 as history; neither was edited.
 - 2026-11-21 claude-code/opus-5.5: updated the plan in plan pull request https://github.com/gh-slee/kurafolio/pull/82. Rechecked against `main` at `4c87113` and against IMP-007E's Part A in pull request #87; step 9 now names IMP-007E's interfaces (the `"ingestion"` literal in `Database.__init__` and its unit test, `Auth.ready()`'s `verify_inventory` call, `role_inventory`, the test environment builders and the `/readyz` cases). Added step 18 (ANL-008's `SUPPORTED_REVISIONS`) and step 19 (a CI step for the new PostgreSQL test file), recorded Decision 1 as answered, and rewrote Handoff. Goal, Requirements and Acceptance criteria unchanged.
+- 2026-11-21 claude-code/opus-5.5: revised the readiness check in the Build plan for IMP-007W (filed from IMP-007E Decisions needed item 7, owner answer "New prerequisite ticket"). The operator `verify_inventory` needs database CREATE, which no application role has from `0004` on, so step 4 adds `invite_status_migration.verify_runtime_inventory` on IMP-007W's `_runtime_owner` and `owner` keyword, step 9's `Auth.ready()` calls it, and a test row covers it. Gated sections and `depends_on` unchanged; IMP-007E now depends on IMP-007W.
