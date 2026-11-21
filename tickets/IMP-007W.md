@@ -2,7 +2,7 @@
 id: IMP-007W
 title: Add a runtime-role readiness check of the 0004 ingestion inventory
 priority: P0
-status: in_progress
+status: done
 type: feature
 parent: IMP-007
 depends_on: [IMP-007D]
@@ -14,7 +14,7 @@ gate: owner
 gate_approval: "owner 2026-11-21, IMP-007W spec as written (hash 69f601c8…)"
 review: independent
 branch: ticket/imp-007w-add-a-runtime-role-readiness-check-of-th
-pr: 
+pr: https://github.com/gh-slee/kurafolio/pull/96
 spec: docs/specs/imp-007-r7/spec.md
 spec_approved: sha256:69f601c821550d5e487bb972ab128e3a8e71d1bce1ed8110081dba13426f7094
 updated: 2026-11-21
@@ -200,10 +200,10 @@ Negative cases the reviewer will look for:
 
 ## Handoff
 
-- State: The runtime-only inventory helper, owner-aware shared checks, tests, docs and CI skip count are implemented in local commit d6dd601. Step 0 passed all six operator/runtime catalog comparisons (68 functions); AC-07 matched the approved expectations. The full migration module passed 149 tests with zero skips in 97.200 seconds, with existing assertions unchanged. The full default developer suite ran 1,395 tests in 814.507 seconds: 1,142 passed and 253 explicitly skipped. Language, staged/worktree publication, protected-function/digest comparison and spec-hash checks passed.
-- Next step: Verify a candidate image for the exact clean HEAD, then obtain approval for the concrete publication scope. After the authorized push and PR, run the configured independent review in Claude Code with `review IMP-007W`; finish the ticket's `done`/`pr:` outcome commit only in that review workflow.
-- Verify: `KURAFOLIO_INGESTION_TEST=1 PYTHONPATH=src <pg-test-python> -m unittest tests.test_postgres_migration -v`; `PYTHONPATH=src <pg-test-python> -m unittest discover -s tests -v`; `python3 scripts/tickets.py spec IMP-007W --base origin/main`; `python3 scripts/check_pr_image.py`. Local evidence: `work/imp-007w/probe-results.json`, `migration-suite.log`, `full-suite.log`, and exact-HEAD receipts under `work/pr-images/`.
-- Gotchas: Drift cases commit and revert across connections. The default suite's skips include opt-in PostgreSQL/image/native-harness tests and one sandbox-denied loopback port reservation; only the separate zero-skip migration run establishes this ticket's real-PostgreSQL acceptance. Independent review and remote CI are NOT RUN. No push, PR or deployment has occurred. The local PR draft is `work/imp-007w/pr-body.md`.
+- State: Implemented by codex/gpt-6.1-sol and published as [PR #96](https://github.com/gh-slee/kurafolio/pull/96), initially at 134bd3b. This completion-metadata commit sets `done` and `pr:` for the ticket gate; it does not claim independent review or merge. Step 0 passed all six operator/runtime catalog comparisons (68 functions), and AC-07 matched the approved expectations. Developer verification: full migration module 149 passed, zero skips, 97.200 seconds; default suite 1,142 passed and 253 skips out of 1,395 tests in 814.507 seconds. Existing assertions, protected functions, SQL providers, grants and digest constants are unchanged.
+- Next step: Verify the exact clean completion commit's candidate image and publication checks, then obtain approval before pushing that additional commit. In Claude Code run `review IMP-007W` for the mandatory independent review before owner review. Retain the claim until review, CI, owner merge and remaining follow-ups are complete.
+- Verify: `KURAFOLIO_INGESTION_TEST=1 PYTHONPATH=src <pg-test-python> -m unittest tests.test_postgres_migration -v`; `PYTHONPATH=src <pg-test-python> -m unittest discover -s tests -v`; `python3 scripts/tickets.py spec IMP-007W --base origin/main`; `python3 scripts/tickets.py pr-check --branch ticket/imp-007w-add-a-runtime-role-readiness-check-of-th`; `python3 scripts/check_pr_image.py`. Local evidence remains under `work/imp-007w/` and exact-HEAD candidate receipts under `work/pr-images/`.
+- Gotchas: The default suite's skips are opt-in PostgreSQL/image/native-harness tests and one sandbox-denied loopback port reservation; skipped features are not accepted. Independent review is NOT RUN, with zero review repair rounds. Initial [PR CI](https://github.com/gh-slee/kurafolio/actions/runs/44961129362) is in progress; its original head still has `in_progress` and empty `pr:`, so its own-ticket gate needs this metadata commit. No merge or deployment has occurred.
 - Open questions: none. The owner clarified that the prescribed `raise ... from None` stays: require no cause and suppressed original driver traceback, while Python may retain internal `__context__`.
 
 ## Log
@@ -213,3 +213,4 @@ Negative cases the reviewer will look for:
 - 2026-11-21 codex/gpt-6.1-sol: claimed the merged Build plan at 1a6ff31 after confirming approved spec hash sha256:69f601c821550d5e487bb972ab128e3a8e71d1bce1ed8110081dba13426f7094. Starting the required catalog-visibility probe before implementation.
 - 2026-11-21 codex/gpt-6.1-sol: Step 0 passed all six operator/runtime comparisons on one synthetic PostgreSQL 18 target; AC-07 matched the approved expected results. Added the exact runtime-only inventory interface and owner-aware shared helpers without changing SQL providers, grants or frozen digests. New unit tests 5/5 and real-PostgreSQL tests 5/5 passed. The owner clarified the exception test: preserve `raise ... from None` and require the original driver traceback to be hidden; internal Python `__context__` retention is allowed. Gated sections and Build plan are unchanged.
 - 2026-11-21 codex/gpt-6.1-sol: committed the implementation as d6dd601. Full ingestion migration module passed 149 tests with zero skips in 97.200 seconds; the default developer suite ran 1,395 tests in 814.507 seconds with 1,142 passing and 253 skips. Existing assertions, protected functions, SQL providers, grants and digest constants are unchanged. Language, worktree/staged publication and approved-spec checks passed. Preparing exact-commit candidate-image validation; independent review and CI remain NOT RUN, with no push or PR.
+- 2026-11-21 codex/gpt-6.1-sol: after explicit approval, pushed exactly e74bf79, d6dd601 and 134bd3b and opened https://github.com/gh-slee/kurafolio/pull/96 with independent review marked NOT RUN. Preparing this local ticket-only completion-metadata commit for the own-ticket CI gate; its push requires separate approval. Outcome: implementing model codex/gpt-6.1-sol; reviewing model claude-code/opus-5.5, NOT RUN because unavailable in this Codex session; review repair rounds 0; missing from spec/Build plan: the unit-test phrase about exception context needed owner clarification, preserving `raise ... from None` and suppressed driver traceback while allowing internal Python `__context__`. No other behavior, data or interface choice was missing. Independent review and owner merge remain outstanding.
