@@ -2,7 +2,7 @@
 id: IMP-007M
 title: Decide how a re-upload gets back a raw slot that finish could not prove
 priority: P0
-status: in_progress
+status: done
 type: decision
 parent: IMP-007
 depends_on: [IMP-007C]
@@ -14,7 +14,7 @@ gate: owner
 gate_approval: "owner 2026-11-12, release to write the options and a recommendation; the decision itself stays with the owner"
 review: independent
 branch: ticket/imp-007m-decide-how-a-re-upload-gets-back-a-raw-s
-pr: 
+pr: https://github.com/gh-slee/kurafolio/pull/97
 spec: docs/specs/imp-007-r7/spec.md
 spec_approved: sha256:cf968d22fe6dcdfadf0a39af3744c41c18ba150851cc4b05611ef5f8f1fe2aaa
 updated: 2026-11-21
@@ -142,11 +142,11 @@ All three decisions were answered by the owner on 2026-11-20. Nothing is open. T
 
 ## Handoff
 
-- State: AC-01 and AC-02 are verified. AC-01 is covered by Decisions needed 1 to 3 and the 2026-11-20 Log entries: B with F, `stage_admitted` included and the resource removed. AC-02 is covered by IMP-007Q on `origin/main` at `1274b54`: AC-IMP-007Q-01 names `release_member_slot_v1`, AC-IMP-007Q-05 its fencing and AC-IMP-007Q-11 its opt-in PostgreSQL tests. IMP-007F stage 1 normalize step 6 and resolved D8 retain option F. These are recorded decisions and planned follow-up work, not shipped slot-release behaviour.
-- Next step: Obtain publication approval for the locally checked ticket-only branch and open the pull request. Keep `status: in_progress`, `pr:` empty and the final Plan box unticked until publication and independent-review steps are complete. After the PR exists, the final closeout commit sets `status: done`, its actual `pr:` URL and the outcome line under the normal ticket workflow.
+- State: AC-01 and AC-02 are verified. PR #97 is open; this local closeout sets its actual URL and `status: done` under the ticket PR workflow. The final metadata commit is not pushed yet; independent review, CI and owner merge remain pending. AC-01 is covered by Decisions needed 1 to 3 and the 2026-11-20 Log entries: B with F, `stage_admitted` included and the resource removed. AC-02 is covered by IMP-007Q on `origin/main` at `1274b54`: AC-IMP-007Q-01 names `release_member_slot_v1`, AC-IMP-007Q-05 its fencing and AC-IMP-007Q-11 its opt-in PostgreSQL tests. IMP-007F stage 1 normalize step 6 and resolved D8 retain option F. These are recorded decisions and planned follow-up work, not shipped slot-release behaviour.
+- Next step: Obtain approval to push the final metadata commit and update PR #97 with the matching evidence. Run the configured independent review before the owner reviews. The final Plan box stays open while that review is NOT RUN. After the owner merges and all checks and questions are resolved, release the claim and stop.
 - Verify: `python3 scripts/tickets.py check`, `python3 scripts/tickets.py spec IMP-007M --base origin/main`, `python3 scripts/check_language.py`, `python3 scripts/check_publication.py --worktree` and `python3 scripts/check_pr_image.py` from the clean committed branch.
-- Review: NOT RUN. Codex cannot start the configured Claude Opus 5.5 reviewer. Run `review IMP-007M` in Claude Code for the required independent QA and architecture review after the PR opens; this frontier ticket waits for that review before the owner's review.
-- Gotchas: Never release a slot without proof that the attempt has no live child or raw buffer. This closeout changes only this file and leaves the approved gated text unchanged. Option B and the worker's release call belong to IMP-007Q; option F belongs to IMP-007F. No SQL, worker, docs or runtime changes here. The final Plan box includes the uncompleted PR and independent review.
+- Review: NOT RUN. Codex cannot start the configured Claude Opus 5.5 reviewer. Run `review IMP-007M` in Claude Code for the required independent QA and architecture review on PR #97; this frontier ticket waits for that review before the owner's review.
+- Gotchas: Never release a slot without proof that the attempt has no live child or raw buffer. This closeout changes only this file and leaves the approved gated text unchanged. Option B and the worker's release call belong to IMP-007Q; option F belongs to IMP-007F. No SQL, worker, docs or runtime changes here. The final Plan box includes the independent review, which remains NOT RUN.
 - Open questions: No product decision is open for this ticket.
 
 ## Log
@@ -163,3 +163,5 @@ All three decisions were answered by the owner on 2026-11-20. Nothing is open. T
 - 2026-11-21 codex/gpt-6.1-sol: claimed the ticket-only closeout from `origin/main` at `1274b54`; the Build plan is merged, `resources: []` is unchanged and the approved spec matches. Verified the three recorded owner decisions, IMP-007Q AC-01/05/11 and IMP-007F stage 1 normalize step 6 with D8 resolved. No product implementation is included.
 - 2026-11-21 codex/gpt-6.1-sol: verified AC-IMP-007M-01 against Decisions needed 1 to 3 and the 2026-11-20 decision Log entries on `origin/main` at `1274b54`; verified AC-IMP-007M-02 against IMP-007Q AC-01/05/11 on that same base. Both criteria are ticked without changing the approved spec text. IMP-007F stage 1 normalize step 6 and D8 retain option F. The final Plan box remains open because no PR or independent review exists yet.
 - 2026-11-21 codex/gpt-6.1-sol: local closeout checks passed: `tickets.py check` (139 tickets, 0 errors), `tickets.py spec IMP-007M --base origin/main` (MATCHES; gated sections unchanged), `check_language.py` (532 files, no violations) and `check_publication.py --worktree` (686 files, no violations). No code tests are required by this ticket-only Build plan. Independent QA and architecture review: NOT RUN, because Codex cannot start the configured Claude Opus 5.5 reviewer; run `review IMP-007M` in Claude Code after the PR opens. Publication, the actual PR URL, final status and outcome line remain pending.
+- 2026-11-21 codex/gpt-6.1-sol: PR #97 opened at `6c692dd` with the validated description. Prepared the final ticket metadata locally: `status: done`, the actual PR URL and this outcome record. The final Plan box stays open because the configured independent review is NOT RUN. CI and owner merge remain pending; no application behaviour changed.
+- 2026-11-21 codex/gpt-6.1-sol: outcome: implementing model `codex/gpt-6.1-sol`; configured reviewing model `claude-code/opus-5.5`, review NOT RUN (unavailable in Codex); review repair rounds: 0; spec and Build plan: nothing missing. AC-01/02 are verified by the recorded owner decisions and IMP-007Q; independent QA and architecture review remain required before the owner reviews PR #97.
