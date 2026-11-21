@@ -5,7 +5,7 @@ priority: P0
 status: ready
 type: review
 parent: IMP-007
-depends_on: [IMP-007E, IMP-007F]
+depends_on: [IMP-007E, IMP-007F, IMP-007U, IMP-007S]
 resources: []
 risk: critical
 size: L
@@ -90,3 +90,4 @@ Derive every expected value yourself from the fixture files. Do not call the imp
 - 2026-11-17 planner: the owner confirmed in conversation ("Confirm all six") the changes PR #64 made to this ticket after its approval. The approval in gate_approval covers the text as it stands now.
 - 2026-11-18 claude-code/opus-5.5: ENG-113 migrated this ticket to the spec format without changing any wording: moved the bullet naming the r7 contract bundle, the "Real-PostgreSQL tests" bullet of Where to start and "What to check" from Context into Requirements and numbered the acceptance criteria AC-IMP-007G-01 to 06. Spec hash sha256:664665500763474ff48fd3779d3e8052c27f181133a0db1193bd429171b5e2b0, awaiting the owner's confirmation.
 - 2026-11-18 claude-code/opus-5.5: the owner confirmed the migrated text of this ticket in conversation with "Confirm all 29", the batch listed in ENG-113 decision 3; `spec_approved` records sha256:664665500763474ff48fd3779d3e8052c27f181133a0db1193bd429171b5e2b0.
+- 2026-11-20 claude-code/opus-5.5: added IMP-007U and IMP-007S to depends_on in plan PR #87, because the upload route moved out of IMP-007E into IMP-007U and activation is IMP-007S. The owner confirmed the change on 2026-11-20 (Q17). Question: "Three approved tickets still list only IMP-007E/IMP-007F, but upload moved to IMP-007U and activation to IMP-007S. Proposed depends_on changes: APP-011D (import UI) adds IMP-007U; OPS-021 (one-command deploy) adds IMP-007S and IMP-007U; IMP-007G (end-to-end acceptance) adds IMP-007U, IMP-007S and the prepare ticket (IMP-007P, or IMP-007V if split). Confirm?" Owner chose: "Confirm all (Recommended)": "Recorded with your confirmation in each ticket's Log, in the IMP-007E plan PR (#87)." The same confirmation covers adding IMP-007V (the prepare step); that waits for a small follow-up PR after #86 and #87 merge, because IMP-007V is filed in #86 and `tickets.py check` rejects a dependency missing from the tree. Goal, Requirements and Acceptance criteria are unchanged; the spec hash still matches `spec_approved`.

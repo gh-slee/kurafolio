@@ -6,7 +6,8 @@ on-demand exports. The current CLI and Web app stay usable throughout. This page
 orders the work. Each ticket file holds its own scope, acceptance and handoff;
 `python3 scripts/tickets.py list` is the live status.
 
-Updated 2026-11-16 (triage of 2026-11-13, brought up to date; see the next two sections). Phases describe
+Updated 2026-11-20 (triage of 2026-11-13, brought up to date, with the import ticket split of 2026-11-20;
+see the next three sections). Phases describe
 sequencing, not approval. Tickets with `gate: owner` still need the owner's approval before work starts. The
 sections from "Phases" onward are the history of earlier planning passes; where they disagree with the
 triage, the triage is current.
@@ -23,6 +24,34 @@ triage, the triage is current.
   go-live: MKT-009E is closed and its remaining work is MKT-101 (P1), which waits for the owner's provider keys.
 - The full test suite now runs cleanly in sandboxed agent sessions (ENG-102).
 
+## Import ticket split (owner decisions, 2026-11-20)
+
+The owner's answers of 2026-11-20 split the remaining import work into smaller tickets. They are recorded
+in open plan pull requests and take effect on the board when those merge:
+
+- IMP-007E builds the ingestion runtime profile and the eight JSON routes. It no longer holds the upload
+  route, so it does not wait for the new SQL ticket, and it unblocks APP-011I and APP-011E (#87). Its
+  changed gated text waits for the owner's approval.
+- IMP-007U is the upload route, moved out of IMP-007E. It waits on IMP-007E and IMP-007O, the SQL ticket
+  that returns the stored member context bytes from the bind result (#87).
+- IMP-007S is the operator command that activates an ingestion instance. It waits on IMP-007E and
+  IMP-007F (#87).
+- IMP-007F is the worker and the launcher. The worker's prepare step moves to IMP-007V, which waits on
+  IMP-007F and on IMP-007P, the ticket that builds the ReviewBundle (#86). IMP-007F's changed gated text
+  waits for the owner's approval.
+- IMP-007M no longer holds the `ingestion-schema-sql` lock (#85). IMP-007N, IMP-007O, IMP-007Q (the
+  late-proof slot release, #85) and IMP-007R (the sweep for a lapsed normalize attempt, #86) share that
+  lock and build one at a time.
+- APP-011I is raised to P0, and APP-011E (revision 0006) follows APP-011I (revision 0005). Both wait on
+  IMP-007E for the runtime profile. The owner decided this on 2026-11-20; the `priority` and `depends_on`
+  changes go in their own plan pull requests (#82 for APP-011I, #84 for APP-011E), which do not record
+  them yet.
+- APP-011D now also waits on IMP-007U; OPS-021 on IMP-007S and IMP-007U; IMP-007G on IMP-007U and
+  IMP-007S (#87). IMP-007G also gains IMP-007V in a small follow-up pull request after #86 and #87 merge.
+
+New backlog tickets awaiting the owner's Gate A: IMP-007O, IMP-007P, IMP-007Q, IMP-007R, IMP-007S,
+IMP-007T, IMP-007U, IMP-007V and PLG-105. IMP-007T and PLG-105 are ANL-008 follow-ups (#83).
+
 ## Triage of 2026-11-13
 
 What changed on the board is in each ticket's Log. In short: board drift fixed (ENG-017 done, ENG-019
@@ -37,36 +66,43 @@ which part of the product a ticket belongs to, and the priority lives only in th
 original V2 plan tickets kept their numbers (`WL-P0-007D` is `IMP-007D`). [ID_MAP.md](ID_MAP.md) has the
 prefixes and every old ID.
 
-### Step 1: a V2 MVP the owner can use (10 tickets left)
+### Step 1: a V2 MVP the owner can use (15 tickets left)
 
 The owner's flow works end to end: register, enable plugins, import, see Stock/Bond, Crypto and Total.
 
 | Order | Ticket | What it delivers | Tier | Waits on |
 |---|---|---|---|---|
-| 1 | IMP-007E | The import routes the browser calls | frontier | claimable now |
-| 1 | IMP-007F | The worker that parses uploaded files in isolation | frontier | claimable now |
+| 1 | IMP-007E | The ingestion runtime profile and the eight JSON import routes the browser calls | frontier | the owner's approval of its new text (#87) |
+| 1 | IMP-007F | The worker and launcher that parse uploaded files in isolation | frontier | the owner's approval of its new text (#86) |
+| 1 | IMP-007O | The bind result also returns the member's stored context bytes | frontier | the owner's Gate A; IMP-007N (same lock) |
+| 1 | IMP-007P | The ReviewBundle the worker's prepare step passes to the database | frontier | the owner's Gate A |
 | 1 | ANL-008 | Positions from accepted imports, with the owner's rules | frontier | claimable now |
-| 2 | APP-011D | Import Data page: upload, review, confirm, history | standard | IMP-007E |
+| 2 | IMP-007U | The upload route, moved out of IMP-007E | frontier | IMP-007E, IMP-007O; the owner's Gate A |
+| 2 | IMP-007S | Operator command that activates an ingestion instance | frontier | IMP-007E, IMP-007F; the owner's Gate A |
+| 2 | IMP-007V | The worker's prepare step, moved out of IMP-007F | frontier | IMP-007F, IMP-007P; the owner's Gate A |
 | 2 | ANL-012A | One analysis contract for securities, crypto and total | frontier | ANL-008 |
+| 3 | APP-011D | Import Data page: upload, review, confirm, history | standard | IMP-007E, IMP-007U |
 | 3 | ANL-012B | Stock/Bond page and the shared toolbar | standard | ANL-012A |
-| 3 | OPS-021 | One-command deployment; its pull request says "ready to use" | frontier | IMP-007E, IMP-007F, ANL-012A |
+| 3 | OPS-021 | One-command deployment; its pull request says "ready to use" | frontier | IMP-007E, IMP-007F, IMP-007S, IMP-007U, ANL-012A |
 | 4 | ANL-012C | Crypto page | standard | ANL-012B |
-| 4 | IMP-007G | Independent acceptance of imports (36 cases) | frontier | IMP-007E, IMP-007F |
+| 4 | IMP-007G | Independent acceptance of imports (36 cases) | frontier | IMP-007E, IMP-007F, IMP-007U, IMP-007S; IMP-007V once added |
 | 5 | ANL-012D | Total page and Home | standard | ANL-012C |
 
-Tickets with the same order number share no resource and can run at the same time. In the MVP,
+The new import tickets and their dependencies are as the open plan pull requests record them (see "Import
+ticket split" above). Tickets with the same order number share no resource and can run at the same time. In the MVP,
 securities are valued from the import's own market values or the optional unofficial adapter, Bitcoin
 from the live price, in CAD, USD and TWD.
 
-### Step 2: V2 go-live (16 more tickets)
+### Step 2: V2 go-live (19 more tickets)
 
-OPS-015 is the go-live gate. Its `depends_on` is this list.
+OPS-015 is the go-live gate. Its `depends_on` is this list; APP-011I, IMP-007Q and IMP-007R joined the
+table on 2026-11-20 and are not in it.
 
 | Order | Ticket | What it delivers | Tier | Waits on |
 |---|---|---|---|---|
-| any | APP-011E, then APP-011F | Language, time zone and currency saved per user; Settings and Profile pages | frontier, standard | claimable now |
-| any | IMP-007N | A failing cleanup no longer starves other imports | frontier | claimable now |
-| any | IMP-007M | Decision: retrying an upload whose previous attempt is stuck | frontier | after IMP-007N (same lock); then the owner |
+| any | APP-011I, then APP-011E, then APP-011F | Invitation status (raised to P0; revision 0005); language, time zone and currency saved per user (revision 0006); Settings and Profile pages | frontier, standard | IMP-007E for APP-011I and APP-011E (to be recorded in #82 and #84); APP-011I shares `identity-api` with IMP-007E and IMP-007U |
+| any | IMP-007N, IMP-007Q, IMP-007R | A failing cleanup no longer starves other imports; a late launcher proof releases a held raw slot; a lapsed normalize attempt becomes reupload_required | frontier | one at a time (same lock, shared with IMP-007O); IMP-007Q also waits on IMP-007M and IMP-007F; IMP-007Q and IMP-007R wait on the owner's Gate A |
+| any | IMP-007M | Decision: retrying an upload whose previous attempt is stuck (answered "B with F"; closeout only) | frontier | its plan pull request (#85) |
 | 1 | MKT-009B | Stored prices, scheduled and manual refresh | frontier | ANL-012A |
 | 1 | APP-011H | Pages offer "Enable a source" only when it applies | standard | ANL-012A |
 | 1 | RPT-013A | Downloads rendered on demand: PDF, Excel, ODS, Markdown | frontier | ANL-012A |
@@ -91,7 +127,7 @@ P1, in recommended order. All are `backlog` until the owner approves each one, e
 
 | Group | Tickets | Why this order |
 |---|---|---|
-| Before inviting anyone else | OPS-101 security review, ENG-111 dependency scanning, OPS-102 access from other devices, AUTH-102 user administration and the registration switch, APP-011I invitation status (approved) | The instance holds several people's financial records |
+| Before inviting anyone else | OPS-101 security review, ENG-111 dependency scanning, OPS-102 access from other devices, AUTH-102 user administration and the registration switch (APP-011I invitation status moved to P0 and Step 2 on 2026-11-20) | The instance holds several people's financial records |
 | Learn from real use | ENG-108 feedback review, IMP-101 recovering from a wrong import, CORE-101 time zone contract | The owner's use decides the rest |
 | Prices | MKT-101 official quote provider (approved; blocked on the owner's provider keys) | Replaces reliance on the unofficial adapter |
 | Deeper analysis | ETF-101 look up any ETF, ANL-107 holding detail, ANL-101 why the value changed, ANL-106 targets and drift, ETF-102 fund overlap, RPT-101 more export formats | Each needs only data that exists at go-live |
@@ -116,6 +152,9 @@ P2:
 4. Answer ENG-106's three questions if a CI reviewer is wanted.
 5. Confirm or reverse the two priority changes of the triage (PLG-102 to P2, ENG-111 to P1), the
    proposal to close IMP-102, and the eight new tickets.
+6. Merge the open plan pull requests (#82 to #87) and give Gate A, or ask for changes, for the new backlog
+   tickets IMP-007O, IMP-007P, IMP-007Q, IMP-007R, IMP-007S, IMP-007T, IMP-007U, IMP-007V and PLG-105, and
+   for the new gated text of IMP-007E and IMP-007F.
 
 ## Phases
 
