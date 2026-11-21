@@ -2,7 +2,7 @@
 id: IMP-007W
 title: Add a runtime-role readiness check of the 0004 ingestion inventory
 priority: P0
-status: ready
+status: in_progress
 type: feature
 parent: IMP-007
 depends_on: [IMP-007D]
@@ -13,7 +13,7 @@ agent_tier: frontier
 gate: owner
 gate_approval: "owner 2026-11-21, IMP-007W spec as written (hash 69f601c8…)"
 review: independent
-branch: 
+branch: ticket/imp-007w-add-a-runtime-role-readiness-check-of-th
 pr: 
 spec: docs/specs/imp-007-r7/spec.md
 spec_approved: sha256:69f601c821550d5e487bb972ab128e3a8e71d1bce1ed8110081dba13426f7094
@@ -200,13 +200,14 @@ Negative cases the reviewer will look for:
 
 ## Handoff
 
-- State: Filed on 2026-11-21 in plan pull request #93, with a Build plan. The owner gave Gate A on 2026-11-21 (Decisions needed, item 1); status `ready` once #93 merges. Not started.
-- Next step: After Gate A is on `main`, run step 0 of the Build plan before writing code.
-- Verify: `KURAFOLIO_INGESTION_TEST=1 PYTHONPATH=src .venv/bin/python -m unittest tests.test_postgres_migration -v`, in a virtual environment with `requirements-pg-test.lock`; environment setup in [postgres-foundation.md](../docs/postgres-foundation.md) and [web-v2-imports.md](../docs/web-v2-imports.md).
-- Gotchas: The runtime login sees the catalog but not `wl_identity` tables; the gateway login cannot read `wl_pg`. Drift cases must commit, because the check runs on another connection.
+- State: Claimed by codex/gpt-6.1-sol from origin/main at 1a6ff31. Approved spec hash matches; no implementation changes yet.
+- Next step: Run Build plan step 0 against one isolated synthetic PostgreSQL 18 target before changing code.
+- Verify: `python3 scripts/tickets.py spec IMP-007W --base origin/main`.
+- Gotchas: The runtime login sees the catalog but not `wl_identity` tables; the gateway login cannot read `wl_pg`. Drift cases must commit across connections.
 - Open questions: none.
 
 ## Log
 
 - 2026-11-21 claude-code/opus-5.5: filed from the owner's answer "New prerequisite ticket" to IMP-007E Decisions needed item 7, with a frontier Build plan from `main` at `cd68c5e`, in plan pull request https://github.com/gh-slee/kurafolio/pull/93. Spec hash at filing sha256:69f601c821550d5e487bb972ab128e3a8e71d1bce1ed8110081dba13426f7094, awaiting the owner's Gate A. Status backlog; no Gate A yet.
 - 2026-11-21 claude-code/opus-5.5: recorded Gate A, as relayed from the owner's conversation by the coordinating session. The owner was asked "Approve IMP-007W's spec (hash 69f601c8…) for Gate A?", with the full hash sha256:69f601c821550d5e487bb972ab128e3a8e71d1bce1ed8110081dba13426f7094 stated, and answered "Approve". `spec_approved` records that hash, `gate_approval` adds "owner 2026-11-21, IMP-007W spec as written (hash 69f601c8…)", status changes from backlog to ready, and Decisions needed item 1 is resolved. The gated text is unchanged since filing, so the Build plan was written against the approved text.
+- 2026-11-21 codex/gpt-6.1-sol: claimed the merged Build plan at 1a6ff31 after confirming approved spec hash sha256:69f601c821550d5e487bb972ab128e3a8e71d1bce1ed8110081dba13426f7094. Starting the required catalog-visibility probe before implementation.
