@@ -203,14 +203,39 @@ class ProjectionPositionsTests(unittest.TestCase):
         code = '''import sys
 sys.path.insert(0, SOURCE)
 from kurafolio.projection.positions import calculate
-from kurafolio.projection.model import AcceptedState, ValuationInputs
+from kurafolio.projection.model import (AcceptedState, Account, ActivityFact, CryptoQuote,
+    FxTable, HoldingsHead, Instrument, Leg, Money, PositionFact, ValuationInputs)
 from datetime import datetime, timezone
+from decimal import Decimal as D
 import builtins
 assert not any(name in sys.modules for name in ('kurafolio.source_report', 'kurafolio.source_valuation', 'kurafolio.source_projection', 'kurafolio.reporting', 'kurafolio.workbook', 'kurafolio.publishing'))
 def refuse(*args, **kwargs): raise AssertionError('file read')
 builtins.open = refuse
-result = calculate(AcceptedState('t', 'p', 0, 0, (), ()), ValuationInputs(datetime(2026, 1, 1, tzinfo=timezone.utc), ('CAD',), None, {}, {}))
-assert result.total.complete_total['CAD'] == 0
+at = datetime(2026, 1, 15, 12, tzinfo=timezone.utc)
+time = {'tag': 'date_only', 'token': '2026-01-15', 'zone': None}
+broker = Account('broker', '1', 'investment', 'brokerage', 'Synthetic broker')
+exchange = Account('exchange', '1', 'crypto', 'exchange', 'Synthetic exchange')
+a = Instrument('a', '1', 'SECURITY', 'USD', 'DEMO-A', 'XNYS', None, None, None)
+b = Instrument('b', '1', 'SECURITY', 'CAD', 'DEMO-B', 'XTSE', None, None, None)
+btc = Instrument('btc', '1', 'CRYPTO', None, None, None, 'BTC', 'bitcoin', None)
+positions = (PositionFact('a-r1', broker, a, D(10), Money(D(1000), 'USD'),
+                         Money(D(800), 'USD'), None, time, ()),
+             PositionFact('b-r1', broker, b, D(8), Money(D(800), 'CAD'),
+                         Money(D(600), 'CAD'), None, time, ()))
+head = HoldingsHead('head', broker, {'tag': 'all', 'category': None, 'instrument_ids': []},
+                    'snapshot', time, 'partial', positions)
+buy = ActivityFact('buy', 'buy-r1', True, False, 'BUY', 'completed', (), exchange,
+                   (Leg(exchange, btc, D('.030'), 'ACQUISITION'),),
+                   Money(D(2200), 'CAD'), False, time)
+state = AcceptedState('t', 'p', 2, 1, (head,), (buy,))
+inputs = ValuationInputs(at, ('CAD', 'USD', 'TWD'),
+    FxTable('USD', {'USD': D(1), 'CAD': D('1.4'), 'TWD': D(32)}, at, 'fixture'),
+    {}, {'BTC': CryptoQuote('BTC', D(60000), 'USD', at, 'fixture')})
+result = calculate(state, inputs)
+assert len(result.positions) == 3
+assert result.crypto.btc_equivalent_quantity == D('.030')
+assert result.total.complete_total['CAD'] == D(4720)
+assert not any(name in sys.modules for name in ('kurafolio.source_report', 'kurafolio.source_valuation', 'kurafolio.source_projection', 'kurafolio.reporting', 'kurafolio.workbook', 'kurafolio.publishing'))
 '''.replace('SOURCE', repr(source))
         subprocess.run([sys.executable, '-I', '-c', code], check=True, capture_output=True, text=True)
 
@@ -224,6 +249,11 @@ assert result.total.complete_total['CAD'] == 0
         self.assertIsNone(result.total.complete_total['CAD'])
         self.assertEqual(result.total.unknown_value_count, 1)
         self.assertIn('value_unavailable', {g.code for g in result.gaps})
+        missing = next(item for item in result.positions if item.instrument_id == 'b')
+        self.assertIsNone(missing.value)
+        self.assertEqual(missing.values, {'CAD': None, 'USD': None, 'TWD': None})
+        self.assertEqual(result.total.known_subtotal['USD'], D(2800))
+        self.assertIsNone(result.total.complete_total['USD'])
         valuation = inputs()
         valuation = replace(valuation, fx=replace(valuation.fx, per_pivot={'USD': D(1), 'CAD': D('1.4')}))
         result = self.calc(holdings=securities(), valuation=valuation)
@@ -240,6 +270,7 @@ assert result.total.complete_total['CAD'] == 0
         self.assertIsNone(result.positions[0].cost)
         self.assertIsNone(result.positions[0].unrealized_gain)
         self.assertEqual(result.positions[0].cost_status, 'unavailable')
+        self.assertIn('cost_unavailable', {gap.code for gap in result.gaps})
         demo = position('demo-b', replace(B, currency='USD'), '5', '125', '100', 'USD',
                         cost_cad=Money(D(150), 'CAD'))
         result = self.calc((), (head((demo,)),))
@@ -249,6 +280,7 @@ assert result.total.complete_total['CAD'] == 0
         result = self.calc((), (head((replace(demo, cost_native=None),)),))
         self.assertIsNone(result.positions[0].cost)
         self.assertIsNone(result.positions[0].unrealized_gain)
+        self.assertIn('cost_unavailable', {gap.code for gap in result.gaps})
 
     def test_ac_anl_008_04_unsupported_and_quotes(self):
         """AC-ANL-008-04: unsupported shapes, mismatched or missing quotes fail closed."""
@@ -267,6 +299,40 @@ assert result.total.complete_total['CAD'] == 0
         self.assertEqual(result.positions[0].quantity, D('.030'))
         self.assertIsNone(result.positions[0].value)
         self.assertIn('quote_unavailable', {g.code for g in result.gaps})
+        self.assertEqual(result.positions[0].values, {'CAD': None, 'USD': None, 'TWD': None})
+        for total in (result.classes['crypto'], result.total):
+            self.assertEqual(total.known_subtotal, {'CAD': None, 'USD': None, 'TWD': None})
+            self.assertEqual(total.complete_total, {'CAD': None, 'USD': None, 'TWD': None})
+            self.assertEqual(total.unknown_value_count, 1)
+
+    def test_ac_anl_008_04_unbuildable_listing_uses_source_value(self):
+        """AC-ANL-008-04: admitted free-text tickers must not abort a calculation."""
+        for ticker in ('BRK B', 'A' * 25):
+            for source_value in ('125', None):
+                with self.subTest(ticker=ticker, source_value=source_value):
+                    instrument = replace(A, ticker=ticker)
+                    fact = position('free-text', instrument, '5', source_value, '100')
+                    result = self.calc((), (head((fact,)),))
+                    item, = result.positions
+                    if source_value is None:
+                        self.assertIsNone(item.value)
+                        self.assertIn('value_unavailable', {gap.code for gap in result.gaps})
+                        self.assertIsNone(result.total.complete_total['CAD'])
+                    else:
+                        self.assertEqual(item.value, Money(D(125), 'USD'))
+                        self.assertEqual(item.value_basis, 'source_reported')
+                        self.assertEqual(item.value_as_of, TIME['token'])
+                        self.assertIn('source_reported_value', item.codes)
+                        self.assertEqual(result.total.complete_total['CAD'], D(175))
+                        self.assertEqual(result.gaps, ())
+
+    def test_ac_anl_008_04_sale_only_cost_has_gap(self):
+        """AC-ANL-008-04: unavailable cost is accompanied by its fixed gap code."""
+        result = self.calc((sale('.005'),))
+        item, = result.positions
+        self.assertIsNone(item.cost)
+        self.assertEqual(item.cost_status, 'unavailable')
+        self.assertTrue({'cost_unavailable', 'sales_exceed_purchases'} <= {gap.code for gap in result.gaps})
 
     def test_ac_anl_008_04_corporate_action_and_partial_coverage(self):
         """AC-ANL-008-04: narrow corporate-action guard and decided partial-head rule."""

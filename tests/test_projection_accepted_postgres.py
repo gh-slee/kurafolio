@@ -155,29 +155,38 @@ class ProjectionAcceptedPostgresTests(unittest.TestCase):
         position_template = ORACLE['snapshot-t1-minimal.json']['records'][0]
         coverage_template = ORACLE['snapshot-t1-minimal.json']['coverage'][0]
         snapshot_template = ORACLE['snapshot-t1-minimal.json']['snapshots'][0]
+        # Heads with the same fixture revision share one multi-account snapshot.
+        snapshot_groups = {}
         for head in all_heads:
-            local_positions = []
-            for item in head.positions:
-                typed = deepcopy(position_template)
-                typed.update(source_account_local_id=locals_[('account', item.account.id)],
-                    asset_local_id=locals_[('instrument', item.instrument.id)], quantity=str(item.quantity),
-                    market_value=money_doc(item.market_value), cost_native=money_doc(item.cost_native),
-                    cost_cad=money_doc(item.cost_cad), as_of=item.observed_at,
-                    support={'classification': 'supported_shape', 'reasons': []})
-                local, _ = add('records', typed)
-                local_positions.append(local)
-            coverage = deepcopy(coverage_template)
-            coverage.update(account_local_id=locals_[('account', head.account.id)], kind='holdings', status=head.coverage_status)
-            coverage_local, _ = add('coverage', coverage)
+            snapshot_groups.setdefault(head.snapshot_revision_id, []).append(head)
+        for group in snapshot_groups.values():
+            local_positions, coverage_locals = [], []
+            for head in group:
+                for item in head.positions:
+                    typed = deepcopy(position_template)
+                    typed.update(source_account_local_id=locals_[('account', item.account.id)],
+                        asset_local_id=locals_[('instrument', item.instrument.id)], quantity=str(item.quantity),
+                        market_value=money_doc(item.market_value), cost_native=money_doc(item.cost_native),
+                        cost_cad=money_doc(item.cost_cad), as_of=item.observed_at,
+                        support={'classification': 'supported_shape', 'reasons': []})
+                    local, _ = add('records', typed)
+                    local_positions.append(local)
+                coverage = deepcopy(coverage_template)
+                coverage.update(account_local_id=locals_[('account', head.account.id)], kind='holdings',
+                                status=head.coverage_status)
+                coverage_local, _ = add('coverage', coverage)
+                coverage_locals.append(coverage_local)
             snapshot = deepcopy(snapshot_template)
-            snapshot.update(account_local_ids=[locals_[('account', head.account.id)]], as_of=head.observed_at,
-                            position_local_ids=local_positions, coverage_local_ids=[coverage_local])
+            snapshot.update(account_local_ids=[locals_[('account', head.account.id)] for head in group],
+                            as_of=group[0].observed_at, position_local_ids=local_positions,
+                            coverage_local_ids=coverage_locals)
             _, revision = add('snapshots', snapshot)
-            if head in old_heads:
-                old_by_account[head.account.id] = revision
-            else:
-                canonical_scope = {'tag': 'all', 'category': None, 'instrument_ids': []}
-                snapshot_heads.append((head, revision, canonical_scope))
+            for head in group:
+                if head in old_heads:
+                    old_by_account[head.account.id] = revision
+                else:
+                    canonical_scope = {'tag': 'all', 'category': None, 'instrument_ids': []}
+                    snapshot_heads.append((head, revision, canonical_scope))
         activity_revisions = []
         for activity in activities:
             typed = deepcopy(ORACLE['minimal-native.json']['records'][0])
@@ -258,10 +267,14 @@ class ProjectionAcceptedPostgresTests(unittest.TestCase):
         from dataclasses import replace
         p = replace(pure.BROKER, id='P')
         q = replace(pure.BROKER, id='Q')
-        old = pure.head((pure.position('old-A', account=p), pure.position('old-B', pure.B, '5', account=p)), p, 'complete')
-        old = replace(old, observed_at={**pure.TIME, 'token': '2026-01-14'})
-        current = pure.head((pure.position('current-A', quantity='7', account=p),), p)
-        unchanged = pure.head((pure.position('unchanged', account=q),), q)
+        t1 = {**pure.TIME, 'token': '2026-01-14'}
+        old = pure.head((pure.position('old-A', account=p, observed_at=t1),
+                         pure.position('old-B', pure.B, '5', account=p, observed_at=t1)), p, 'complete')
+        old = replace(old, snapshot_revision_id='T1', observed_at=t1)
+        current = replace(pure.head((pure.position('current-A', quantity='7', account=p),), p),
+                          snapshot_revision_id='T2')
+        unchanged = pure.head((pure.position('unchanged', account=q, observed_at=t1),), q, 'complete')
+        unchanged = replace(unchanged, snapshot_revision_id='T1', observed_at=t1)
         cls.history_ids = cls.seed(conn, cls.contexts['history'], (current, unchanged), (), old_heads=(old,))
 
     @contextmanager
@@ -283,6 +296,12 @@ class ProjectionAcceptedPostgresTests(unittest.TestCase):
             self.assertEqual(len(accepted.activities), 3)
             self.assertEqual(sum(fact.mirror for fact in accepted.activities), 1)
             self.assertTrue(all(fact.active for fact in accepted.activities))
+            authoritative = [fact for fact in accepted.activities if not fact.mirror]
+            self.assertEqual(len(authoritative), 2)
+            self.assertEqual(sorted(leg.quantity for fact in authoritative for leg in fact.legs),
+                             [pure.D('.010'), pure.D('.020')])
+            self.assertEqual({leg.instrument.id for fact in authoritative for leg in fact.legs},
+                             {self.combined_ids[('instrument', 'btc')]})
             result = calculate(accepted, pure.inputs())
         self.assertEqual(result.crypto.btc_equivalent_quantity, pure.D('.030'))
         self.assertEqual(result.total.complete_total['CAD'], pure.D(4720))
@@ -298,7 +317,27 @@ class ProjectionAcceptedPostgresTests(unittest.TestCase):
             quantities = {head.account.id: [position.quantity for position in head.positions] for head in accepted.holdings}
             self.assertEqual(quantities[self.history_ids[('account', 'P')]], [pure.D(7)])
             self.assertEqual(quantities[self.history_ids[('account', 'Q')]], [pure.D(10)])
-            self.assertIn('missing_from_newer_snapshot_is_sold', calculate(accepted, pure.inputs()).assumptions)
+            by_account = {head.account.id: head for head in accepted.holdings}
+            p_id, q_id = self.history_ids[('account', 'P')], self.history_ids[('account', 'Q')]
+            p_head, q_head = by_account[p_id], by_account[q_id]
+            self.assertNotEqual(p_head.snapshot_revision_id, q_head.snapshot_revision_id)
+            self.assertEqual((p_head.coverage_status, q_head.coverage_status), ('partial', 'complete'))
+            self.assertEqual({position.instrument.id for head in accepted.holdings for position in head.positions},
+                             {self.history_ids[('instrument', 'a')]})
+            t1_bytes = execute(conn, 'SELECT typed_bytes FROM wl_ingestion.source_revisions '
+                'WHERE tenant_id=:t AND portfolio_id=:p AND id=:revision',
+                t=context.tenant_id, p=context.portfolio_id, revision=q_head.snapshot_revision_id).scalar_one()
+            t1 = json.loads(bytes(t1_bytes))
+            self.assertEqual(len(t1['account_local_ids']), 2)
+            self.assertEqual(len(t1['coverage_local_ids']), 2)
+            self.assertEqual(len(t1['position_local_ids']), 3)
+            p_base = execute(conn, 'SELECT complete_base_revision_id FROM wl_ingestion.snapshot_heads '
+                'WHERE tenant_id=:t AND portfolio_id=:p AND account_id=:account',
+                t=context.tenant_id, p=context.portfolio_id, account=p_id).scalar_one()
+            self.assertEqual(str(p_base), q_head.snapshot_revision_id)
+            result = calculate(accepted, pure.inputs())
+            self.assertFalse(any(gap.account_id == p_id for gap in result.gaps))
+            self.assertIn('missing_from_newer_snapshot_is_sold', result.assumptions)
 
     def test_ac_anl_008_04_tenant_isolation_and_empty_root(self):
         """AC-ANL-008-04: no other tenant's positions or generations leak."""

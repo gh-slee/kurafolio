@@ -122,7 +122,13 @@ def _calculate(state, inputs):
                     elif instrument.id in corporate_actions:
                         gap('corporate_action_unresolved', account.id, instrument.id)
                     else:
-                        quote = inputs.security_quotes.get(Listing.of(instrument.mic, instrument.ticker))
+                        try:
+                            listing = Listing.of(instrument.mic, instrument.ticker)
+                        except ValueError:
+                            # Admission accepts broader source tickers than the quote contract.
+                            quote = None
+                        else:
+                            quote = inputs.security_quotes.get(listing)
                         if quote is not None:
                             if quote.currency != instrument.currency:
                                 gap('quote_currency_mismatch', account.id, instrument.id)
@@ -198,7 +204,7 @@ def _calculate(state, inputs):
         value, as_of, btc, codes = crypto_value(account, instrument, quantity, tracked=True)
         cost, gain = None, None
         costs = group['costs']
-        if any(cost is None for cost in costs):
+        if not costs or any(cost is None for cost in costs):
             gap('cost_unavailable', account.id, instrument.id)
         elif len({cost.currency for cost in costs}) > 1:
             gap('cost_currency_mixed', account.id, instrument.id)
