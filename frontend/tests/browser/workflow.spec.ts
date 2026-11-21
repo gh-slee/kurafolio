@@ -685,10 +685,23 @@ test("regular parser upload reviews mappings and publishes without hand-written 
   await page
     .getByLabel("Name", { exact: true })
     .fill("Automatic parser synthetic portfolio");
+  // ENG-107 AC 1: wait for this portfolio before opening its import form.
+  const created = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      new URL(response.url()).pathname === "/api/v1/portfolios",
+  );
   await page
     .getByRole("button", { name: "Create portfolio", exact: true })
     .click();
+  const createdResponse = await created;
+  expect(createdResponse.status()).toBe(201);
+  const { id: portfolioId } = (await createdResponse.json()) as { id: string };
+  // ENG-107: switchPortfolio() aborts in-flight requests before it navigates,
+  // so wait for the navigation itself, not only for the POST response.
+  await expect(page).toHaveURL(new RegExp(`/app/${portfolioId}/overview$`));
   await page.getByRole("link", { name: "Import & jobs", exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/app/${portfolioId}/imports$`));
   await expect(
     page.getByLabel("Use parser plugins", { exact: true }),
   ).toBeChecked();
@@ -710,14 +723,21 @@ test("regular parser upload reviews mappings and publishes without hand-written 
   let interrupted = false;
   let firstRequest = "";
   let firstKey = "";
+  let firstStatus = 0;
+  let markAborted!: () => void;
+  const aborted = new Promise<void>((resolve) => (markAborted = resolve));
   await page.route("**/source-import-previews", async (route) => {
     if (!interrupted) {
+      interrupted = true;
       firstRequest = route.request().postData() ?? "";
       firstKey = route.request().headers()["idempotency-key"];
-      const response = await route.fetch();
-      expect(response.status()).toBe(202);
-      interrupted = true;
-      await route.abort("failed");
+      try {
+        const response = await route.fetch();
+        firstStatus = response.status();
+        await route.abort("failed");
+      } finally {
+        markAborted();
+      }
     } else {
       await route.continue();
     }
@@ -725,6 +745,11 @@ test("regular parser upload reviews mappings and publishes without hand-written 
   await page
     .getByRole("button", { name: "Upload & preview", exact: true })
     .click();
+  // ENG-107 AC 2 and AC 3: keep the alert assertion and its default timeout.
+  // The first preview request reached the server and was then aborted,
+  // so the page must now report the failed request.
+  await aborted;
+  expect(firstStatus).toBe(202);
   await expect(page.getByRole("alert")).toContainText("request_failed");
   // The worker may finish and populate suggested mappings before the retry.
   await expect(
