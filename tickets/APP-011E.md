@@ -113,9 +113,17 @@ The V2 Profile page is specified to hold a user's language, time zone and defaul
     literal is the only revision the runtime pins.
   - `Settings.worker_role` and the `serve --worker-role` flag; the operator
     `--schema-profile` choice adds `ingestion`.
-  - `Auth.ready()` on `ingestion` calls the newest revision's `verify_inventory(conn,
-    runtime_role=runtime_role, gateway_role=gateway_role,
-    worker_role=self.settings.worker_role)`.
+  - `Auth.ready()` on `ingestion` calls the newest revision's
+    `verify_runtime_inventory(conn, runtime_role=runtime_role,
+    gateway_role=gateway_role, worker_role=self.settings.worker_role)` through the
+    runtime connection, and `role_inventory` only with `gateway=True`. Revised on
+    2026-11-21: the operator `verify_inventory` needs database CREATE, which no
+    application role has from `0004` on. IMP-007W (Gate A given 2026-11-21, not built)
+    adds the `0004` runtime check with a private
+    `ingestion_migration._runtime_owner(conn, *, runtime_role, gateway_role,
+    worker_role)` and a keyword-only `owner` on `_checked_roles` and
+    `verify_grants`; APP-011I adds `invite_status_migration.verify_runtime_inventory`
+    the same way.
   - `Boundary.request` and `create_app` add routes under
     `settings.schema_profile == 'ingestion'`.
   - Real-PostgreSQL HTTP tests in `tests/test_postgres_import_routes.py` build,
@@ -199,7 +207,9 @@ The V2 Profile page is specified to hold a user's language, time zone and defaul
 
 - Based on: `main` at `a2f5f2b` (2026-11-19); rechecked on 2026-11-21 against
   `main` at `4c87113`, IMP-007E's Part A (pull request #87) and APP-011I's updated
-  plan (pull request #82). See Context, "Rechecked".
+  plan (pull request #82). See Context, "Rechecked". The readiness check (step 4's
+  `verify_runtime_inventory`, step 13's `Auth.ready()` and one test row) was
+  revised on 2026-11-21 from `main` at `cd68c5e` for IMP-007W.
 - Do not claim this ticket until IMP-007E (the `ingestion` runtime profile) and
   APP-011I (revision `0005_invite_status`, which moves that profile to `0005`) have
   both merged; `depends_on` lists both. Steps 1 to 8 build on `0005`; steps 9 to 13
@@ -326,6 +336,14 @@ The V2 Profile page is specified to hold a user's language, time zone and defaul
      `ingestion_migration.verify_grants(..., extra_gateway=...)` naming the same
      three functions. Return `{"schema_revision": "0006_user_preferences",
      "functions": 71}`.
+   - `verify_runtime_inventory(conn, *, runtime_role, gateway_role, worker_role)`:
+     the runtime-login counterpart, shaped like APP-011I's. One private body after
+     the owner lookup is shared with `verify_inventory`; the runtime function first
+     takes `owner = ingestion_migration._runtime_owner(conn, runtime_role=...,
+     gateway_role=..., worker_role=...)`, then makes the same checks with
+     `quarantined=False` and `owner=owner` passed to `verify_grants`. It maps
+     `SQLAlchemyError` to `migration_target_invalid` and has no quarantined mode.
+     `verify_inventory` keeps calling `_operator`.
    - `migrate_preferences(database, runtime_role, gateway_role, worker_role,
      key_digest, catalog, *, fault=None)`: copy `migrate_invite_status` (roles,
      advisory lock `1950174004`, explicit Alembic `Config`, operator lock, ready,
@@ -427,10 +445,11 @@ The V2 Profile page is specified to hold a user's language, time zone and defaul
       `invite_status_schema.REVISION`) to compare it with
       `preferences_schema.REVISION`.
     - `web_v2/auth.py`: `Auth.ready()` on `ingestion` calls
-      `preferences_migration.verify_inventory(conn, runtime_role=runtime_role,
+      `preferences_migration.verify_runtime_inventory(conn, runtime_role=runtime_role,
       gateway_role=gateway_role, worker_role=self.settings.worker_role)` instead of
-      `invite_status_migration.verify_inventory`. Keep the realm comparison and the
-      `wl_sources.catalog_state` digest check.
+      `invite_status_migration.verify_runtime_inventory`. Keep the realm comparison
+      and the `wl_sources.catalog_state` digest check. Never call an operator
+      `verify_inventory` from the API.
     - No change to `Settings`, `--worker-role`, the `--schema-profile` choices,
       `SourceStore` or `IngestionStore`.
     - Test helpers: every test that serves or opens an `ingestion` target (search
@@ -556,6 +575,7 @@ and B and their session digests.
 | 04 | Password change for A, then a new session | Old session refused; new session reads A's saved values |
 | 06 | `_structure_snapshot` on the same target before and after `migrate_preferences` | The difference is exactly the `user_preferences` relation, its `user_preferences_pkey` index, its six columns, its seven named constraints plus the NOT NULL constraints PG18 records, and its two row types; nothing removed |
 | 06 | `verify_inventory` on a fresh `0006` target; after `GRANT SELECT` on the table to the gateway; after `GRANT EXECUTE` to PUBLIC; after replacing a function body | Passes with the expected total; then `migration_target_invalid` each time |
+| 06 | Fresh `0006` target through the runtime role's login | `verify_runtime_inventory` gives the same result as the operator's `verify_inventory`; `verify_inventory` raises `migration_role_required`; after `GRANT SELECT` on `wl_identity.user_preferences` to the gateway (committed, then reverted), `migration_target_invalid` |
 | 06 | `migrate_preferences` on `0002`, `0003` and `0004` targets; with `fault` at `after_grants`; a second run; the `0005` migrator on `0006` | `schema_unsupported`, target unchanged; still `0005` and its `verify_inventory` passes; same result; `schema_unsupported` |
 | 06 | `operator migrate-preferences` through `python -m kurafolio.web_v2` | Prints `{"schema_revision": "0006_user_preferences", "functions": 71, "ready": false}` |
 | 02 | `backup-ingestion` at `0006` with saved preferences, `restore-ingestion` into an empty target | Manifest revision `0006_user_preferences`; restored rows and revisions identical; sessions revoked |
@@ -627,6 +647,9 @@ skipped PostgreSQL test is not acceptance.
 ### Stop and ask if
 
 - APP-011I or IMP-007E has not merged.
+- IMP-007W's `ingestion_migration._runtime_owner`, the keyword-only `owner` on
+  `verify_grants`, or APP-011I's `invite_status_migration.verify_runtime_inventory`
+  has another name or signature on `main` than step 4 uses.
 - The merged `0005` differs from what this plan assumes: no revision-selected restore
   profile, a guarded-function count other than 29, a function total other than 69,
   or helper names (`invite_status_schema`, `invite_status_migration`, the
@@ -768,3 +791,4 @@ needed: the criteria are met and tested on the `ingestion` profile at `0006`.
 - 2026-11-21 claude-code/opus-5.5: recorded Decision 2 as option (a). The owner accepted "APP-011E #2 preferences routes return 404 and are absent from OpenAPI on identity/sources instances" with "Accept all (Recommended)" on 2026-11-20. APP-011F's planner must raise the "preferences unavailable" state with the owner; APP-011F was not edited.
 - 2026-11-21 claude-code/opus-5.5: updated the plan in plan pull request https://github.com/gh-slee/kurafolio/pull/84. Rechecked against `main` at `4c87113`, IMP-007E's Part A (pull request #87) and APP-011I's updated plan (pull request #82). Steps now use their interfaces: `0006` re-guards the 29 functions `0005` leaves guarded, 71 functions in total, and the `ingestion` profile moves from `0005` to `0006` (step 13). Added step 16 (ANL-008's `SUPPORTED_REVISIONS`), step 17 (CI steps), and Decision 3 (`identity-api` in `resources`, not blocking). Goal, Requirements and Acceptance criteria unchanged.
 - 2026-11-21 claude-code/opus-5.5: added `identity-api` to `resources`, with the owner's confirmation of that change to this approved ticket. The owner was asked "APP-011E edits api.py, auth.py and __main__.py, the same files IMP-007E and IMP-007U edit under the identity-api lock. Add identity-api to APP-011E's resources so they can't be built at the same time?" and chose "Add identity-api (Recommended)". This answers Decision 3 with option (a). Context and Handoff updated for that answer, for IMP-007E's recorded Gate A and for IMP-007S's reworded revision rule (pull request #87). Gated sections unchanged.
+- 2026-11-21 claude-code/opus-5.5: revised the readiness check in the Build plan for IMP-007W in plan pull request https://github.com/gh-slee/kurafolio/pull/93 (filed from IMP-007E Decisions needed item 7, owner answer "New prerequisite ticket"). The operator `verify_inventory` needs database CREATE, which no application role has from `0004` on, so step 4 adds `preferences_migration.verify_runtime_inventory` on IMP-007W's `_runtime_owner` and `owner` keyword, step 13's `Auth.ready()` calls it, and a test row covers it. Gated sections and `depends_on` unchanged.
