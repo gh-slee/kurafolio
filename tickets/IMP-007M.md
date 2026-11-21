@@ -2,7 +2,7 @@
 id: IMP-007M
 title: Decide how a re-upload gets back a raw slot that finish could not prove
 priority: P0
-status: ready
+status: in_progress
 type: decision
 parent: IMP-007
 depends_on: [IMP-007C]
@@ -13,11 +13,11 @@ agent_tier: frontier
 gate: owner
 gate_approval: "owner 2026-11-12, release to write the options and a recommendation; the decision itself stays with the owner"
 review: independent
-branch: 
+branch: ticket/imp-007m-decide-how-a-re-upload-gets-back-a-raw-s
 pr: 
 spec: docs/specs/imp-007-r7/spec.md
 spec_approved: sha256:cf968d22fe6dcdfadf0a39af3744c41c18ba150851cc4b05611ef5f8f1fe2aaa
-updated: 2026-11-20
+updated: 2026-11-21
 ---
 
 # IMP-007M: Decide how a re-upload gets back a raw slot that finish could not prove
@@ -142,11 +142,11 @@ All three decisions were answered by the owner on 2026-11-20. Nothing is open. T
 
 ## Handoff
 
-- State: Decided. The owner answered decisions 1 to 3 on 2026-11-20 ("B with F"; `stage_admitted` covered; resource dropped). Plan PR #85 records the answers, drops `ingestion-schema-sql` and files IMP-007Q (option B). Option F is IMP-007F PR 1 (plan PR #86). AC-01 and AC-02 are not ticked yet; that is the build.
-- Next step: After PR #85 merges, a builder runs the closeout in the Build plan: check the record and IMP-007Q on `main`, tick AC-01 and AC-02, set `done` and open the ticket-only pull request with the independent review.
-- Verify: `python3 scripts/tickets.py spec IMP-007M` (MATCHES), `python3 scripts/tickets.py check`, `git show origin/main:tickets/IMP-007Q.md`.
-- Gotchas: Never release a slot without proof that the attempt has no live child or raw buffer. The closeout touches only this file; the SQL and worker work belongs to IMP-007Q and IMP-007F.
-- Open questions: None for this ticket. IMP-007Q has its own Decisions needed and Gate A.
+- State: `codex/gpt-6.1-sol` claimed the ticket-only closeout from `origin/main` at `1274b54`. The approved spec matches and the Build plan is merged. Decisions needed 1 to 3, IMP-007Q and IMP-007F's proof wait are present on `main`.
+- Next step: Tick the acceptance criteria with the verified decision and follow-up references, run the ticket-only checks and prepare the pull request.
+- Verify: `python3 scripts/tickets.py spec IMP-007M --base origin/main`, `python3 scripts/tickets.py check`, `git show origin/main:tickets/IMP-007Q.md`.
+- Gotchas: This closeout changes only this file. Option B and the worker's release call belong to IMP-007Q; option F belongs to IMP-007F. No SQL, worker, docs or runtime changes here.
+- Open questions: None for this ticket. Independent review must use the configured reviewer model.
 
 ## Log
 
@@ -159,3 +159,4 @@ All three decisions were answered by the owner on 2026-11-20. Nothing is open. T
 - 2026-11-20 claude-code/opus-5.5: where B and F are built. The owner was asked "IMP-007F: D3 ship compose.ingestion.yaml (launcher + worker only) that OPS-021 later includes; D5 change Requirements ... a new Gate A you'd be approving here; D6 prepare and cleanup fit in one lease with no renewal for the MVP; D8 the F wait-for-proof goes in IMP-007F now, and calling B's new release function goes in B's follow-up ticket. Accept all four?" and chose "Accept all (Recommended)". Option F is IMP-007F PR 1 (plan PR #86); option B, including the worker's call, is IMP-007Q. Plan PR #85.
 - 2026-11-20 claude-code/opus-5.5: decisions 2 and 3 answered, and the owner's confirmation of the `resources` change. The owner was asked "IMP-007M #2 the new release also covers a slot held after a stage_admitted finish; #3 drop IMP-007M's resources: [ingestion-schema-sql] so it isn't stuck behind IMP-007N's lock (your edit or confirmation). APP-011E #2 preferences routes return 404 and are absent from OpenAPI on identity/sources instances. Accept all three?" and chose "Accept all (Recommended)". Decision 2 is yes; decision 3 is drop. On that confirmation `resources` changes from `[ingestion-schema-sql]` to `[]`. Plan PR #85.
 - 2026-11-20 claude-code/opus-5.5: filed IMP-007Q (option B: worker-fenced late-proof release of a held raw slot, covering `reupload_required` and `stage_admitted` finishes, plus the worker's call) in plan PR #85, as `backlog` with no Gate A. Rewrote this ticket's Build plan as a ticket-only closeout that checks the record and IMP-007Q on `main` and ticks AC-01 and AC-02; updated Context, Plan, Decisions needed and Handoff. No gated section changed; `spec IMP-007M` still matches sha256:cf968d22fe6dcdfadf0a39af3744c41c18ba150851cc4b05611ef5f8f1fe2aaa.
+- 2026-11-21 codex/gpt-6.1-sol: claimed the ticket-only closeout from `origin/main` at `1274b54`; the Build plan is merged, `resources: []` is unchanged and the approved spec matches. Verified the three recorded owner decisions, IMP-007Q AC-01/05/11 and IMP-007F stage 1 normalize step 6 with D8 resolved. No product implementation is included.
