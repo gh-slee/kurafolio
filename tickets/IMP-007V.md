@@ -2,7 +2,7 @@
 id: IMP-007V
 title: Add the import worker's prepare step that brings a normalized set to a preview
 priority: P0
-status: backlog
+status: ready
 type: feature
 parent: IMP-007
 depends_on: [IMP-007F, IMP-007P]
@@ -11,13 +11,13 @@ risk: critical
 size: M
 agent_tier: frontier
 gate: owner
-gate_approval: 
+gate_approval: "owner 2026-11-21, Gate A on the text as written on PR #95's branch (Q32)"
 review: independent
 branch: 
 pr: 
 spec: docs/specs/imp-007-r7/spec.md
-spec_approved: 
-updated: 2026-11-20
+spec_approved: sha256:4b99ed6139aa7ea5e31268a7f185c93b2b57e28a6c808d107422763bc827ad6b
+updated: 2026-11-21
 ---
 
 # IMP-007V: Add the import worker's prepare step that brings a normalized set to a preview
@@ -36,7 +36,7 @@ After every file of an import set is normalized, and again after the user answer
   - `read_plan_basis_v1` serves six resources (`inputs`, `entities`, `mappings`, `revisions`, `heads`, `authorities`) in pages of at most 50 rows and 4,210,688 bytes, each carrying the set revision and the accepted, mapping and control generations. It keeps no replay cache: a retry regenerates the page under the same live lease and pins, or returns `import_stale` (`wire-contracts.json#/basis_read_policy`).
   - `prepare_preview_v1` takes `p_bytes` = the encoded `ReviewBundle` (at most 16,777,216 bytes) and a `PreparePreviewRequest` with `bundle_digest`, `payload_bytes`, `expected_set_revision` and the three generations. It returns a `PreviewAck` with state `NEEDS_MAPPING`, `CONFLICT` or `READY`. A stale fence, token or pin is refused.
   - `decide_set_v1` moves a reviewed set to `RECONCILING` with revision + 1, cancels any live prepare lease of the set and bumps the control generation, so the worker prepares the new revision.
-  - No worker function reports that a set cannot be prepared. A bundle the worker cannot build leaves the set where it is (Decision 1).
+  - No worker function reports that a set cannot be prepared. A bundle the worker cannot build leaves the set where it is; the owner accepted that for the MVP (Decision 1).
 - Tests to reuse: `tests/test_postgres_migration.py` (`prepare_preview_call`, the `basis_call` helpers, `test_renew_refuses_a_lapsed_or_foreign_lease` for forcing expiry with `session_replication_role=replica`) and IMP-007F's `tests/test_postgres_worker.py` and `tests/test_ingestion_worker.py`. Expected values for the two example files: oracle `builtin-inputs.json` (`wealthsimple_expected`, `bull_expected`). The IMP-007F plan had these AC-01 cases, which the Build plan here should keep (the oracle wins if it disagrees):
   - `examples/data/wealthsimple-holdings.csv`, set created and reserved through `create_set_v1` and `reserve_member_v1` (`reserve`, then `bind`) or the IMP-007U route, a fake launcher running the child logic in-process, and a test API peer that posts the handoff: the set reaches a preview with no test step between upload and preview; after the decisions the review requires (if any) through `decide_set_v1`, the preview is READY and `accept_preview_v1` books 3 accounts and 6 positions, CAD native sum 565, USD native sum 150, `as_of` 2024-02-01T10:00:00-05:00, coverage `partial`, membership `unknown`.
   - `examples/data/bull-orders.csv`, the same way: 2 accounts, 3 completed orders, 2 completed buys, BTC 0.00400000, LBTC 0.00300000, purchase cost CAD 700.00, funding CAD 1000.00, contribution boundary `unclassified`, no wallet truth; no contribution and no wallet balance booked.
@@ -51,7 +51,8 @@ After every file of an import set is normalized, and again after the user answer
 - The prepare loop: claim with `claim_plan_v1{work_kind: "prepare"}` using a fresh 256-bit token and a fresh `claim_request_id` for each claim, and never reuse either. Under the claimed lease, read every basis resource with `read_plan_basis_v1`, following each cursor to the end. Build the bundle with IMP-007P's builder, check it with `approval.validate_review_bundle`, and call `prepare_preview_v1` with the encoded bundle and the pins from the lease and the basis pages. Every call carries the lease's fence and token.
 - One lease covers the whole step and is never renewed (IMP-007F decision D6). If less than 5 seconds remain before the lease's `expires_at`, the worker gives up the step: it sends no further call with that fence, and a later claim after expiry starts again from the basis.
 - A worker whose lease has lapsed, or whose set changed revision or generation, must not publish: the database refuses a stale fence, token or pin, and the worker treats the refusal as the end of the step.
-- The worker sends only a bundle that the builder returned and the check accepted, built from basis pages read under one lease with one set of pins. A refusal by the builder or the check sends nothing; the set stays as it was (Decision 1). The worker never edits, completes or guesses a bundle.
+- The worker sends only a bundle that the builder returned and the check accepted, built from basis pages read under one lease with one set of pins. The worker never edits, completes or guesses a bundle.
+- A refusal by the builder or the check (owner answer Q25): the worker sends nothing more under that lease, logs the builder's or the check's fixed error code with the function name, `request_id` and set ID on each attempt, and ends the step. The set's state, revision and generations stay as they were. No function reports such a set, so it is claimed again each time its lease lapses, until the user cancels it or it expires; other sets are still served while its lease is live. `docs/web-v2-imports.md` says that a set the worker cannot prepare waits for cancel or expiry. This ticket adds no SQL for it; a SQL ticket that rejects such a set is filed later only if refusals happen in practice.
 - Basis pages and the bundle live only in memory for the step and are dropped when the step ends. Nothing from them is written to the journal, a file or a log. Logs carry only the function name, `request_id`, set ID and a fixed code.
 - Not in scope: the builder's content (IMP-007P), any SQL, grant or DTO change, the upload route (IMP-007U), the launcher, and renewal of prepare leases. The frozen r7 bundle and `oracle.json` stay as they are.
 
@@ -61,14 +62,15 @@ After every file of an import set is normalized, and again after the user answer
 - [ ] AC-IMP-007V-02: A worker that stalls while it holds a prepare lease cannot publish after the lease expires: a second worker claims the set with a new fence, the first worker's late `prepare_preview_v1` is refused, and exactly one preview exists.
 - [ ] AC-IMP-007V-03: Each prepare step runs under one lease that is never renewed; when less than 5 seconds of the lease remain, the worker sends no further call with that fence, and a later claim builds the preview from a fresh basis.
 - [ ] AC-IMP-007V-04: After the user's decisions move a set to `RECONCILING`, the worker prepares the new revision without a human step, and a call with the earlier lease's fence is refused.
-- [ ] AC-IMP-007V-05: A bundle that IMP-007P's builder or `approval.validate_review_bundle` refuses is never sent; no preview is created and the set's state, revision and generations are unchanged.
+- [ ] AC-IMP-007V-05: A bundle that IMP-007P's builder or `approval.validate_review_bundle` refuses is never sent; no preview is created; the set's state, revision and generations are unchanged; the worker logs the fixed error code on each attempt, with no basis content; and after the lease lapses the set is claimed again and refused the same way.
 - [ ] AC-IMP-007V-06: The worker's fixed list of SQL functions gains exactly `read_plan_basis_v1` and `prepare_preview_v1`, `claim_plan_v1` accepts `work_kind: "prepare"`, and every other rule checked by AC-IMP-007F-01 still holds.
 - [ ] AC-IMP-007V-07: No basis page, bundle byte or financial value appears in the worker journal, a file or a log after a prepare step, whether it succeeded, was refused or gave up.
-- [ ] AC-IMP-007V-08: `docs/web-v2-imports.md` and `docs/web-v2-import-worker.md` say that sets now reach a preview without a human step, and no longer say that sets stop after normalization.
+- [ ] AC-IMP-007V-08: `docs/web-v2-imports.md` and `docs/web-v2-import-worker.md` say that sets now reach a preview without a human step, and no longer say that sets stop after normalization; `docs/web-v2-imports.md` says that a set the worker cannot prepare waits until it is cancelled or expires.
 
 ## Plan
 
-- [ ] Planner writes the Build plan from the merged IMP-007F and IMP-007P code, after Gate A and Decision 1.
+- [x] Owner answers Decision 1 (2026-11-21: (a)).
+- [ ] Planner writes the Build plan from the merged IMP-007F and IMP-007P code, after Gate A.
 - [ ] Prepare loop, the two new `CALLS` names and the `prepare` claim kind.
 - [ ] Unit and real-PostgreSQL tests per acceptance ID, including the Docker variant of AC-01 through the real launcher.
 - [ ] Docs; full suite; pull request with the independent review.
@@ -78,16 +80,20 @@ After every file of an import set is normalized, and again after the user answer
 Only the owner answers. The planner recommends an option.
 
 1. What happens when the builder or the check refuses a set's basis. No worker function reports that a set cannot be prepared, and `claim_plan_v1` hands out the oldest eligible set first, so the same set is claimed again each time its lease lapses (about once a minute) until the user cancels it or it expires. Other sets are still served while its lease is live. (a) Accept that for the MVP: the worker logs a fixed code on each attempt, and the docs say that a set that cannot be prepared waits until it is cancelled or expires. (b) File a SQL ticket for a worker function that rejects the set with a fixed code under the prepare lease, so the user sees the failure at once; it shares the `ingestion-schema-sql` lock with IMP-007N, IMP-007O, IMP-007Q and IMP-007R. The planner recommends (a) now and (b) as a follow-up if refusals show up in practice.
-2. Gate A: the owner approves the Goal, Requirements and Acceptance criteria above, or asks for changes.
+   **Resolved 2026-11-21: (a).** Asked "IMP-007V (prepare step): if the ReviewBundle builder refuses a set's basis ... What now?", the owner chose "Accept for MVP (Recommended)": the worker logs a fixed code each attempt; the docs say such a set waits for cancel or expiry; a SQL ticket is filed later only if it happens in practice. Requirements, AC-05 and AC-08 state this rule.
+2. Gate A: the owner approves the Goal, Requirements and Acceptance criteria above, with the answer to item 1 written into them, or asks for changes.
+   **Resolved 2026-11-21.** Asked "Gate A, tickets rewritten with your decisions. Which do you approve exactly as written?" with this ticket listed at sha256:4b99ed6139aa7ea5e31268a7f185c93b2b57e28a6c808d107422763bc827ad6b, the owner selected "IMP-007Q,IMP-007R,IMP-007V" (Q32). `gate_approval` and `spec_approved` record it.
 
 ## Handoff
 
-- State: Filed on 2026-11-20; backlog, waiting for the owner's Gate A, the answer to Decision 1 and a Build plan. Depends on IMP-007F and IMP-007P; neither is merged.
+- State: Filed on 2026-11-20; backlog. Decision 1 was resolved on 2026-11-21; waiting for the owner's Gate A and a Build plan. Depends on IMP-007F and IMP-007P; neither is merged.
 - Next step: After IMP-007F and IMP-007P merge, the planner reads their merged code and writes the Build plan, including the exact builder call, the paging order of the six basis resources and the test table per acceptance ID.
 - Verify: `PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -p 'test_ingestion_*.py' -v` and `KURAFOLIO_INGESTION_TEST=1 PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -p 'test_postgres_*.py' -v`
 - Gotchas: A prepare lease ends at the user's session expiry or 1800 s after the session's last activity if that is sooner than 60 s, so a set whose user signed out is not claimed. Do not add renewal for prepare leases (D6).
-- Open questions: Decisions needed items 1 and 2.
+- Open questions: Gate A (Decisions needed item 2).
 
 ## Log
 
 - 2026-11-20 claude-code/opus-5.5: filed in plan pull request #86 from the owner's decision of 2026-11-20 on "IMP-007F problem: the repo's pr-check fails any PR from the ticket's branch unless the ticket is done ... How should this work?": the owner chose "Split prepare out (Recommended)": "Move the prepare step and AC-04 to a new ticket (IMP-007V) that depends on IMP-007F and IMP-007P. IMP-007F (worker + launcher) finishes after PR 2, unblocking IMP-007S. Same pattern as the IMP-007E upload split." AC-IMP-007V-01 is the former AC-IMP-007F-04, with "the IMP-007E routes (or their SQL functions if 007E is not merged)" changed to the IMP-007U upload route, which now owns upload; AC-IMP-007V-02 is the prepare case of AC-IMP-007F-05. Status backlog; no Gate A yet.
+- 2026-11-21 claude-code/opus-5.5: recorded the owner's answer of 2026-11-21 in plan pull request #95. Decision 1: asked "IMP-007V (prepare step): if the ReviewBundle builder refuses a set's basis ... What now?", the owner chose "Accept for MVP (Recommended)": the worker logs a fixed code each attempt; the docs say such a set waits for cancel or expiry; a SQL ticket is filed later only if it happens in practice. Gated changes: a new Requirements bullet states that rule (the worker logs the builder's or the check's fixed error code with the function name, `request_id` and set ID, sends nothing more and ends the step; the set is reclaimed after each lapse until cancel or expiry); AC-05 adds the log and the reclaim; AC-08 adds the docs sentence. Spec hash sha256:6daff94ac59979da4c3fc2e0b2a2abbc9dacac823c566afb651e91e2e22c49fe becomes sha256:4b99ed6139aa7ea5e31268a7f185c93b2b57e28a6c808d107422763bc827ad6b; still backlog, no Gate A.
+- 2026-11-21 claude-code/opus-5.5: recorded Gate A in plan pull request #95. Asked "Gate A, tickets rewritten with your decisions. Which do you approve exactly as written?" (Q32) with this ticket listed at sha256:4b99ed6139aa7ea5e31268a7f185c93b2b57e28a6c808d107422763bc827ad6b, the owner selected "IMP-007Q,IMP-007R,IMP-007V". `gate_approval` set to "owner 2026-11-21, Gate A on the text as written on PR #95's branch (Q32)"; `spec_approved` set to sha256:4b99ed6139aa7ea5e31268a7f185c93b2b57e28a6c808d107422763bc827ad6b, which `tickets.py spec` reports as the current hash; status backlog becomes ready. Decisions needed item 2 resolved. No Build plan yet; the planner writes it in a later pull request.
