@@ -11,12 +11,12 @@ risk: critical
 size: L
 agent_tier: frontier
 gate: owner
-gate_approval: "owner 2026-10-31, IMP-007 spec r7 (covers all child tickets)"
+gate_approval: "owner 2026-10-31, IMP-007 spec r7 (covers all child tickets); owner 2026-11-20, Requirements item 1 lease wording (D5)"
 review: independent
 branch: 
 pr: 
 spec: docs/specs/imp-007-r7/spec.md
-spec_approved: sha256:4cce4a674bf22ce519b38274a06b9b34fb7df958e9156be431ef9c9ee726477b
+spec_approved: sha256:420701995681ee6dd26ba120052fac05e4da2bf554a7c6717d9794549f953850
 updated: 2026-11-20
 ---
 
@@ -63,7 +63,7 @@ Run normalization in a dedicated worker that leases members, launches the parser
 
 Two processes, in two pull requests if that keeps each review small (worker first, launcher second; say so in the Handoff).
 
-1. The import worker. A long-running process with its own restricted database role. It loops: claim work with `claim_plan_v1`, do it, report through the worker SQL functions, repeat. The kinds of work are normalize (run the parser on received bytes), prepare (build the preview after decisions) and cleanup (remove what a finished, cancelled or expired set left behind). It renews its lease at least every 10 seconds; a lease lasts 60 seconds on the database clock. A worker whose lease has lapsed must not publish a result: every SQL call carries the fence it was given and the database refuses a stale one.
+1. The import worker. A long-running process with its own restricted database role. It loops: claim work with `claim_plan_v1`, do it, report through the worker SQL functions, repeat. The kinds of work are normalize (run the parser on received bytes), prepare (build the preview after decisions) and cleanup (remove what a finished, cancelled or expired set left behind). It renews its lease at least every 10 seconds; a lease lasts at most 60 seconds on the database clock (30 s for normalize and cleanup in the merged functions). A worker whose lease has lapsed must not publish a result: every SQL call carries the fence it was given and the database refuses a stale one.
 2. The launcher. A separate small service that starts the parser in a throw-away container and returns its output. The worker talks to it over a private authenticated channel. The worker has no Docker socket; the launcher has no database credentials. The parser container has no network, a read-only root, no private mounts, and CPU, memory, process and output limits. Only operator-pinned images run; nothing is pulled automatically.
 
 Rules that reviewers will check:
@@ -256,3 +256,4 @@ Raised by the planner on 2026-11-20 from the merged code. None of these is decid
 - 2026-11-18 claude-code/opus-5.5: ENG-113 migrated this ticket to the spec format without changing any wording: moved the bullet naming the r7 contract bundle, the "Real-PostgreSQL tests" bullet of Where to start and "What to build" from Context into Requirements and numbered the acceptance criteria AC-IMP-007F-01 to 09. Spec hash sha256:4cce4a674bf22ce519b38274a06b9b34fb7df958e9156be431ef9c9ee726477b, awaiting the owner's confirmation.
 - 2026-11-18 claude-code/opus-5.5: the owner confirmed the migrated text of this ticket in conversation with "Confirm all 29", the batch listed in ENG-113 decision 3; `spec_approved` records sha256:4cce4a674bf22ce519b38274a06b9b34fb7df958e9156be431ef9c9ee726477b.
 - 2026-11-20 claude-code/opus-5.5: wrote the Build plan from `main` a2f5f2b and raised decisions D1 to D8, including one proposed change to gated text (D5); plan PR #86.
+- 2026-11-20 claude-code/opus-5.5: Gate A for D5. The owner was asked "IMP-007F D5 Gate A, exact text. In Requirements item 1, replace 'a lease lasts 60 seconds on the database clock' with 'a lease lasts at most 60 seconds on the database clock (30 s for normalize and cleanup in the merged functions)'. Do you approve that exact wording?" and chose "Approve this text". Only that sentence changed. `spec_approved` moves from sha256:4cce4a674bf22ce519b38274a06b9b34fb7df958e9156be431ef9c9ee726477b to sha256:420701995681ee6dd26ba120052fac05e4da2bf554a7c6717d9794549f953850, and `gate_approval` adds "owner 2026-11-20, Requirements item 1 lease wording (D5)". Plan PR #86.
