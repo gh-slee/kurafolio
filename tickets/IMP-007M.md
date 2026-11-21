@@ -17,7 +17,7 @@ branch:
 pr: 
 spec: docs/specs/imp-007-r7/spec.md
 spec_approved: sha256:cf968d22fe6dcdfadf0a39af3744c41c18ba150851cc4b05611ef5f8f1fe2aaa
-updated: 2026-11-18
+updated: 2026-11-20
 ---
 
 # IMP-007M: Decide how a re-upload gets back a raw slot that finish could not prove
