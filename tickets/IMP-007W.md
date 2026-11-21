@@ -198,7 +198,7 @@ Negative cases the reviewer will look for:
 
 ## Handoff
 
-- State: Filed on 2026-11-21 in a plan pull request, with a Build plan. Status `backlog`, waiting for the owner's Gate A.
+- State: Filed on 2026-11-21 in plan pull request #93, with a Build plan. Status `backlog`, waiting for the owner's Gate A.
 - Next step: After Gate A is on `main`, run step 0 of the Build plan before writing code.
 - Verify: `KURAFOLIO_INGESTION_TEST=1 PYTHONPATH=src .venv/bin/python -m unittest tests.test_postgres_migration -v` and `PYTHONPATH=src .venv/bin/python -m unittest tests.test_ingestion_runtime_inventory -v`; environment setup in [postgres-foundation.md](../docs/postgres-foundation.md) and [web-v2-imports.md](../docs/web-v2-imports.md).
 - Gotchas: The runtime login sees the catalog but not `wl_identity` tables; the gateway login cannot read `wl_pg`. Drift cases must commit, because the check runs on another connection.
@@ -206,4 +206,4 @@ Negative cases the reviewer will look for:
 
 ## Log
 
-- 2026-11-21 claude-code/opus-5.5: filed from the owner's answer "New prerequisite ticket" to IMP-007E Decisions needed item 7, with a frontier Build plan from `main` at `cd68c5e`. Status backlog; no Gate A yet.
+- 2026-11-21 claude-code/opus-5.5: filed from the owner's answer "New prerequisite ticket" to IMP-007E Decisions needed item 7, with a frontier Build plan from `main` at `cd68c5e`, in plan pull request https://github.com/gh-slee/kurafolio/pull/93. Spec hash at filing sha256:69f601c821550d5e487bb972ab128e3a8e71d1bce1ed8110081dba13426f7094, awaiting the owner's Gate A. Status backlog; no Gate A yet.
