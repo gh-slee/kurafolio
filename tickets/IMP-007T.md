@@ -43,7 +43,7 @@ When a newer holdings file from a source no longer lists an account that an earl
 
 ## Requirements
 
-- Scope: detect absent accounts while a holdings import is prepared, show them as a question in the import preview, accept a "keep" or "mark closed" answer for each with the other import decisions, store a "closed" answer as an append-only accepted fact, and document the read rule for the positions calculation. Includes the r7 contract amendment, SQL, grants, the inventory update and PostgreSQL tests.
+- Scope: detect absent accounts while a holdings import is prepared, show them as a question in the import preview, accept a "keep" or "mark closed" answer for each with the other import decisions, store a "closed" answer as an append-only accepted fact, and document the read rule for the positions calculation. Includes the contract amendment to the live codec, SQL, grants, the inventory update and PostgreSQL tests.
 - Non-goals: the import page (APP-011D shows the question); the change to the positions reader (a later positions ticket, Decision 4); crypto, exchange or funding accounts that appear only in activity files; closing an account by hand outside an import; deleting or rewriting any stored fact.
 - An account is absent from an incoming holdings file when all of these hold: it belongs to the same source connection as the file; it has a current holdings head from an earlier accepted import; it is not already closed; and the incoming file has no holdings coverage entry for it. An account with a coverage entry is covered, whatever the entry's declared status, and is never asked about. A file from a different connection never makes another connection's account absent.
 - The preview lists each absent account with its label, the time of its last accepted snapshot and its position count. The question and the answers are covered by the preview digest, so a changed answer makes the old preview stale, as other decisions do.
@@ -54,7 +54,7 @@ When a newer holdings file from a source no longer lists an account that an earl
 - Replaying the same acceptance has no effect. Unknown stays unknown: a closure says the account is no longer held as of its closing time and nothing else (no sale price, no proceeds, no cash).
 - Isolation and grants: the fact is stored under the same tenant and portfolio forced RLS as the other accepted facts. The financial reader role can `SELECT` it; no role gains any other privilege; the runtime role still cannot write accepted facts directly.
 - Read rule for the positions calculation, documented in `docs/web-v2-imports.md`: a holdings head whose latest snapshot revision is named by a closure, with no later head for that account, contributes no position, and the calculation names the closure (account and closing time) so the page can say why the account is gone. The later positions ticket implements this rule; this ticket does not change `src/kurafolio/projection/`.
-- The r7 contract amendment is published with the change: the new decision entry and fact shape in the codec schema (a new `Decisions` version if the shape changes), the SQL inventory additions in `oracle.json`, and the bundle index hashes, with r7's frozen baseline files left as they are.
+- The contract change goes in the live artifacts, not the frozen bundle: the new decision entry and fact shape in the runtime codec schemas in `src/kurafolio/ingestion/contracts.py` (a new `Decisions` version if the shape changes), and the SQL additions in the `sql-inventory` key of `tests/fixtures/ingestion/oracle.json`. The r7 bundle files under `docs/specs/imp-007-r7/` and their index hash stay unchanged; `docs/web-v2-imports.md` records the amendment.
 
 ## Acceptance criteria
 
@@ -65,7 +65,7 @@ When a newer holdings file from a source no longer lists an account that an earl
 - [ ] AC-IMP-007T-05: Given an accepted closure, when the same acceptance is replayed, then nothing changes; when an answer changes after the preview was prepared, then that preview is stale and cannot be accepted.
 - [ ] AC-IMP-007T-06: Given a closure of Q, when a later accepted file has newer coverage for Q, then Q has a new current head and the closure no longer applies to it; closing an account that is covered or already closed is refused.
 - [ ] AC-IMP-007T-07: The financial reader role reads closure facts of its own tenant and portfolio only, never another's; no role gains another privilege; the `sql-inventory` in `tests/fixtures/ingestion/oracle.json` lists every new object and the migration verification passes.
-- [ ] AC-IMP-007T-08: [review] `docs/web-v2-imports.md` documents the question, the stored fact and the read rule for the positions calculation, and the r7 amendment is published with updated index hashes.
+- [ ] AC-IMP-007T-08: [review] `docs/web-v2-imports.md` documents the question, the stored fact, the contract amendment and the read rule for the positions calculation, and no file under `docs/specs/imp-007-r7/` changes.
 
 ## Plan
 
