@@ -2,7 +2,7 @@
 id: IMP-007N
 title: Back off cleanup claims for sets whose cleanup keeps failing
 priority: P0
-status: ready
+status: done
 type: feature
 parent: IMP-007
 depends_on: [IMP-007C]
@@ -13,11 +13,11 @@ agent_tier: frontier
 gate: owner
 gate_approval: "owner 2026-11-12, exponential backoff 30s x 2^(n-1) capped at 15 minutes, oldest-first among eligible sets, no new columns"
 review: independent
-branch: 
-pr: 
+branch: ticket/imp-007n-back-off-cleanup-claims-for-sets-whose-c
+pr: https://github.com/gh-slee/kurafolio/pull/88
 spec: docs/specs/imp-007-r7/spec.md
 spec_approved: sha256:c3e06c751ef4816ad200095284163430738b7a0e1783e78999605dd5035e92eb
-updated: 2026-11-18
+updated: 2026-11-21
 ---
 
 # IMP-007N: Back off cleanup claims for sets whose cleanup keeps failing
@@ -45,13 +45,13 @@ updated: 2026-11-18
 
 ## Acceptance criteria
 
-- [ ] AC-IMP-007N-01: A set with n earlier cleanup leases is eligible only when it has none, or when the database clock is at or past its latest cleanup lease's `created_at` plus `LEAST(30 seconds × 2^(n−1), 15 minutes)`.
-- [ ] AC-IMP-007N-02: Among eligible sets the order stays oldest-first (`created_at`, then set ID), as owner decision 6 requires.
-- [ ] AC-IMP-007N-03: A set in backoff never blocks a newer eligible set. When only backed-off sets remain, the claim returns `no_work`.
-- [ ] AC-IMP-007N-04: No new table, column or index: the rule uses only existing lease rows, so the r7 inventory does not change.
-- [ ] AC-IMP-007N-05: Overdue non-terminal sets (no cleanup lease yet) stay eligible at once and are expired before cleanup, as today.
-- [ ] AC-IMP-007N-06: Opt-in PostgreSQL tests cover: a stuck set skipped for a newer one; the stuck set claimable again after its window; the window doubling across attempts; the 15-minute cap; `no_work` when only backed-off sets remain; replay of an existing claim unaffected.
-- [ ] AC-IMP-007N-07: `docs/web-v2-imports.md` describes the backoff.
+- [x] AC-IMP-007N-01: A set with n earlier cleanup leases is eligible only when it has none, or when the database clock is at or past its latest cleanup lease's `created_at` plus `LEAST(30 seconds × 2^(n−1), 15 minutes)`.
+- [x] AC-IMP-007N-02: Among eligible sets the order stays oldest-first (`created_at`, then set ID), as owner decision 6 requires.
+- [x] AC-IMP-007N-03: A set in backoff never blocks a newer eligible set. When only backed-off sets remain, the claim returns `no_work`.
+- [x] AC-IMP-007N-04: No new table, column or index: the rule uses only existing lease rows, so the r7 inventory does not change.
+- [x] AC-IMP-007N-05: Overdue non-terminal sets (no cleanup lease yet) stay eligible at once and are expired before cleanup, as today.
+- [x] AC-IMP-007N-06: Opt-in PostgreSQL tests cover: a stuck set skipped for a newer one; the stuck set claimable again after its window; the window doubling across attempts; the 15-minute cap; `no_work` when only backed-off sets remain; replay of an existing claim unaffected.
+- [x] AC-IMP-007N-07: `docs/web-v2-imports.md` describes the backoff.
 
 ## Build plan
 
@@ -220,8 +220,8 @@ Revert the commit. The change has no data migration, no table, column or index c
 
 ## Plan
 
-- [ ] Add `_cleanup_backoff_sql`, the two placeholders, the locked recheck and `next_fence:=earlier+1` to `CLAIM_PLAN_DDL`, with the static test and the extra fragment check.
-- [ ] Give the three existing gated cleanup tests older lease times; add the helper methods and the five gated tests; raise the `postgres-foundation` skip count and comment in `.github/workflows/ci.yml`.
+- [x] Add `_cleanup_backoff_sql`, the two placeholders, the locked recheck and `next_fence:=earlier+1` to `CLAIM_PLAN_DDL`, with the static test and the extra fragment check.
+- [x] Give the three existing gated cleanup tests older lease times; add the helper methods and the five gated tests; raise the `postgres-foundation` skip count and comment in `.github/workflows/ci.yml`.
 - [ ] Update `docs/web-v2-imports.md`; run the ingestion PostgreSQL and full suites; start the independent review; open the PR.
 
 ## Decisions needed
@@ -230,10 +230,10 @@ None. The owner's Gate A of 2026-11-12 (30 s × 2^(n−1), capped at 15 minutes;
 
 ## Handoff
 
-- State: Not started. The owner chose exponential backoff on 2026-11-12, after the IMP-007C reviews found that one failing set can starve cleanup of every other set.
-- Next step: Read `CLAIM_PLAN_DDL` and the cleanup-lease tests (`test_cleanup_*`, `test_claim_*`) in `tests/test_postgres_migration.py`.
-- Verify: `KURAFOLIO_INGESTION_TEST=1 PYTHONPATH=src .venv/bin/python -m unittest tests.test_postgres_migration -v` and `PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -v`
-- Gotchas: n counts every earlier cleanup lease for the set, including expired ones. Keep `FOR UPDATE SKIP LOCKED` on candidate roots and the READ COMMITTED check. A lapsed lease is still closed as expired before a new claim.
+- State: Independent QA plus Architect review by claude-code/opus-5.5 passed all seven acceptance criteria with no blocking findings: https://github.com/gh-slee/kurafolio/pull/88#issuecomment-7057090360. The fresh-context review covered `0c0b535` against main `a9b0bc1`; the reviewed implementation is unchanged. CI https://github.com/gh-slee/kurafolio/actions/runs/44862975399 passed on `0c0b535`. Main was merged cleanly at `6df197b`; its two already-merged ENG-107 paths change no runtime source. This ticket-only review record still needs an exact-HEAD candidate receipt, publication and CI before owner review. PR #88 remains Draft, with `status: done` and its PR URL recorded.
+- Next step: Commit this review record, run `.venv/bin/python scripts/check_pr_image.py` for the exact final HEAD and retain the receipt. Publish the closeout when authorized, refresh the PR's review and image evidence, then verify CI on that HEAD before handing it to the owner. No source repair or repeat independent review is needed for this record-only closeout.
+- Verify: `python3 scripts/tickets.py check`; `python3 scripts/tickets.py pr-check --branch ticket/imp-007n-back-off-cleanup-claims-for-sets-whose-c`; `python3 scripts/tickets.py spec IMP-007N --base origin/main`; `.venv/bin/python scripts/check_language.py`; the worktree, staged and history publication guards. Existing developer test and image receipts remain under ignored `work/imp-007n/` and `work/pr-images/`; no full-suite repeat is needed for unchanged implementation.
+- Gotchas: The reviewer did not independently rerun the image gate or full Python suite, and local PostgreSQL foundation/provider checks were blocked by loopback restrictions; those PostgreSQL checks and the full suite passed in CI. The reviewer checked the locked recheck race by reading the code, not with a two-session test. The nonblocking overdue-assertion readability nit is left unchanged because the final `OWNCLEAN` assertion proves the exact own set was claimed. The extra lease-history scan is the existing accepted no-index trade-off under AC-04; no scope expansion is needed. Preserve the claim until merge and outstanding work are resolved.
 - Open questions: None.
 
 ## Log
@@ -242,3 +242,21 @@ None. The owner's Gate A of 2026-11-12 (30 s × 2^(n−1), capped at 15 minutes;
 - 2026-11-18 claude-code/opus-5.5: ENG-113 migrated this ticket to the spec format without changing any wording: moved the bullet naming the r7 contract bundle from Context into Requirements and numbered the acceptance criteria AC-IMP-007N-01 to 07. Spec hash sha256:c3e06c751ef4816ad200095284163430738b7a0e1783e78999605dd5035e92eb, awaiting the owner's confirmation.
 - 2026-11-18 claude-code/opus-5.5: the owner confirmed the migrated text of this ticket in conversation with "Confirm all 29", the batch listed in ENG-113 decision 3; `spec_approved` records sha256:c3e06c751ef4816ad200095284163430738b7a0e1783e78999605dd5035e92eb.
 - 2026-11-19 claude-code/opus-5.5: wrote the Build plan, Context and Plan from `main` at `a2f5f2b` in plan PR https://github.com/gh-slee/kurafolio/pull/81, finishing and correcting an unreviewed earlier draft; no Decisions needed and no gated section changed.
+
+- 2026-11-20 codex/gpt-6.1-sol: claimed the ticket from `d902717` after verifying the merged Build plan and unchanged approved spec; implementation and synthetic verification starting.
+
+- 2026-11-20 codex/gpt-6.1-sol: implemented the five planned paths, with 17 static tests passing and gated PostgreSQL execution still required; no gated section, frozen r7 file, inventory or oracle changed.
+
+- 2026-11-20 codex/gpt-6.1-sol: full Python suite passed (1385 run, 251 skips (248 optional/opt-in, two missing optional PostgreSQL dependencies and one sandbox-denied loopback test), zero failures/errors, 723.380 s); installed the existing locked PostgreSQL test dependencies in an ignored local venv. Actual PostgreSQL acceptance, the sandbox-denied native restart check, candidate image and independent review remain separate gates.
+
+- 2026-11-20 codex/gpt-6.1-sol: actual opt-in PostgreSQL passed (139 tests, 97.585 s, zero skips/failures/errors), including every new backoff case and the unchanged inventory check. Targeted PostgreSQL configuration (two tests) and native restart (one test, 1.354 s) passed without skips; the earlier native invocation failure was an import-path issue. No code repair or unplanned behaviour was needed. Candidate image and independent Claude Opus 5.5 review are still outstanding; no PR exists.
+
+- 2026-11-20 codex/gpt-6.1-sol: implementation `abe7c38` was published in Draft PR https://github.com/gh-slee/kurafolio/pull/88. Prepared this ticket-only metadata closeout with `status: done` and `pr:` as required by the PR check. The candidate for `abe7c38` passed all smoke checks; a separate exact-HEAD image receipt is required for the metadata commit. Independent review remains NOT RUN and the Draft is not ready for owner review.
+
+- 2026-11-20 codex/gpt-6.1-sol: outcome: implemented by codex/gpt-6.1-sol; configured reviewing model claude-code/opus-5.5 (Claude Opus 5.5), NOT RUN because it is unavailable in Codex; review repair rounds: 0; spec or Build plan omissions: nothing missing. Required independent review and subsequent owner review remain outstanding.
+
+- 2026-11-21 codex/gpt-6.1-sol: recorded the fresh-context QA plus Architect review by claude-code/opus-5.5 at https://github.com/gh-slee/kurafolio/pull/88#issuecomment-7057090360 (2026-11-21T04:11:22Z), covering `0c0b535` against `a9b0bc1`: all seven acceptance criteria PASS, no blocking findings. The reviewer passed 17 static DDL tests and reported passing gated backoff coverage; local PostgreSQL foundation/provider checks were blocked by loopback restrictions, while CI passed those checks. The reviewer did not rerun the candidate image or full Python suite and checked the lock race by code inspection.
+
+- 2026-11-21 codex/gpt-6.1-sol: left the nonblocking overdue `assertNotEqual` readability nit unchanged because final `OWNCLEAN` proves the exact own set. Retained the Build plan's accepted no-index lease-history scan. The reviewed implementation is unchanged; main was merged at `6df197b` with only the already-merged ENG-107 test/ticket paths. CI on `0c0b535` passed; this final record-only HEAD still requires its own image and CI gates before owner review.
+
+- 2026-11-21 codex/gpt-6.1-sol: outcome: implemented by codex/gpt-6.1-sol; reviewed by claude-code/opus-5.5 (Claude Opus 5.5, independent QA plus Architect), PASS on all seven acceptance criteria with no blocking findings; review repair rounds: 0; spec or Build plan omissions: nothing missing. No implementation change was needed after review.

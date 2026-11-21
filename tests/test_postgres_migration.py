@@ -230,6 +230,26 @@ class IngestionStorageDDLTests(unittest.TestCase):
             schema.TRANSITION_DDL).group(1).replace("'", '').replace('\n', '').replace(' ', '').split(',')))
 
 
+    def test_cleanup_claim_backoff_is_one_shared_rule(self):
+        """AC-IMP-007N-01, AC-IMP-007N-04: one exact rule, before LIMIT and under locks."""
+        ddl = schema.CLAIM_PLAN_DDL
+        candidate = schema._cleanup_backoff_sql('b.lease_count', 'b.last_created')
+        locked = schema._cleanup_backoff_sql('earlier', 'latest_cleanup')
+        for fragment, count in ((candidate, 1), (locked, 1), ('next_fence:=earlier+1;', 1),
+                ("interval '15 minutes'", 2), ('count(*)+1 INTO next_fence', 0),
+                ('CREATE INDEX', 0), ('CREATE TABLE', 0), ('ALTER TABLE', 0)):
+            with self.subTest(fragment=fragment):
+                self.assertEqual(count, ddl.count(fragment))
+        for start, expression, end in (
+                ('-- Owner decision: the oldest terminal set whose cleanup is pending or failed and', candidate,
+                 'ORDER BY x.created_at,x.id::text COLLATE "C" LIMIT 8'),
+                ('CONTINUE WHEN selected.state NOT IN', locked,
+                 '-- A lapsed cleanup lease is closed before another one starts.')):
+            self.assertEqual(1, ddl.count(start))
+            self.assertEqual(1, ddl.count(end))
+            self.assertLess(ddl.index(start), ddl.index(expression))
+            self.assertLess(ddl.index(expression), ddl.index(end))
+
     def test_cleanup_lease_functions_match_their_worker_declarations(self):
         declared = {x['name']: x for x in schema.inventory()['functions']}
         for name, ddl in (('claim_plan_v1', schema.CLAIM_PLAN_DDL), ('cleanup_set_v1', schema.CLEANUP_SET_DDL)):
@@ -240,7 +260,7 @@ class IngestionStorageDDLTests(unittest.TestCase):
                 self.assertEqual(1, ddl.count('CREATE FUNCTION'))
                 self.assertIn('wl_ingestion._guard_worker_v1(p_worker,p_token,p_request)', ddl)
                 for fragment in ('GRANT ', 'DELETE ', 'ACK_', 'TERMINAL', 'CODES', 'UUID_RE', 'PROOFS_SHAPE',
-                                 'ATTEMPT_JOB', 'CLEANUP_SESSION', 'MAXIMUM'):
+                                 'ATTEMPT_JOB', 'CLEANUP_SESSION', 'MAXIMUM', 'BACKOFF_'):
                     self.assertNotIn(fragment, ddl)
         # A cleanup lease never names a user session; it stores one fixed marker.
         self.assertEqual(hashlib.sha256(b'kurafolio.ingestion.cleanup-lease.v1').hexdigest(),
@@ -4956,6 +4976,40 @@ SELECT 'STAGE '||jsonb_build_array(octet_length(data),encode(sha256(data),'hex')
         "bucket='storage'),'transient',(SELECT count(*) FROM wl_ingestion.stages WHERE set_id=" + OWN_SET + "::uuid)+"
         "(SELECT count(*) FROM wl_ingestion.members WHERE set_id=" + OWN_SET + "::uuid AND context_bytes IS NOT NULL))::text;")
 
+    def clone_set(self, set_id, *, seconds, cleanup):
+        return ("SET LOCAL session_replication_role=replica;"
+            "INSERT INTO wl_ingestion.sets SELECT tenant_id,portfolio_id,'" + set_id + "'::uuid,actor_user_id,"
+            "pg_catalog.gen_random_uuid(),request_digest,incarnation,restore_epoch,realm_digest,'CANCELLED',revision,"
+            "created_at+interval '" + str(seconds) + " seconds',expires_at+interval '" + str(seconds) +
+            " seconds',member_count,reserved_bytes,NULL,'" + cleanup + "',NULL,NULL FROM wl_ingestion.sets "
+            "WHERE id=" + self.OWN_SET + "::uuid;SET LOCAL session_replication_role=origin;")
+
+    def closed_cleanup_leases(self, set_sql, rows):
+        script = 'SET LOCAL session_replication_role=replica;'
+        for fence, state, age in rows:
+            script += ("INSERT INTO wl_ingestion.leases(tenant_id,portfolio_id,id,set_id,member_id,work_kind,attempt,"
+                "fence,worker_id,token_digest,session_digest,credential_version,incarnation,restore_epoch,created_at,"
+                "expires_at,state,claim_request_id,claim_request_digest,last_request_id,last_request_digest,"
+                "last_result_bytes,raw_slot,cleanup_proof_bytes,prepare_set_revision,prepare_accepted_generation,"
+                "prepare_mapping_generation,prepare_control_generation) SELECT x.tenant_id,x.portfolio_id,"
+                "pg_catalog.gen_random_uuid(),x.id,NULL,'cleanup'," + str(fence) + "," + str(fence) + ",'" + self.WORKER +
+                "','" + hashlib.sha256(bytes.fromhex(self.WORKER_TOKEN)).hexdigest() + "','" +
+                schema.CLEANUP_SESSION_DIGEST + "',0,x.incarnation,x.restore_epoch,t.created,t.created,'" + state +
+                "',pg_catalog.gen_random_uuid(),'" + '0' * 64 + "',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL "
+                "FROM wl_ingestion.sets x CROSS JOIN (SELECT pg_catalog.clock_timestamp()-interval '" + str(age) +
+                " seconds' AS created) t WHERE x.id=" + set_sql + "::uuid;")
+        return script + 'SET LOCAL session_replication_role=origin;'
+
+    def age_cleanup_leases(self, seconds, set_sql=None):
+        return ("SET LOCAL session_replication_role=replica;UPDATE wl_ingestion.leases SET created_at=created_at-"
+            "interval '" + str(seconds) + " seconds',expires_at=expires_at-interval '" + str(seconds) +
+            " seconds' WHERE work_kind='cleanup'" + (" AND set_id=" + set_sql + "::uuid" if set_sql else '') +
+            ";SET LOCAL session_replication_role=origin;")
+
+    OWN_CLEANUP = ("SELECT 'OWNCLEAN '||COALESCE(pg_catalog.jsonb_agg(pg_catalog.jsonb_build_array(l.state,l.fence) "
+        "ORDER BY l.fence),'[]'::jsonb)::text FROM wl_ingestion.leases l WHERE l.work_kind='cleanup' AND l.set_id=" +
+        OWN_SET + "::uuid;")
+
     def assert_cleanup_lease(self, result, outcome, fence, state):
         self.assertTrue(result.get('ok'), result)
         value = result['value']
@@ -4982,7 +5036,7 @@ SELECT 'STAGE '||jsonb_build_array(octet_length(data),encode(sha256(data),'hex')
         seed, catalog = self.cleanup_seed(bind=False)
         # The API may hold the raw buffer until the 120-second raw deadline from reserve.
         past_deadline = (replica + "UPDATE wl_ingestion.leases SET created_at=created_at-interval '3 minutes',"
-                         "expires_at=expires_at-interval '3 minutes' WHERE work_kind='normalize';" + origin)
+                         "expires_at=expires_at-interval '3 minutes' WHERE work_kind IN ('normalize','cleanup');" + origin)
         out = self.run_labelled(seed + self.plan_claim('idle') + self.cancel_call(catalog) +
             self.CLEANUP_STATE.replace("'CSTATE '", "'BEFORE '") + self.plan_claim('early') + self.plan_claim('again',
             request='c1000000-0000-4000-8000-000000000001') +
@@ -5034,12 +5088,14 @@ SELECT 'STAGE '||jsonb_build_array(octet_length(data),encode(sha256(data),'hex')
                          self.proofs('pending') + ") " + bound) +
             self.rejects("UPDATE wl_ingestion.leases SET raw_slot='released',cleanup_proof_bytes=wl_ingestion._canonical_v1(" +
                          self.proofs('absent').replace("'fence','1'", "'fence','2'") + ") " + bound) +
+            self.age_cleanup_leases(120) +
             self.plan_claim('second', request='c1000000-0000-4000-8000-000000000004') +
             self.cleanup_call('pending', 'second', proofs=('absent', 'pending'),
                               request='c1000000-0000-4000-8000-0000000000a4') +
             self.CLEANUP_STATE.replace("'CSTATE '", "'MIDDLE '") +
             # A recorded proof is never dropped.
             self.rejects("UPDATE wl_ingestion.leases SET cleanup_proof_bytes=NULL " + bound) +
+            self.age_cleanup_leases(120) +
             self.plan_claim('third', request='c1000000-0000-4000-8000-000000000006') +
             self.cleanup_call('proved', 'third', proofs=('not_created', 'absent'),
                               request='c1000000-0000-4000-8000-0000000000a6') +
@@ -5100,6 +5156,7 @@ SELECT 'STAGE '||jsonb_build_array(octet_length(data),encode(sha256(data),'hex')
                 script = (seed + self.finish_call('finish', proofs=finish_proofs) +
                     self.CLEANUP_STATE.replace("'CSTATE '", "'FINISHED '") + self.cancel_call(catalog) +
                     self.plan_claim('claim', token=self.CLEANUP_TOKEN) + self.cleanup_call('clean') +
+                    self.age_cleanup_leases(120) +
                     self.plan_claim('second', request='c1000000-0000-4000-8000-000000000004') +
                     # A proof for an attempt whose slot finish already returned changes nothing.
                     self.cleanup_call('again', 'second', proofs=('absent',),
@@ -5234,6 +5291,148 @@ SELECT 'STAGE '||jsonb_build_array(octet_length(data),encode(sha256(data),'hex')
         self.assertEqual(out['OWN']['id'], out['FIRST']['value']['lease']['set_id'])
         self.assertEqual(later, out['SECOND']['value']['lease']['set_id'])
         self.assertEqual(self.NO_WORK, out['THIRD'])
+
+    def test_claim_skips_a_backed_off_set_for_a_newer_one(self):
+        """AC-IMP-007N-01, AC-IMP-007N-03, AC-IMP-007N-06: waiting never blocks new work."""
+        seed, catalog = self.cleanup_seed()
+        newer = 'a7000000-0000-4000-8000-0000000000b1'
+        out = self.run_labelled(seed + self.cancel_call(catalog) +
+            self.clone_set(newer, seconds=1, cleanup='pending') + self.plan_claim('first') +
+            self.cleanup_call('stuck', 'first') + self.CLEANUP_STATE +
+            self.plan_claim('newer', request='c1000000-0000-4000-8000-000000000002') +
+            self.plan_claim('waiting', request='c1000000-0000-4000-8000-000000000003') +
+            self.age_cleanup_leases(20, self.OWN_SET) +
+            self.plan_claim('inside', request='c1000000-0000-4000-8000-000000000004') +
+            self.age_cleanup_leases(11, self.OWN_SET) +
+            self.plan_claim('past', request='c1000000-0000-4000-8000-000000000005') + self.OWN_CLEANUP)
+        state = out['CSTATE']
+        first = self.assert_cleanup_lease(out['FIRST'], 'claimed', '1', state)
+        self.assertEqual({'ok': True, 'value': self.cleanup_ack(first, 'cleanup_pending', False)}, out['STUCK'])
+        self.assertEqual(['CANCELLED', 'failed'], state['set'])
+        self.assertEqual(newer, self.assert_cleanup_lease(out['NEWER'], 'claimed', '1', state)['set_id'])
+        self.assertEqual(self.NO_WORK, out['WAITING'])
+        self.assertEqual(self.NO_WORK, out['INSIDE'])
+        self.assertEqual(first['set_id'], self.assert_cleanup_lease(out['PAST'], 'claimed', '2', state)['set_id'])
+        self.assertEqual([['finished', 1], ['active', 2]], out['OWNCLEAN'])
+
+    def test_claim_backoff_doubles_and_caps_at_fifteen_minutes(self):
+        """AC-IMP-007N-01, AC-IMP-007N-03, AC-IMP-007N-06: every state counts, cap is exact."""
+        seed, catalog = self.cleanup_seed()
+        stuck = seed + self.cancel_call(catalog) + self.plan_claim('first') + self.cleanup_call('stuck', 'first')
+        for count, window in ((1, 30), (2, 60), (3, 120), (4, 240), (5, 480), (6, 900), (7, 900), (70, 900)):
+            with self.subTest(earlier=count, window=window):
+                states = ('expired', 'cancelled', 'finished')
+                rows = [(fence, states[(fence - 2) % 3], window - 10 + count - fence)
+                        for fence in range(2, count + 1)]
+                out = self.run_labelled(stuck + self.age_cleanup_leases(window - 10 + count - 1) +
+                    self.closed_cleanup_leases(self.OWN_SET, rows) + self.CLEANUP_STATE +
+                    self.plan_claim('inside', request='c1000000-0000-4000-8000-000000000002') +
+                    self.age_cleanup_leases(11) +
+                    self.plan_claim('past', request='c1000000-0000-4000-8000-000000000003') + self.OWN_CLEANUP)
+                self.assertEqual(self.NO_WORK, out['INSIDE'])
+                first = self.assert_cleanup_lease(out['FIRST'], 'claimed', '1', out['CSTATE'])
+                self.assertEqual(first['set_id'], self.assert_cleanup_lease(
+                    out['PAST'], 'claimed', str(count + 1), out['CSTATE'])['set_id'])
+                self.assertEqual(count + 1, len(out['OWNCLEAN']))
+                self.assertEqual(['active', count + 1], out['OWNCLEAN'][-1])
+        with self.subTest(case='latest_not_earliest'):
+            out = self.run_labelled(stuck + self.age_cleanup_leases(100) +
+                self.closed_cleanup_leases(self.OWN_SET, [(2, 'finished', 40)]) +
+                self.plan_claim('inside', request='c1000000-0000-4000-8000-000000000002') + self.OWN_CLEANUP)
+            self.assertEqual(self.NO_WORK, out['INSIDE'])
+            self.assertEqual([['finished', 1], ['finished', 2]], out['OWNCLEAN'])
+        with self.subTest(case='created_not_expires'):
+            out = self.run_labelled(stuck + self.age_cleanup_leases(40) +
+                "SET LOCAL session_replication_role=replica;UPDATE wl_ingestion.leases SET "
+                "expires_at=pg_catalog.clock_timestamp()-interval '10 seconds' WHERE work_kind='cleanup';"
+                "SET LOCAL session_replication_role=origin;" + self.CLEANUP_STATE +
+                self.plan_claim('past', request='c1000000-0000-4000-8000-000000000002'))
+            self.assert_cleanup_lease(out['PAST'], 'claimed', '2', out['CSTATE'])
+        with self.subTest(case='lapsed_counts'):
+            out = self.run_labelled(stuck + self.age_cleanup_leases(50) +
+                self.closed_cleanup_leases(self.OWN_SET, [(2, 'active', 31)]) + self.CLEANUP_STATE +
+                self.plan_claim('inside', request='c1000000-0000-4000-8000-000000000002') +
+                self.OWN_CLEANUP.replace("'OWNCLEAN '", "'UNCHANGED '") + self.age_cleanup_leases(30) +
+                self.plan_claim('past', request='c1000000-0000-4000-8000-000000000003') + self.OWN_CLEANUP)
+            self.assertEqual(self.NO_WORK, out['INSIDE'])
+            self.assertEqual([['finished', 1], ['active', 2]], out['UNCHANGED'])
+            self.assert_cleanup_lease(out['PAST'], 'claimed', '3', out['CSTATE'])
+            self.assertEqual([['finished', 1], ['expired', 2], ['active', 3]], out['OWNCLEAN'])
+
+    def test_claim_backoff_never_fills_the_candidate_limit(self):
+        """AC-IMP-007N-02, AC-IMP-007N-03, AC-IMP-007N-06: exclude waiters before LIMIT 8."""
+        seed, catalog = self.cleanup_seed()
+        script = seed + self.cancel_call(catalog) + self.plan_claim('first') + self.cleanup_call('stuck', 'first')
+        for number in range(1, 9):
+            set_id = 'a7000000-0000-4000-8000-' + format(number, '012x')
+            script += self.clone_set(set_id, seconds=number, cleanup='failed')
+            script += self.closed_cleanup_leases("'" + set_id + "'", [(1, 'finished', 0)])
+        newest = 'a7000000-0000-4000-8000-000000000009'
+        script += self.clone_set(newest, seconds=9, cleanup='pending')
+        out = self.run_labelled(script + self.CLEANUP_STATE +
+            self.plan_claim('newest', request='c1000000-0000-4000-8000-000000000002') +
+            self.plan_claim('waiting', request='c1000000-0000-4000-8000-000000000003') +
+            self.age_cleanup_leases(31) +
+            self.plan_claim('own', request='c1000000-0000-4000-8000-000000000004') +
+            self.plan_claim('next', request='c1000000-0000-4000-8000-000000000005') + self.OWN_CLEANUP)
+        state = out['CSTATE']
+        self.assertEqual(newest, self.assert_cleanup_lease(out['NEWEST'], 'claimed', '1', state)['set_id'])
+        self.assertEqual(self.NO_WORK, out['WAITING'])
+        self.assertEqual(out['FIRST']['value']['lease']['set_id'],
+                         self.assert_cleanup_lease(out['OWN'], 'claimed', '2', state)['set_id'])
+        self.assertEqual('a7000000-0000-4000-8000-000000000001',
+                         self.assert_cleanup_lease(out['NEXT'], 'claimed', '2', state)['set_id'])
+        self.assertEqual([['finished', 1], ['active', 2]], out['OWNCLEAN'])
+
+    def test_claim_backoff_keeps_oldest_first_and_overdue_sets_eligible(self):
+        """AC-IMP-007N-02, AC-IMP-007N-05: preserve ID ties and immediate overdue expiry."""
+        seed, catalog = self.cleanup_seed()
+        with self.subTest(case='tie'):
+            lower = 'a7000000-0000-4000-8000-0000000000b1'
+            higher = 'a7000000-0000-4000-8000-0000000000b2'
+            out = self.run_labelled(seed + self.cancel_call(catalog) + self.plan_claim('first') +
+                self.cleanup_call('stuck', 'first') + self.clone_set(higher, seconds=1, cleanup='pending') +
+                self.clone_set(lower, seconds=1, cleanup='pending') + self.CLEANUP_STATE +
+                self.plan_claim('lower', request='c1000000-0000-4000-8000-000000000002') +
+                self.plan_claim('higher', request='c1000000-0000-4000-8000-000000000003') +
+                self.plan_claim('waiting', request='c1000000-0000-4000-8000-000000000004') + self.OWN_CLEANUP)
+            self.assertEqual(lower, self.assert_cleanup_lease(out['LOWER'], 'claimed', '1', out['CSTATE'])['set_id'])
+            self.assertEqual(higher, self.assert_cleanup_lease(out['HIGHER'], 'claimed', '1', out['CSTATE'])['set_id'])
+            self.assertEqual(self.NO_WORK, out['WAITING'])
+            self.assertEqual([['finished', 1]], out['OWNCLEAN'])
+        with self.subTest(case='overdue'):
+            older = 'a7000000-0000-4000-8000-0000000000b3'
+            overdue = ("SET LOCAL session_replication_role=replica;UPDATE wl_ingestion.sets SET "
+                "created_at=created_at-interval '2 days',expires_at=expires_at-interval '2 days' WHERE id=" +
+                self.OWN_SET + "::uuid;SET LOCAL session_replication_role=origin;")
+            out = self.run_labelled(seed + overdue + self.clone_set(older, seconds=-1, cleanup='failed') +
+                self.closed_cleanup_leases("'" + older + "'", [(1, 'finished', 0)]) + self.plan_claim('claim') +
+                self.CLEANUP_STATE + self.plan_claim('waiting', request='c1000000-0000-4000-8000-000000000002') +
+                self.OWN_CLEANUP)
+            state = out['CSTATE']
+            self.assertNotEqual(older, self.assert_cleanup_lease(out['CLAIM'], 'claimed', '1', state)['set_id'])
+            self.assertEqual((['EXPIRED', 'pending'], [['expired', 2]]), (state['set'], state['members']))
+            self.assertEqual(self.NO_WORK, out['WAITING'])
+            self.assertEqual([['active', 1]], out['OWNCLEAN'])
+
+    def test_claim_replay_is_unaffected_by_backoff(self):
+        """AC-IMP-007N-06: live replay precedes backoff; a lapsed replay stays stale."""
+        seed, catalog = self.cleanup_seed()
+        request = 'c1000000-0000-4000-8000-000000000002'
+        out = self.run_labelled(seed + self.cancel_call(catalog) + self.plan_claim('first') +
+            self.cleanup_call('stuck', 'first') + self.age_cleanup_leases(31) + self.CLEANUP_STATE +
+            self.plan_claim('second', request=request) + self.plan_claim('replay', request=request) +
+            self.plan_claim('waiting', request='c1000000-0000-4000-8000-000000000003') +
+            "SET LOCAL session_replication_role=replica;UPDATE wl_ingestion.leases SET "
+            "created_at=created_at-interval '2 minutes',expires_at=pg_catalog.clock_timestamp()-interval '1 second' "
+            "WHERE work_kind='cleanup';SET LOCAL session_replication_role=origin;" +
+            self.plan_claim('lapsed', request=request) + self.OWN_CLEANUP)
+        lease = self.assert_cleanup_lease(out['SECOND'], 'claimed', '2', out['CSTATE'])
+        replay = self.assert_cleanup_lease(out['REPLAY'], 'already_claimed', '2', out['CSTATE'])
+        self.assertEqual(dict(lease, outcome='already_claimed'), replay)
+        self.assertEqual(self.NO_WORK, out['WAITING'])
+        self.assertEqual({'ok': False, 'code': 'import_stale'}, out['LAPSED'])
+        self.assertEqual([['finished', 1], ['active', 2]], out['OWNCLEAN'])
 
     def test_cleanup_lease_functions_are_not_public(self):
         self.sql("DO $role$ BEGIN IF NOT EXISTS(SELECT 1 FROM pg_catalog.pg_roles WHERE "
