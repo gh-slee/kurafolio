@@ -29,7 +29,7 @@ After every member of an import set is normalized, the import worker must turn t
 ## Context
 
 - Filed on 2026-11-20 from the IMP-007F plan (PR #86), its Decision D2, option (a), which the owner chose.
-- Caller: IMP-007F's PR 3 prepare step (`src/kurafolio/ingestion/worker.py`, Worker loop step 2). Under one prepare lease it reads every basis resource with `read_plan_basis_v1` (cursor paging, `limit` 50), calls this builder, checks the result with `approval.validate_review_bundle`, and passes `codec.encode(bundle)` as `p_bytes` to `prepare_preview_v1`. A prepare lease lasts at most 60 s and is never renewed (IMP-007F D6), so the builder must finish well inside one lease. IMP-007F imports this module and does not change it; this ticket does not change the worker.
+- Caller: IMP-007V, the import worker's prepare step (in IMP-007F's `src/kurafolio/ingestion/worker.py`), which depends on this ticket and on IMP-007F. Under one prepare lease it reads every basis resource with `read_plan_basis_v1` (cursor paging, `limit` 50), calls this builder, checks the result with `approval.validate_review_bundle`, and passes `codec.encode(bundle)` as `p_bytes` to `prepare_preview_v1`. A prepare lease lasts at most 60 s and is never renewed (IMP-007F D6), so the builder must finish well inside one lease. IMP-007V imports this module and does not change it; this ticket does not change the worker.
 - Contracts, all in the r7 bundle: [reconciliation.md](../docs/specs/imp-007-r7/reconciliation.md) (identity keys, the source revision and activity table, the snapshot and coverage table), [normalized-evidence.md](../docs/specs/imp-007-r7/normalized-evidence.md) and [contract-appendix.md](../docs/specs/imp-007-r7/contract-appendix.md). DTOs: `ReviewBundle` (`{version: 1, review: ReviewDocument, plan: Plan | null}` in `src/kurafolio/ingestion/contracts.py`), `ReviewDocument`, `BasisPage`, `PreparePreviewRequest` (`payload_bytes` at most 16,777,216) in [wire-contracts.json](../docs/specs/imp-007-r7/wire-contracts.json), `Plan` in [codec-schema.json](../docs/specs/imp-007-r7/codec-schema.json).
 - Merged code to build on (`main` at `d902717`):
   - `approval.py`: `validate_review_bundle(data, *, stages)`, `verify_staged_material`, `verify_proposals`.
@@ -37,7 +37,7 @@ After every member of an import set is normalized, the import worker must turn t
   - `reconciliation.py`: `source_revision_key`, `project_record`, `financial_projection`, `reconcile_revision` (`RevisionDecision`), `snapshot_order`.
   - `codec.py` (`encode`, `validate`, `digest`, `sha256`) and `cursors.py`.
   - The checks in `prepare_preview_v1` (`ingestion_schema.py`, IMP-007L, with the r7-A1 to r7-A4 amendments recorded in IMP-007L), which accept or refuse a bundle against the stored stages, decisions and generation pins.
-- Expected values: the oracle vectors in `tests/fixtures/ingestion/oracle.json`. Cases with review or plan vectors: `authority-only`, the four `branch-*` cases, `metadata-native` (plan only), `mixed-set`, `snapshot-historical-t1` and `snapshot-seed-t2`, plus `plan-first-use.json` and `plan-native-first-use.json`. Their inputs are the matching `*-minimal.json`, `*-decisions.json`, `*-context.json`, `*-prestate.json` and `*-discovery.json` entries. `builtin-inputs.json` holds the expected facts for the two example files (`wealthsimple_expected`, `bull_expected`) that IMP-007F's AC-04 checks, and the `large-basis-*` entries the largest basis.
+- Expected values: the oracle vectors in `tests/fixtures/ingestion/oracle.json`. Cases with review or plan vectors: `authority-only`, the four `branch-*` cases, `metadata-native` (plan only), `mixed-set`, `snapshot-historical-t1` and `snapshot-seed-t2`, plus `plan-first-use.json` and `plan-native-first-use.json`. Their inputs are the matching `*-minimal.json`, `*-decisions.json`, `*-context.json`, `*-prestate.json` and `*-discovery.json` entries. `builtin-inputs.json` holds the expected facts for the two example files (`wealthsimple_expected`, `bull_expected`) that IMP-007V's AC-IMP-007V-01 checks (formerly IMP-007F's AC-04), and the `large-basis-*` entries the largest basis.
 - `tests/test_postgres_migration.py` drives `prepare_preview_v1` with oracle bundles (`prepare_preview_call`, the `basis_call` helpers). Those helpers show how the basis pages look for each case.
 - `resources` holds a new `ingestion-review-bundle` lock. It does not overlap IMP-007F's `v2-import-worker` files or the `ingestion-schema-sql` lock.
 
@@ -51,7 +51,7 @@ After every member of an import set is normalized, the import worker must turn t
 - Finance rules: amounts stay `Decimal` strings exactly as staged; unknown values stay unknown and are never zero; no contribution is inferred from holdings or purchase spend; no wallet total or opening balance is inferred; coverage and membership stay as staged (for example `partial` and `unknown`). Every fact in the review and Plan traces to a stage, a decision or a current reference in the basis.
 - It never builds a partial or guessed bundle. A basis it cannot reconcile, or a bundle over 16,777,216 encoded bytes, raises a fixed error code and returns nothing.
 - It builds the largest oracle basis (`large-basis-*`) in well under one prepare lease; the acceptance bound is 10 seconds on the CI runner.
-- Not in scope: the worker's prepare loop and lease handling (IMP-007F PR 3), any SQL, grant or DTO change, and the frozen r7 bundle and `oracle.json`, which stay as they are. If an oracle vector seems wrong, or a case cannot be expressed as basis pages, stop and ask.
+- Not in scope: the worker's prepare loop and lease handling (IMP-007V), any SQL, grant or DTO change, and the frozen r7 bundle and `oracle.json`, which stay as they are. If an oracle vector seems wrong, or a case cannot be expressed as basis pages, stop and ask.
 
 ## Acceptance criteria
 
@@ -79,11 +79,12 @@ After every member of an import set is normalized, the import worker must turn t
 ## Handoff
 
 - State: Filed on 2026-11-20; backlog, waiting for the owner's Gate A and a Build plan.
-- Next step: The planner reads `reconciliation.md`, the merged `approval.py`, `mapping.py`, `reconciliation.py` and `prepare_preview_v1`, maps each oracle case to basis pages, and writes the Build plan, including the builder's exact signature for IMP-007F's PR 3.
+- Next step: The planner reads `reconciliation.md`, the merged `approval.py`, `mapping.py`, `reconciliation.py` and `prepare_preview_v1`, maps each oracle case to basis pages, and writes the Build plan, including the builder's exact signature for IMP-007V.
 - Verify: `PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -p 'test_ingestion_*.py' -v` and `KURAFOLIO_INGESTION_TEST=1 PYTHONPATH=src .venv/bin/python -m unittest tests.test_postgres_migration -v`
-- Gotchas: IMP-007F's PR 3 waits for this ticket, and IMP-007S waits for IMP-007F, so this ticket gates activation.
+- Gotchas: IMP-007V (the worker's prepare step) waits for this ticket, so no set reaches a preview through the worker until both land. IMP-007F and the activation ticket IMP-007S do not wait for it.
 - Open questions: Gate A.
 
 ## Log
 
 - 2026-11-20 claude-code/opus-5.5: filed in plan pull request #86 from the owner's decision of 2026-11-20 on "No merged code builds the ReviewBundle ... Who builds it?": the owner chose "New ticket (Recommended)": "risk critical, tier frontier, own review." (IMP-007F D2 = (a).) On the wait, the owner chose "Build now, prepare last (Recommended)": "No depends_on. Builders do PR 1 and PR 2 now; prepare and AC-04 land in a third PR once IMP-007P merges." Status backlog; no Gate A yet.
+- 2026-11-20 claude-code/opus-5.5: the owner chose "Split prepare out (Recommended)" (Q16): "Move the prepare step and AC-04 to a new ticket (IMP-007V) that depends on IMP-007F and IMP-007P." The caller of this builder is now IMP-007V, not IMP-007F's third pull request; Context, the Requirements "Not in scope" line and Handoff say so. Spec hash changes from sha256:def5b60480742768882339fd55443e0f9af5f984b7c7d6f5ac094087b21bed27 to sha256:ab4f0a665240bd37f278712f3dc78aa90db9a7ecb92f3fc7e0700f67a4bab766; the ticket was never approved.
