@@ -219,8 +219,9 @@ Notes from the APP-011B product review:
      replacement, and the result holds `'0005_invite_status'` 28 times and
      `'0004_ingestion'` 0 times. Start from these renderers, never from
      `identity_schema.ddl()` or `source_schema.ddl()`.
-   - `ddl()` returns `guard_replacements()` followed by `invite_status_v1`.
-2. `wl_identity.invite_status_v1`. Write its own renderer in the new module; the
+   - `ddl()` returns `guard_replacements()` followed by `invite_status_ddl()`.
+2. `wl_identity.invite_status_v1`. Write its own renderer in the new module,
+   `invite_status_ddl() -> str` (APP-011E re-guards its text for `0006`); the
    `identity_schema.function()` helper would reject the new name. Use the same
    header shape as its neighbours:
    `CREATE FUNCTION wl_identity.invite_status_v1(p_digest pg_catalog.text) RETURNS
@@ -497,7 +498,7 @@ Notes from the APP-011B product review:
 - HTTP: `POST /api/v2/auth/invitation-status`, body `{"invite_token": "<43 base64url
   characters>"}`, 200 `{"status": ...}`; errors use the existing envelope and codes.
 - Python: `invite_status_schema.{REVISION, PREDECESSOR, SIGNATURES, FUNCTIONS,
-  guard_replacements(), ddl()}`; `invite_status_migration.{grants, verify_inventory,
+  guard_replacements(), invite_status_ddl(), ddl()}`; `invite_status_migration.{grants, verify_inventory,
   migrate_invite_status}`; `IdentityStore.invite_status(token_digest) → str`;
   `Auth.invite_status(body, peer) → dict`.
 - Browser: `InvitationStatus` in `frontend/src/v2/api.ts`; four `wlP0011i.*` keys.
@@ -727,8 +728,11 @@ here as the record. No question is open.
   `src/kurafolio/persistence/invite_status_schema.py` and its unit tests.
 - Verify: the commands under "Tests and expected values" in the Build plan.
 - Gotchas:
-  - `identity-api` is shared with IMP-007E, IMP-007U and APP-011E. Only one of them
-    builds at a time; `claim` refuses while another holds it.
+  - `identity-api` is shared with IMP-007E and IMP-007U. Only one of them builds at
+    a time; `claim` refuses while another holds it. APP-011E shares
+    `migration-order` and `postgres-schema` with this ticket and is ordered after it
+    by `depends_on`; it would also hold `identity-api` only if the owner answers its
+    Decision 3 with (a).
   - APP-011E's `0006_user_preferences` follows `0005` (owner, 2026-11-20). Do not
     take `0006`.
   - IMP-007S's draft AC-03 (pull request #87, not approved) refuses an inventory
