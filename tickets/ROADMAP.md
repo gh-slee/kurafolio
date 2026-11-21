@@ -92,7 +92,7 @@ The owner's flow works end to end: register, enable plugins, import, see Stock/B
 | 4 | APP-011D | Import Data page: upload, review, confirm, history | standard | IMP-007E, IMP-007U |
 | 4 | OPS-021 | One-command deployment; its pull request says "ready to use" | frontier | IMP-007E, IMP-007F, IMP-007S, IMP-007U, ANL-012A |
 | 4 | ANL-012C | Crypto page | standard | ANL-012B |
-| 4 | IMP-007G | Independent acceptance of imports (36 cases) | frontier | IMP-007E, IMP-007F, IMP-007U, IMP-007S; IMP-007V once added |
+| 4 | IMP-007G | Independent acceptance of imports (36 cases) | frontier | IMP-007E, IMP-007F, IMP-007U, IMP-007S, IMP-007V |
 | 5 | ANL-012D | Total page and Home | standard | ANL-012C |
 
 The new import tickets and their dependencies are as the open plan pull requests record them (see "Import
