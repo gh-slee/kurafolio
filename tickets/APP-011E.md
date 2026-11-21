@@ -6,7 +6,7 @@ status: ready
 type: feature
 parent: APP-011
 depends_on: [APP-011I, IMP-007E]
-resources: [identity-contract, migration-order, postgres-schema]
+resources: [identity-contract, migration-order, postgres-schema, identity-api]
 risk: high
 size: M
 agent_tier: frontier
@@ -146,13 +146,13 @@ The V2 Profile page is specified to hold a user's language, time zone and defaul
   the twelve `READ_TABLES`, `wl_pg.accounts`, `wl_pg.instruments` and the reader's
   grants unchanged. `0006` adds one `wl_identity` table with no grant and two
   gateway functions, so it meets that condition.
-- IMP-007S (activation, filed in pull request #87 as backlog, not approved) has a
-  draft AC-03 that refuses a database "whose inventory differs from `0004`". If that
-  text is kept, activation would refuse a `0006` instance; see Stop and ask.
-- `resources`: this ticket does not hold `identity-api`, which IMP-007E, IMP-007U
-  and APP-011I hold for `web_v2/api.py`, `auth.py`, `config.py` and `__main__.py`.
-  This ticket edits `api.py`, `auth.py` and `__main__.py` too. See Decisions
-  needed, item 3.
+- IMP-007S (activation, filed in pull request #87 as backlog, not approved): its
+  draft was reworded on 2026-11-21 to accept the revision the `ingestion` profile
+  serves (`0004`, then `0005` and `0006`) instead of `0004` only. Stop and ask still
+  covers an activation command that refuses a `0006` instance.
+- `resources`: this ticket holds `identity-api`, as IMP-007E, IMP-007U and APP-011I
+  do, for `web_v2/api.py`, `auth.py`, `config.py` and `__main__.py`. This ticket
+  edits `api.py`, `auth.py` and `__main__.py` too. See Decisions needed, item 3.
 
 ## Requirements
 
@@ -663,8 +663,8 @@ skipped PostgreSQL test is not acceptance.
 
 ## Decisions needed
 
-Items 1 and 2 were answered by the owner on 2026-11-20 and are kept here as the
-record. Item 3 is a confirmation that does not block the build.
+Items 1 and 2 were answered by the owner on 2026-11-20 and item 3 on 2026-11-21;
+all are kept here as the record. None is open.
 
 1. **Answered 2026-11-20: option (a).** Asked how this ticket's `0006` should follow
    APP-011I's `0005`, the owner chose "Raise APP-011I to P0 (Recommended)": keep
@@ -717,7 +717,11 @@ record. Item 3 is a confirmation that does not block the build.
 With answer (a) to both, no change to Goal, Requirements or Acceptance criteria is
 needed: the criteria are met and tested on the `ingestion` profile at `0006`.
 
-3. **Add `identity-api` to `resources`? (owner confirmation, not blocking).** This
+3. **Answered 2026-11-21: option (a).** Asked whether to add `identity-api` to this
+   ticket's `resources`, the owner chose "Add identity-api (Recommended)".
+   `resources` now lists `identity-api`. The question and options as asked:
+
+   **Add `identity-api` to `resources`? (owner confirmation, not blocking).** This
    ticket edits `web_v2/api.py`, `auth.py` and `__main__.py`, which IMP-007E,
    IMP-007U and APP-011I lock with `identity-api`. Because `depends_on` already
    orders it after IMP-007E and APP-011I, only IMP-007U could build at the same
@@ -733,8 +737,8 @@ needed: the criteria are met and tested on the `ingestion` profile at `0006`.
 
 - State: Not started. No code written. Gate A recorded 2026-11-12; the owner's
   answers of 2026-11-20 to Decisions 1 and 2 are in the Build plan. The build waits
-  for IMP-007E and APP-011I. IMP-007E itself waits for the owner's Gate A on its new
-  gated text (pull request #87), and APP-011I waits for IMP-007E.
+  for IMP-007E and APP-011I. IMP-007E's Gate A for its new gated text was recorded
+  on 2026-11-21 in pull request #87, and APP-011I waits for IMP-007E.
 - Next step: After both have merged, run `git fetch origin` and
   `python3 scripts/tickets.py spec APP-011E`, then check the merged `0005` and
   profile code against Context ("Rechecked") and Build plan step 13 before writing
@@ -743,15 +747,15 @@ needed: the criteria are met and tested on the `ingestion` profile at `0006`.
 - Gotchas:
   - Real-PostgreSQL tests need the explicit isolated environment; a skipped test is
     not acceptance. Never run against a real instance.
-  - IMP-007S's draft AC-03 (pull request #87, not approved) refuses an inventory
-    other than `0004`. If IMP-007S merges with that rule, activation refuses a
-    `0006` instance; Stop and ask covers it.
+  - IMP-007S's draft (pull request #87, not approved) now accepts the revision the
+    `ingestion` profile serves. If IMP-007S merges with a rule that refuses a `0006`
+    instance, Stop and ask covers it.
   - ANL-008 may merge before this build. If it has, step 16 applies, and its
     `tests/test_projection_positions.py` fails until `0006_user_preferences` is
     added.
   - APP-011F's planner must raise the "preferences unavailable" state with the
     owner (Decision 2).
-- Open questions: Decision 3 (`identity-api` in `resources`), not blocking.
+- Open questions: none.
 
 ## Log
 
@@ -763,3 +767,4 @@ needed: the criteria are met and tested on the `ingestion` profile at `0006`.
 - 2026-11-21 claude-code/opus-5.5: added APP-011I and IMP-007E to `depends_on`. The owner confirmed both on 2026-11-20. For APP-011I: asked how this ticket's 0006 should follow APP-011I's 0005, they chose "Raise APP-011I to P0 (Recommended)": "keep 0005 invite status, 0006 preferences; APP-011E depends on APP-011I and the profile ticket (IMP-007E)." For IMP-007E: asked "Which ticket builds the ingestion runtime profile?", they chose "IMP-007E (Recommended)": "its approved r7 scope already covers it; IMP-007E adds the `identity-api` resource; APP-011I and APP-011E add IMP-007E to depends_on." This answers Decision 1 with option (a).
 - 2026-11-21 claude-code/opus-5.5: recorded Decision 2 as option (a). The owner accepted "APP-011E #2 preferences routes return 404 and are absent from OpenAPI on identity/sources instances" with "Accept all (Recommended)" on 2026-11-20. APP-011F's planner must raise the "preferences unavailable" state with the owner; APP-011F was not edited.
 - 2026-11-21 claude-code/opus-5.5: updated the plan in plan pull request https://github.com/gh-slee/kurafolio/pull/84. Rechecked against `main` at `4c87113`, IMP-007E's Part A (pull request #87) and APP-011I's updated plan (pull request #82). Steps now use their interfaces: `0006` re-guards the 29 functions `0005` leaves guarded, 71 functions in total, and the `ingestion` profile moves from `0005` to `0006` (step 13). Added step 16 (ANL-008's `SUPPORTED_REVISIONS`), step 17 (CI steps), and Decision 3 (`identity-api` in `resources`, not blocking). Goal, Requirements and Acceptance criteria unchanged.
+- 2026-11-21 claude-code/opus-5.5: added `identity-api` to `resources`, with the owner's confirmation of that change to this approved ticket. The owner was asked "APP-011E edits api.py, auth.py and __main__.py, the same files IMP-007E and IMP-007U edit under the identity-api lock. Add identity-api to APP-011E's resources so they can't be built at the same time?" and chose "Add identity-api (Recommended)". This answers Decision 3 with option (a). Context and Handoff updated for that answer, for IMP-007E's recorded Gate A and for IMP-007S's reworded revision rule (pull request #87). Gated sections unchanged.
