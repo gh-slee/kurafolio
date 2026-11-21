@@ -365,7 +365,7 @@ Items 1 to 5 were answered by the owner on 2026-11-20 and items 6 and 7 on 2026-
    - `spec_approved` now records the new hash and `gate_approval` adds the 2026-11-21 approval. Both take effect when plan pull request #87 merges.
    - The Build plan above was checked against the new text.
 7. **How should the ingestion API perform readiness inventory without operator privileges?** Raised by the builder on 2026-11-21 (Context, "Readiness at `0004`"). The merged plan had `Auth.ready()` call `ingestion_migration.verify_inventory` through the runtime connection, but that function requires database CREATE, and a real migrated `0004` synthetic target refused it after the operator call had passed. Options were (a) add a prerequisite ticket providing an approved runtime-safe inventory check, then update this Build plan to use it (recommended; keeps this ticket's ban on migration and provider changes), or (b) widen this ticket's scope and Build plan to include that check, with a new approval for the changed gated text. Answered 2026-11-21: "New prerequisite ticket", option (a).
-   - IMP-007W is that ticket, filed in plan pull request #93. It is `backlog` until the owner's Gate A.
+   - IMP-007W is that ticket, filed in plan pull request #93. The owner gave it Gate A on 2026-11-21 in the same pull request.
    - `depends_on` adds IMP-007W, as the answer's "prerequisite" says.
    - Part A's `auth.py` and `config.py` bullets, two `/readyz` test rows and Stop and ask now use `verify_runtime_inventory`. The gated sections are unchanged (hash sha256:aba3bef4df145ca2355ad07c3fafb0954169d04ad8a05609502b23528a1c3d4c).
 

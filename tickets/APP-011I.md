@@ -132,8 +132,8 @@ When someone opens an invitation link that has expired, been revoked or already 
     digest checks. It calls `role_inventory` only with `gateway=True`. Revised on
     2026-11-21: the operator `verify_inventory` needs database CREATE, which `0004`
     takes from every application role, and `role_inventory(gateway=False)` expects
-    INSERT rights the read-only runtime role lacks at `0004`. IMP-007W (backlog,
-    waiting for Gate A) adds the runtime check with a private
+    INSERT rights the read-only runtime role lacks at `0004`. IMP-007W (Gate A
+    given 2026-11-21, not built) adds the runtime check with a private
     `ingestion_migration._runtime_owner(conn, *, runtime_role, gateway_role,
     worker_role)` and a keyword-only `owner` on `_checked_roles` and
     `verify_grants`; IMP-007E depends on it.

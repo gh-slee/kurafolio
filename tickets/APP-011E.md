@@ -118,7 +118,7 @@ The V2 Profile page is specified to hold a user's language, time zone and defaul
     gateway_role=gateway_role, worker_role=self.settings.worker_role)` through the
     runtime connection, and `role_inventory` only with `gateway=True`. Revised on
     2026-11-21: the operator `verify_inventory` needs database CREATE, which no
-    application role has from `0004` on. IMP-007W (backlog, waiting for Gate A)
+    application role has from `0004` on. IMP-007W (Gate A given 2026-11-21, not built)
     adds the `0004` runtime check with a private
     `ingestion_migration._runtime_owner(conn, *, runtime_role, gateway_role,
     worker_role)` and a keyword-only `owner` on `_checked_roles` and

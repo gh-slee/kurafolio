@@ -56,7 +56,7 @@ in open plan pull requests and take effect on the board when those merge:
   their revisions `0005` and `0006`.
 
 New backlog tickets awaiting the owner's Gate A: IMP-007O, IMP-007P, IMP-007Q, IMP-007R, IMP-007S,
-IMP-007T, IMP-007U, IMP-007V, IMP-007W and PLG-105. IMP-007T and PLG-105 are ANL-008 follow-ups (#83).
+IMP-007T, IMP-007U, IMP-007V and PLG-105. IMP-007T and PLG-105 are ANL-008 follow-ups (#83).
 
 ## Triage of 2026-11-13
 
@@ -78,7 +78,7 @@ The owner's flow works end to end: register, enable plugins, import, see Stock/B
 
 | Order | Ticket | What it delivers | Tier | Waits on |
 |---|---|---|---|---|
-| 1 | IMP-007W | A readiness check of the `0004` inventory that the API's runtime role can run | frontier | the owner's Gate A |
+| 1 | IMP-007W | A readiness check of the `0004` inventory that the API's runtime role can run | frontier | claimable once #93 merges (Gate A given 2026-11-21) |
 | 1 | IMP-007F | The worker and launcher that parse uploaded files in isolation | frontier | the owner's approval of its new text (#86) |
 | 1 | IMP-007P | The ReviewBundle the worker's prepare step passes to the database | frontier | the owner's Gate A |
 | 1 | ANL-008 | Positions from accepted imports, with the owner's rules | frontier | claimable now |
