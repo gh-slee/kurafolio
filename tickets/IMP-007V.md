@@ -2,7 +2,7 @@
 id: IMP-007V
 title: Add the import worker's prepare step that brings a normalized set to a preview
 priority: P0
-status: backlog
+status: ready
 type: feature
 parent: IMP-007
 depends_on: [IMP-007F, IMP-007P]
@@ -11,12 +11,12 @@ risk: critical
 size: M
 agent_tier: frontier
 gate: owner
-gate_approval: 
+gate_approval: "owner 2026-11-21, Gate A on the text as written on PR #95's branch (Q32)"
 review: independent
 branch: 
 pr: 
 spec: docs/specs/imp-007-r7/spec.md
-spec_approved: 
+spec_approved: sha256:4b99ed6139aa7ea5e31268a7f185c93b2b57e28a6c808d107422763bc827ad6b
 updated: 2026-11-21
 ---
 
@@ -82,6 +82,7 @@ Only the owner answers. The planner recommends an option.
 1. What happens when the builder or the check refuses a set's basis. No worker function reports that a set cannot be prepared, and `claim_plan_v1` hands out the oldest eligible set first, so the same set is claimed again each time its lease lapses (about once a minute) until the user cancels it or it expires. Other sets are still served while its lease is live. (a) Accept that for the MVP: the worker logs a fixed code on each attempt, and the docs say that a set that cannot be prepared waits until it is cancelled or expires. (b) File a SQL ticket for a worker function that rejects the set with a fixed code under the prepare lease, so the user sees the failure at once; it shares the `ingestion-schema-sql` lock with IMP-007N, IMP-007O, IMP-007Q and IMP-007R. The planner recommends (a) now and (b) as a follow-up if refusals show up in practice.
    **Resolved 2026-11-21: (a).** Asked "IMP-007V (prepare step): if the ReviewBundle builder refuses a set's basis ... What now?", the owner chose "Accept for MVP (Recommended)": the worker logs a fixed code each attempt; the docs say such a set waits for cancel or expiry; a SQL ticket is filed later only if it happens in practice. Requirements, AC-05 and AC-08 state this rule.
 2. Gate A: the owner approves the Goal, Requirements and Acceptance criteria above, with the answer to item 1 written into them, or asks for changes.
+   **Resolved 2026-11-21.** Asked "Gate A, tickets rewritten with your decisions. Which do you approve exactly as written?" with this ticket listed at sha256:4b99ed6139aa7ea5e31268a7f185c93b2b57e28a6c808d107422763bc827ad6b, the owner selected "IMP-007Q,IMP-007R,IMP-007V" (Q32). `gate_approval` and `spec_approved` record it.
 
 ## Handoff
 
@@ -95,3 +96,4 @@ Only the owner answers. The planner recommends an option.
 
 - 2026-11-20 claude-code/opus-5.5: filed in plan pull request #86 from the owner's decision of 2026-11-20 on "IMP-007F problem: the repo's pr-check fails any PR from the ticket's branch unless the ticket is done ... How should this work?": the owner chose "Split prepare out (Recommended)": "Move the prepare step and AC-04 to a new ticket (IMP-007V) that depends on IMP-007F and IMP-007P. IMP-007F (worker + launcher) finishes after PR 2, unblocking IMP-007S. Same pattern as the IMP-007E upload split." AC-IMP-007V-01 is the former AC-IMP-007F-04, with "the IMP-007E routes (or their SQL functions if 007E is not merged)" changed to the IMP-007U upload route, which now owns upload; AC-IMP-007V-02 is the prepare case of AC-IMP-007F-05. Status backlog; no Gate A yet.
 - 2026-11-21 claude-code/opus-5.5: recorded the owner's answer of 2026-11-21 in plan pull request #95. Decision 1: asked "IMP-007V (prepare step): if the ReviewBundle builder refuses a set's basis ... What now?", the owner chose "Accept for MVP (Recommended)": the worker logs a fixed code each attempt; the docs say such a set waits for cancel or expiry; a SQL ticket is filed later only if it happens in practice. Gated changes: a new Requirements bullet states that rule (the worker logs the builder's or the check's fixed error code with the function name, `request_id` and set ID, sends nothing more and ends the step; the set is reclaimed after each lapse until cancel or expiry); AC-05 adds the log and the reclaim; AC-08 adds the docs sentence. Spec hash sha256:6daff94ac59979da4c3fc2e0b2a2abbc9dacac823c566afb651e91e2e22c49fe becomes sha256:4b99ed6139aa7ea5e31268a7f185c93b2b57e28a6c808d107422763bc827ad6b; still backlog, no Gate A.
+- 2026-11-21 claude-code/opus-5.5: recorded Gate A in plan pull request #95. Asked "Gate A, tickets rewritten with your decisions. Which do you approve exactly as written?" (Q32) with this ticket listed at sha256:4b99ed6139aa7ea5e31268a7f185c93b2b57e28a6c808d107422763bc827ad6b, the owner selected "IMP-007Q,IMP-007R,IMP-007V". `gate_approval` set to "owner 2026-11-21, Gate A on the text as written on PR #95's branch (Q32)"; `spec_approved` set to sha256:4b99ed6139aa7ea5e31268a7f185c93b2b57e28a6c808d107422763bc827ad6b, which `tickets.py spec` reports as the current hash; status backlog becomes ready. Decisions needed item 2 resolved. No Build plan yet; the planner writes it in a later pull request.

@@ -2,7 +2,7 @@
 id: IMP-007Q
 title: Release a held raw slot after a late launcher proof
 priority: P0
-status: backlog
+status: ready
 type: feature
 parent: IMP-007
 depends_on: [IMP-007M, IMP-007F]
@@ -11,12 +11,12 @@ risk: high
 size: M
 agent_tier: frontier
 gate: owner
-gate_approval: 
+gate_approval: "owner 2026-11-21, Gate A on the text as written on PR #95's branch (Q32)"
 review: independent
 branch: 
 pr: 
 spec: docs/specs/imp-007-r7/spec.md
-spec_approved: 
+spec_approved: sha256:98275b665427a463361e6fe4bd5aa91b2307abe41cad536f6f369b087d02f165
 updated: 2026-11-21
 ---
 
@@ -128,6 +128,7 @@ Only the owner answers. The planner recommends an option for each.
    - Recommendation: (a). Until this ticket lands, IMP-007F's proof wait (option F) already avoids most held slots, and cancel stays the way out.
    - **Resolved 2026-11-21: moot.** The owner's Q16 answer, "Split prepare out (Recommended)", moved the prepare step to IMP-007V, and Q20, "One PR, two stages (Recommended)", made IMP-007F a single pull request. IMP-007F is `done` when it merges, without waiting for IMP-007P. `depends_on` stays `[IMP-007M, IMP-007F]`.
 3. **Gate A.** The owner approves the Goal, Requirements and Acceptance criteria above, with the answers to items 1 and 2 written into them, including the function name `release_member_slot_v1` and the inventory amendment. That amendment gives the worker a ninth function, where the frozen r7 `persistence.md` and `protocol-appendix.md` say eight, so the approval covers that departure too. Or the owner asks for changes.
+   - **Resolved 2026-11-21.** Asked "Gate A, tickets rewritten with your decisions. Which do you approve exactly as written?" with this ticket listed at sha256:98275b665427a463361e6fe4bd5aa91b2307abe41cad536f6f369b087d02f165, the owner selected "IMP-007Q,IMP-007R,IMP-007V" (Q32). `gate_approval` and `spec_approved` record it. The approval covers the inventory amendment, as this item says.
 
 ## Handoff
 
@@ -141,3 +142,4 @@ Only the owner answers. The planner recommends an option for each.
 
 - 2026-11-20 claude-code/opus-5.5: filed in plan pull request #85 from the owner's decisions of 2026-11-20. On "IMP-007M: ... Which fix?" the owner chose "B with F (Recommended)": "B = a new worker function takes late launcher proofs and releases the slot (one SQL inventory amendment, a follow-up ticket); F = the worker waits for proof before finishing, within the 120 s raw deadline." On "IMP-007M #2 the new release also covers a slot held after a stage_admitted finish; #3 drop IMP-007M's resources: [ingestion-schema-sql] ..." the owner chose "Accept all (Recommended)". On IMP-007F's "D8 the F wait-for-proof goes in IMP-007F now, and calling B's new release function goes in B's follow-up ticket" the owner chose "Accept all (Recommended)". Shares `ingestion-schema-sql` with IMP-007N, IMP-007O and IMP-007R and `v2-import-worker` with IMP-007F. Spec hash at filing sha256:64ae9aa78c86ebf1eba4822ed95c6bc74a78c0c17ff020bb5e7bcc26bf07ce8e, awaiting the owner's answers and Gate A. Status backlog; no Gate A yet.
 - 2026-11-21 claude-code/opus-5.5: recorded the owner's answers of 2026-11-21 in plan pull request #95. Decisions needed 1: asked "IMP-007Q (late-proof slot release) and IMP-007R (crash sweep) disagree. When an upload attempt was closed by the sweep, or the worker restarted, who may later release its held raw slot with a launcher proof? The release call is fenced on the attempt's one-use handoff token, which only the running worker process holds (the journal never stores it).", the owner chose "Running worker only (Recommended)": "IMP-007Q (b): the release also accepts a sweep-closed attempt, but only from the worker process that still holds the token (e.g. it survived a long DB outage). A restarted worker can't; that slot returns at set cleanup after cancel/expiry. Keeps finish's fencing." Decisions needed 2 is moot: after "Split prepare out (Recommended)" (Q16) and "One PR, two stages (Recommended)" (Q20), IMP-007F is done after its single pull request; `depends_on` stays `[IMP-007M, IMP-007F]`. Gated changes: the target-lease bullet accepts a lease closed as `expired` in a live set with the same token fencing, and `cancelled` returns `import_stale`; a new worker bullet runs the late-proof loop after a lost lease, keeps the token after `RawHold` is dropped and retries `import_stale` until the set's `expires_at`, because the sweep closes the lease only after `raw_deadline`; the restart bullet drops the option (c) clause; `CALLS` "gains exactly `release_member_slot_v1`" instead of "(nine names)", since IMP-007F's merged plan has six names and IMP-007V may add two first; the docs bullet mentions the lost-lease case; AC-07 states the decided rule; AC-08 adds the lost-lease worker case. Context: six `CALLS` names and "6 names exactly", the lost-lease rule, IMP-007F as one pull request, IMP-007N done, IMP-007T and IMP-007W on the lock, skip count 123. Spec hash sha256:64ae9aa78c86ebf1eba4822ed95c6bc74a78c0c17ff020bb5e7bcc26bf07ce8e becomes sha256:98275b665427a463361e6fe4bd5aa91b2307abe41cad536f6f369b087d02f165; still backlog, no Gate A.
+- 2026-11-21 claude-code/opus-5.5: recorded Gate A in plan pull request #95. Asked "Gate A, tickets rewritten with your decisions. Which do you approve exactly as written?" (Q32) with this ticket listed at sha256:98275b665427a463361e6fe4bd5aa91b2307abe41cad536f6f369b087d02f165, the owner selected "IMP-007Q,IMP-007R,IMP-007V". `gate_approval` set to "owner 2026-11-21, Gate A on the text as written on PR #95's branch (Q32)"; `spec_approved` set to sha256:98275b665427a463361e6fe4bd5aa91b2307abe41cad536f6f369b087d02f165, which `tickets.py spec` reports as the current hash; status backlog becomes ready. Decisions needed item 3 resolved. No Build plan yet; the planner writes it in a later pull request.

@@ -2,7 +2,7 @@
 id: IMP-007T
 title: Ask "keep, or mark closed?" for an account missing from a newer holdings file and store the answer
 priority: P0
-status: backlog
+status: ready
 type: feature
 parent: IMP-007
 depends_on: []
@@ -11,12 +11,12 @@ risk: high
 size: M
 agent_tier: frontier
 gate: owner
-gate_approval:
+gate_approval: "owner 2026-11-21, Gate A on the text as written on PR #95's branch (Q33)"
 review: independent
 branch:
 pr:
 spec: docs/specs/imp-007-r7/spec.md
-spec_approved:
+spec_approved: sha256:66ca4f184ece07cda36d3d9228fb6d7479ea0abc36b888f325948e160d6b0f69
 updated: 2026-11-21
 ---
 
@@ -101,6 +101,7 @@ When a newer holdings file from a source no longer lists an account that an earl
    - Recommendation: (a). It follows the 2026-11-20 decision ("ANL-008's successor reads it") and keeps the SQL lock and the projection resources apart.
    - **Resolved 2026-11-21: (a).** The owner was asked "IMP-007T ... has four decisions. Recommendations: (1) new append-only accepted fact table with RLS and a reader grant; (2) the next free migration revision after 0005/0006, not an in-place 0004 change; (3) an unanswered question means 'keep'; (4) a new positions ticket, filed with IMP-007T's Build plan, changes the positions reader. Accept all four?" and chose "Accept all (Recommended)". Requirements and AC-04 and AC-09 state each rule.
 5. **Gate A.** The owner approves the Goal, Requirements and Acceptance criteria above, with the answers to items 1 to 4 written into them, or asks for changes.
+   - **Resolved 2026-11-21.** Asked "Gate A, the other two. ... Which do you approve exactly as written?" with this ticket listed at sha256:66ca4f184ece07cda36d3d9228fb6d7479ea0abc36b888f325948e160d6b0f69, the owner selected "IMP-007T,PLG-105" (Q33). `gate_approval` and `spec_approved` record it.
 
 ## Handoff
 
@@ -114,3 +115,4 @@ When a newer holdings file from a source no longer lists an account that an earl
 
 - 2026-11-20 claude-code/opus-5.5: filed from ANL-008 Decision 9. The owner, asked "Accept all 11 recommendations?" for ANL-008, answered "Accept all (Recommended)", which includes filing an IMP-007 child for the preview question and the canonical fact. Priority P0 because the approved MVP ticket APP-011D already promises the question in its import review step. Filed in https://github.com/gh-slee/kurafolio/pull/83; Gate A not given.
 - 2026-11-21 claude-code/opus-5.5: recorded the owner's answers of 2026-11-21 in plan pull request #95. Asked "IMP-007T ... has four decisions. Recommendations: (1) new append-only accepted fact table with RLS and a reader grant; (2) the next free migration revision after 0005/0006, not an in-place 0004 change; (3) an unanswered question means 'keep'; (4) a new positions ticket, filed with IMP-007T's Build plan, changes the positions reader. Accept all four?", the owner chose "Accept all (Recommended)". Gated changes: the non-goal names the new positions ticket; an unanswered question means "keep" and never blocks confirmation; "mark closed" writes to a new append-only accepted-fact table through `_effects_v1`; a new Migration bullet puts the table in the next free revision after `0006_user_preferences`, leaves `0004` unchanged, and requires an operator inventory check and a runtime counterpart on IMP-007W's pattern; AC-04 covers no answer; new AC-09 for the revision. Context: APP-011D now depends on this ticket (Q27), IMP-007P and IMP-007U are filed on `main`, the lock list. Spec hash sha256:fd61a31bac0ce6747a1c237d34e25da14386dbf8a91d63094acdb6ad5ec38340 becomes sha256:66ca4f184ece07cda36d3d9228fb6d7479ea0abc36b888f325948e160d6b0f69; still backlog, no Gate A.
+- 2026-11-21 claude-code/opus-5.5: recorded Gate A in plan pull request #95. Asked "Gate A, the other two. ... Which do you approve exactly as written?" (Q33) with this ticket listed at sha256:66ca4f184ece07cda36d3d9228fb6d7479ea0abc36b888f325948e160d6b0f69, the owner selected "IMP-007T,PLG-105". `gate_approval` set to "owner 2026-11-21, Gate A on the text as written on PR #95's branch (Q33)"; `spec_approved` set to sha256:66ca4f184ece07cda36d3d9228fb6d7479ea0abc36b888f325948e160d6b0f69, which `tickets.py spec` reports as the current hash; status backlog becomes ready. Decisions needed item 5 resolved. No Build plan yet; the planner writes it in a later pull request.

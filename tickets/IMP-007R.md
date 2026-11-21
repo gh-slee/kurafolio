@@ -2,7 +2,7 @@
 id: IMP-007R
 title: Sweep a lapsed normalize attempt into reupload_required
 priority: P0
-status: backlog
+status: ready
 type: feature
 parent: IMP-007
 depends_on: []
@@ -11,12 +11,12 @@ risk: high
 size: M
 agent_tier: frontier
 gate: owner
-gate_approval: 
+gate_approval: "owner 2026-11-21, Gate A on the text as written on PR #95's branch (Q32)"
 review: independent
 branch: 
 pr: 
 spec: docs/specs/imp-007-r7/spec.md
-spec_approved: 
+spec_approved: sha256:8b2ab2f1293f7e513e1415f7c6531ae33fe4d3503a03a8aa3018a748e7af2952
 updated: 2026-11-21
 ---
 
@@ -94,6 +94,7 @@ Only the owner answers. The planner recommends an option for each.
 3. Whether IMP-007Q's late-proof release also covers an attempt this sweep closed, so that IMP-007F's restarted worker can use its journal to free the slot before the set ends. (a) Yes; the IMP-007Q plan says so and its tests include a swept attempt. (b) No; a swept bound attempt's slot returns only at set cleanup. The planner recommends (a), recorded in IMP-007Q's plan, not in this ticket's code.
    **Resolved 2026-11-21: yes, narrower than (a).** The owner was asked who may later release a held raw slot with a launcher proof when an upload attempt was closed by the sweep or the worker restarted, given that the release is fenced on the attempt's one-use handoff token, which only the running worker process holds. The owner chose "Running worker only (Recommended)": "IMP-007Q (b): the release also accepts a sweep-closed attempt, but only from the worker process that still holds the token (e.g. it survived a long DB outage). A restarted worker can't; that slot returns at set cleanup after cancel/expiry. Keeps finish's fencing." A restarted worker therefore cannot use its journal to free the slot, unlike option (a) as first written. IMP-007Q's code carries the rule; this ticket's Requirements name the exception to its fencing.
 4. Gate A: the owner approves the Goal, Requirements and Acceptance criteria above, with the answers to items 1 to 3 written into them, or asks for changes.
+   **Resolved 2026-11-21.** Asked "Gate A, tickets rewritten with your decisions. Which do you approve exactly as written?" with this ticket listed at sha256:8b2ab2f1293f7e513e1415f7c6531ae33fe4d3503a03a8aa3018a748e7af2952, the owner selected "IMP-007Q,IMP-007R,IMP-007V" (Q32). `gate_approval` and `spec_approved` record it.
 
 ## Handoff
 
@@ -107,3 +108,4 @@ Only the owner answers. The planner recommends an option for each.
 
 - 2026-11-20 claude-code/opus-5.5: filed in plan pull request #86 from the owner's decision of 2026-11-20 on "IMP-007F D7: if the worker process dies mid-normalize ... What should happen?": the owner chose "SQL sweep ticket (Recommended)": "file a SQL ticket (IMP-007M family) for a fenced sweep that turns a lapsed normalize attempt into reupload_required; until it lands, docs say cancel or expiry is the recovery." Shares `ingestion-schema-sql` with IMP-007N, IMP-007O and IMP-007Q. Status backlog; no Gate A yet.
 - 2026-11-21 claude-code/opus-5.5: recorded the owner's answers of 2026-11-21 in plan pull request #95. Decision 1: asked "IMP-007R: where does the sweep that turns a lapsed normalize attempt into reupload_required run?", the owner chose "Inside claim_plan_v1 (Recommended)". Decision 2: asked "IMP-007R: an attempt that had already stored its parsed stage before the worker died. What does the sweep do with it?", the owner chose "reupload_required (Recommended)": the sweep deletes that attempt's transient stage row; no accepted evidence is deleted. Decision 3: asked "IMP-007Q (late-proof slot release) and IMP-007R (crash sweep) disagree. When an upload attempt was closed by the sweep, or the worker restarted, who may later release its held raw slot with a launcher proof? The release call is fenced on the attempt's one-use handoff token, which only the running worker process holds (the journal never stores it)." (Q22), the owner chose "Running worker only (Recommended)": "IMP-007Q (b): the release also accepts a sweep-closed attempt, but only from the worker process that still holds the token (e.g. it survived a long DB outage). A restarted worker can't; that slot returns at set cleanup after cancel/expiry. Keeps finish's fencing." Gated changes: the sweep runs inside `claim_plan_v1` on every call whatever its `work_kind`, after the guard, with a fixed per-call bound named in the Build plan; a swept attempt that stored a stage becomes `reupload_required` and its stage row is deleted; the sweep runs after the guard and the READ COMMITTED check; a new bullet keeps the sweep's changes when the call answers a refusal (the merged exception block would roll them back); the fencing bullet names IMP-007Q's release as the one exception; the raw-slot bullet states the running-worker rule; the inventory bullet says only `claim_plan_v1` and a narrow stage-delete exception in `_transition_v1` change, since the merged stage trigger refuses that delete in a live set; AC-06, AC-07, AC-09 and AC-10 rewritten; new AC-11 for the `cleanup` call, the bound and refusal answers. Spec hash sha256:3d4a9432b9dc9d88dc6408dad9d9007a22c09c2e0bc2bf0d9043d4ac29ec8202 becomes sha256:8b2ab2f1293f7e513e1415f7c6531ae33fe4d3503a03a8aa3018a748e7af2952; still backlog, no Gate A.
+- 2026-11-21 claude-code/opus-5.5: recorded Gate A in plan pull request #95. Asked "Gate A, tickets rewritten with your decisions. Which do you approve exactly as written?" (Q32) with this ticket listed at sha256:8b2ab2f1293f7e513e1415f7c6531ae33fe4d3503a03a8aa3018a748e7af2952, the owner selected "IMP-007Q,IMP-007R,IMP-007V". `gate_approval` set to "owner 2026-11-21, Gate A on the text as written on PR #95's branch (Q32)"; `spec_approved` set to sha256:8b2ab2f1293f7e513e1415f7c6531ae33fe4d3503a03a8aa3018a748e7af2952, which `tickets.py spec` reports as the current hash; status backlog becomes ready. Decisions needed item 4 resolved. No Build plan yet; the planner writes it in a later pull request.

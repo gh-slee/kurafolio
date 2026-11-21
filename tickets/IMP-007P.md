@@ -2,7 +2,7 @@
 id: IMP-007P
 title: Build the ReviewBundle that the worker's prepare step passes to prepare_preview_v1
 priority: P0
-status: backlog
+status: ready
 type: feature
 parent: IMP-007
 depends_on: []
@@ -11,13 +11,13 @@ risk: critical
 size: L
 agent_tier: frontier
 gate: owner
-gate_approval: 
+gate_approval: "owner 2026-11-21, Gate A on the text as written on PR #95's branch (Q31)"
 review: independent
 branch: 
 pr: 
 spec: docs/specs/imp-007-r7/spec.md
-spec_approved: 
-updated: 2026-11-20
+spec_approved: sha256:ab4f0a665240bd37f278712f3dc78aa90db9a7ecb92f3fc7e0700f67a4bab766
+updated: 2026-11-21
 ---
 
 # IMP-007P: Build the ReviewBundle that the worker's prepare step passes to prepare_preview_v1
@@ -74,7 +74,7 @@ After every member of an import set is normalized, the import worker must turn t
 
 ## Decisions needed
 
-- Gate A: the owner approves the Goal, Requirements and Acceptance criteria above, or asks for changes.
+- Gate A: the owner approves the Goal, Requirements and Acceptance criteria above, or asks for changes. **Resolved 2026-11-21.** Asked "Gate A, tickets whose text is unchanged since filing (full text on PR #95's branch). Which do you approve exactly as written?" with this ticket listed at sha256:ab4f0a665240bd37f278712f3dc78aa90db9a7ecb92f3fc7e0700f67a4bab766, the owner selected "IMP-007O,IMP-007P,IMP-007U,IMP-007S" (Q31). `gate_approval` and `spec_approved` record it.
 
 ## Handoff
 
@@ -88,3 +88,4 @@ After every member of an import set is normalized, the import worker must turn t
 
 - 2026-11-20 claude-code/opus-5.5: filed in plan pull request #86 from the owner's decision of 2026-11-20 on "No merged code builds the ReviewBundle ... Who builds it?": the owner chose "New ticket (Recommended)": "risk critical, tier frontier, own review." (IMP-007F D2 = (a).) On the wait, the owner chose "Build now, prepare last (Recommended)": "No depends_on. Builders do PR 1 and PR 2 now; prepare and AC-04 land in a third PR once IMP-007P merges." Status backlog; no Gate A yet.
 - 2026-11-20 claude-code/opus-5.5: the owner chose "Split prepare out (Recommended)" (Q16): "Move the prepare step and AC-04 to a new ticket (IMP-007V) that depends on IMP-007F and IMP-007P." The caller of this builder is now IMP-007V, not IMP-007F's third pull request; Context, the Requirements "Not in scope" line and Handoff say so. Spec hash changes from sha256:def5b60480742768882339fd55443e0f9af5f984b7c7d6f5ac094087b21bed27 to sha256:ab4f0a665240bd37f278712f3dc78aa90db9a7ecb92f3fc7e0700f67a4bab766; the ticket was never approved.
+- 2026-11-21 claude-code/opus-5.5: recorded Gate A in plan pull request #95. Asked "Gate A, tickets whose text is unchanged since filing (full text on PR #95's branch). Which do you approve exactly as written?" (Q31) with this ticket listed at sha256:ab4f0a665240bd37f278712f3dc78aa90db9a7ecb92f3fc7e0700f67a4bab766, the owner selected "IMP-007O,IMP-007P,IMP-007U,IMP-007S". `gate_approval` set to "owner 2026-11-21, Gate A on the text as written on PR #95's branch (Q31)"; `spec_approved` set to sha256:ab4f0a665240bd37f278712f3dc78aa90db9a7ecb92f3fc7e0700f67a4bab766, which `tickets.py spec` reports as the current hash; status backlog becomes ready. Decisions needed item resolved. No Build plan yet; the planner writes it in a later pull request.
