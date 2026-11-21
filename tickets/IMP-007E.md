@@ -311,7 +311,7 @@ Negative cases the reviewer will look for:
 CI and the skip guard:
 
 - Run `tests/test_postgres_import_routes.py` in the `postgres-ingestion` job with `--expect-skipped 0`, after installing `requirements-web-test.lock` as well as `requirements-pg-test.lock`.
-- The `postgres` job also discovers `test_postgres_*.py` and skips these tests there, so raise its `--expect-skipped 118` by the number of new gated tests and update its comment.
+- The `postgres` job also discovers `test_postgres_*.py` and skips these tests there, so raise its `--expect-skipped` (123 at `cd68c5e`, before IMP-007W adds its own gated tests) by the number of new gated tests and update its comment.
 - Also run the focused commands in Handoff, the full unit suite and `scripts/check_language.py`.
 
 ### Rollback

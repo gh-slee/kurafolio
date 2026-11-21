@@ -665,6 +665,9 @@ tests.test_projection_positions -v`; `npm --prefix frontend test`,
 ### Stop and ask if
 
 - IMP-007E has not merged.
+- IMP-007W's `ingestion_migration._runtime_owner` or the keyword-only `owner` on
+  `_checked_roles` and `verify_grants` has another name or signature on `main`
+  than step 4 uses.
 - The merged ingestion profile misses a surface listed in step 9, pins more than one
   revision, or has a shape steps 9 to 13 do not describe. Set the ticket `blocked`
   and ask for a plan refresh.

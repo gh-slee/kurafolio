@@ -647,6 +647,9 @@ skipped PostgreSQL test is not acceptance.
 ### Stop and ask if
 
 - APP-011I or IMP-007E has not merged.
+- IMP-007W's `ingestion_migration._runtime_owner`, the keyword-only `owner` on
+  `verify_grants`, or APP-011I's `invite_status_migration.verify_runtime_inventory`
+  has another name or signature on `main` than step 4 uses.
 - The merged `0005` differs from what this plan assumes: no revision-selected restore
   profile, a guarded-function count other than 29, a function total other than 69,
   or helper names (`invite_status_schema`, `invite_status_migration`, the

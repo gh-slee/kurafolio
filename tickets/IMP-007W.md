@@ -110,10 +110,9 @@ Each must give the same value through both logins. If one differs or raises, sto
     - `except SQLAlchemyError: raise PersistenceError("migration_target_invalid") from None`. Import `SQLAlchemyError` inside the function, as `migrate_ingestion` does.
     - Docstring: read-only; runtime login only; the operator uses `verify_inventory`.
   - Do not change `grants`, `verify_functions`, `_structure_digest`, `verify_role_create_privileges`, `migrate_ingestion` or the three digest constants.
-- `tests/test_postgres_migration.py`: one new class, below.
-- `tests/test_ingestion_runtime_inventory.py` (new), with no database, below.
+- `tests/test_postgres_migration.py`: two new classes, below: one real-PostgreSQL class and one unit class with no database.
 - `docs/web-v2-imports.md`, section "Explicit 0004 installation": one short paragraph for AC-08. Say that IMP-007E wires the check into `/readyz`.
-- `.github/workflows/ci.yml`: the `postgres-foundation` job discovers `test_postgres_*.py` and skips the ingestion tests (`--expect-skipped 123`, comment "the 122 ingestion tests"). Raise both numbers by the number of new test methods gated on `KURAFOLIO_INGESTION_TEST`. The `postgres-ingestion` job already runs `test_postgres_migration.py` with `--expect-skipped 0`.
+- `.github/workflows/ci.yml`: the `postgres-foundation` job discovers `test_postgres_*.py` and skips the ingestion tests (`--expect-skipped 123`, comment "the 122 ingestion tests"). Raise both numbers by the number of new test methods gated on `KURAFOLIO_INGESTION_TEST`. The unit class is not gated on that variable and runs there, because that job installs `requirements-pg-test.lock`, so it adds no skip. The `postgres-ingestion` job already runs `test_postgres_migration.py` with `--expect-skipped 0`; it runs both new classes.
 
 ### Tests
 
@@ -122,12 +121,15 @@ Real PostgreSQL: a new class `IngestionRuntimeInventoryPostgresTests` in `tests/
 - `setUpClass` builds one environment with `scripts/postgres.py test-identity-environment` (cleanup in `tearDownClass` with `cleanup-test-environment`).
 - It creates the worker role with `CREATE ROLE ... LOGIN` through the bootstrap admin, as `test_install_upgrade_grants_and_transactional_refusal` does.
 - It migrates the fixture's own database, so that `runtime.conninfo` and `identity.conninfo` reach it:
-  1. Close identity setup with the synthetic tenant, portfolio and user, as `_verify_targets` does (`tests/test_postgres_migration.py:347-362`).
-  2. `migrate_sources`, then `migrate_ingestion`.
-- It opens three `Database` objects: operator (`migration.conninfo`), runtime (`runtime.conninfo`) and gateway (`identity.conninfo`).
+  1. `migrate_sources`.
+  2. Close identity setup with the synthetic tenant, portfolio and user, as `_verify_targets` does (`tests/test_postgres_migration.py:347-362`).
+  3. `migrate_ingestion`.
+
+  This is the order `_verify_targets` uses.
+- It opens three `Database` objects with `schema_mode='sources'`, as `_verify_targets` does on its `0004` targets: operator (`migration.conninfo`), runtime (`runtime.conninfo`) and gateway (`identity.conninfo`). There is no `ingestion` mode until IMP-007E. Only their engines are used.
 - Drift cases commit through the operator, check through the runtime login, then revert and commit in `finally`. The savepoint pattern at `:405-413` does not work here, because the check runs on another connection. The role-membership case needs the bootstrap admin, because the operator has no CREATEROLE. Each case ends by asserting that the clean target passes again.
 
-Unit tests without a database go in `tests/test_ingestion_runtime_inventory.py`. A fake connection records each SQL text and answers from a script. Skip when SQLAlchemy is missing, as the other persistence unit tests do.
+Unit tests without a database go in a second new class, `IngestionRuntimeInventoryUnitTests`, in the same file and not gated on `KURAFOLIO_INGESTION_TEST`. A fake connection records each SQL text and answers from a script. Skip the class when SQLAlchemy is not installed (`importlib.util.find_spec('sqlalchemy')`, as `tests/test_postgres_config.py:15` does), because `context.execute` and the `SQLAlchemyError` case need it. The default unit job installs no SQLAlchemy and skips it; `postgres-foundation` and `postgres-ingestion` run it.
 
 Every test names its AC ID.
 
@@ -200,7 +202,7 @@ Negative cases the reviewer will look for:
 
 - State: Filed on 2026-11-21 in plan pull request #93, with a Build plan. Status `backlog`, waiting for the owner's Gate A.
 - Next step: After Gate A is on `main`, run step 0 of the Build plan before writing code.
-- Verify: `KURAFOLIO_INGESTION_TEST=1 PYTHONPATH=src .venv/bin/python -m unittest tests.test_postgres_migration -v` and `PYTHONPATH=src .venv/bin/python -m unittest tests.test_ingestion_runtime_inventory -v`; environment setup in [postgres-foundation.md](../docs/postgres-foundation.md) and [web-v2-imports.md](../docs/web-v2-imports.md).
+- Verify: `KURAFOLIO_INGESTION_TEST=1 PYTHONPATH=src .venv/bin/python -m unittest tests.test_postgres_migration -v`, in a virtual environment with `requirements-pg-test.lock`; environment setup in [postgres-foundation.md](../docs/postgres-foundation.md) and [web-v2-imports.md](../docs/web-v2-imports.md).
 - Gotchas: The runtime login sees the catalog but not `wl_identity` tables; the gateway login cannot read `wl_pg`. Drift cases must commit, because the check runs on another connection.
 - Open questions: Gate A.
 
