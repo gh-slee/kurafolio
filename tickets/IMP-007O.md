@@ -78,4 +78,4 @@ The upload route (IMP-007U) must send the import worker one frame holding the ha
 ## Log
 
 - 2026-11-20 claude-code/opus-5.5: filed in plan pull request #87 from the owner's decision of 2026-11-20 on IMP-007E's question "Where should the bytes come from?": the owner chose "New SQL ticket (Recommended)": "a frontier SQL ticket makes the bind result also return the stored context bytes; keeps the frozen r7 frame." Status backlog; no Gate A yet.
-- 2026-11-21 claude-code/opus-5.5: checked against `main` at `1a6ff31` in plan pull request `plan/new-ticket-decisions`. Only the Context's lock line was stale: IMP-007N is `done`, and IMP-007T and IMP-007W also hold `ingestion-schema-sql`. Gated sections unchanged (sha256:664d5c3a0b844ef78057e53c216de1711001c867cff0a6165f97edf1ee4e1f60); still backlog, no Gate A.
+- 2026-11-21 claude-code/opus-5.5: checked against `main` at `1a6ff31` in plan pull request #95. Only the Context's lock line was stale: IMP-007N is `done`, and IMP-007T and IMP-007W also hold `ingestion-schema-sql`. Gated sections unchanged (sha256:664d5c3a0b844ef78057e53c216de1711001c867cff0a6165f97edf1ee4e1f60); still backlog, no Gate A.
