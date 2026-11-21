@@ -2,7 +2,7 @@
 id: IMP-007S
 title: Add an operator command that activates an ingestion instance
 priority: P0
-status: backlog
+status: ready
 type: feature
 parent: IMP-007
 depends_on: [IMP-007E, IMP-007F]
@@ -11,12 +11,12 @@ risk: critical
 size: M
 agent_tier: frontier
 gate: owner
-gate_approval: 
+gate_approval: "owner 2026-11-21, Gate A on the text as written on PR #95's branch (Q31)"
 review: independent
 branch: 
 pr: 
 spec: docs/specs/imp-007-r7/spec.md
-spec_approved: 
+spec_approved: sha256:167663b2dd59da7a397217e95289901da086e266862c36f3b094266c4f213d31
 updated: 2026-11-21
 ---
 
@@ -77,6 +77,7 @@ The planner turns these into options with a recommendation once the dependencies
 2. How the command proves native-control readiness, which needs an interface from the IMP-007F launcher.
 3. Whether the command also covers credential and CA rotation (raise `credential_epoch` and recheck readiness, as protocol-appendix.md "Native controls and restart" asks) and re-activation after `ingestion_restore` disables the workers, or whether those are separate commands.
 4. Gate A: the owner approves the Goal, Requirements and Acceptance criteria above, or asks for changes.
+   **Resolved 2026-11-21.** Asked "Gate A, tickets whose text is unchanged since filing (full text on PR #95's branch). Which do you approve exactly as written?" with this ticket listed at sha256:167663b2dd59da7a397217e95289901da086e266862c36f3b094266c4f213d31, the owner selected "IMP-007O,IMP-007P,IMP-007U,IMP-007S" (Q31). `gate_approval` and `spec_approved` record it. Items 1 to 3 stay open for this ticket's planner.
 
 ## Handoff
 
@@ -90,3 +91,4 @@ The planner turns these into options with a recommendation once the dependencies
 
 - 2026-11-20 claude-code/opus-5.5: filed in plan pull request #87 from the owner's decision of 2026-11-20 on "Nothing on main switches a real instance on: wrapper catalog, runtime profile digest, instance_budgets, the worker row and ready. Who builds activation?": the owner chose "New operator ticket (Recommended)": "e.g. `operator activate-ingestion`, depending on IMP-007E and IMP-007F; neither approved scope changes." Status backlog; no Gate A yet.
 - 2026-11-21 claude-code/opus-5.5: reworded the unapproved draft so activation accepts the revision the `ingestion` runtime profile serves, not only `0004`. APP-011I plans `0005_invite_status` and APP-011E plans `0006_user_preferences` after it (owner answer Q4), and the old text would have refused instances at either. Requirements step 1 now reads the recorded revision, refuses an unmigrated database or a revision the profile does not serve and runs that revision's inventory check; AC-03 refuses an unmigrated database, a revision the profile does not serve and an inventory that does not match its recorded revision; the Goal and AC-01 no longer name `0004` alone. Spec hash now sha256:167663b2dd59da7a397217e95289901da086e266862c36f3b094266c4f213d31. Still backlog with no Gate A.
+- 2026-11-21 claude-code/opus-5.5: recorded Gate A in plan pull request #95. Asked "Gate A, tickets whose text is unchanged since filing (full text on PR #95's branch). Which do you approve exactly as written?" (Q31) with this ticket listed at sha256:167663b2dd59da7a397217e95289901da086e266862c36f3b094266c4f213d31, the owner selected "IMP-007O,IMP-007P,IMP-007U,IMP-007S". `gate_approval` set to "owner 2026-11-21, Gate A on the text as written on PR #95's branch (Q31)"; `spec_approved` set to sha256:167663b2dd59da7a397217e95289901da086e266862c36f3b094266c4f213d31, which `tickets.py spec` reports as the current hash; status backlog becomes ready. Decisions needed item 4 resolved; items 1 to 3 stay open for this ticket's planner. The question noted that the served-revision list in Requirements step 1 stops at `0006` and that IMP-007T's later revision will need a small text change, which needs a new Gate A. No Build plan yet; the planner writes it in a later pull request.

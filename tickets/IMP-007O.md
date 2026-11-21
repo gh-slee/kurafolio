@@ -2,7 +2,7 @@
 id: IMP-007O
 title: Return the stored member context bytes from the bind result of reserve_member_v1
 priority: P0
-status: backlog
+status: ready
 type: feature
 parent: IMP-007
 depends_on: []
@@ -11,13 +11,13 @@ risk: high
 size: S
 agent_tier: frontier
 gate: owner
-gate_approval: 
+gate_approval: "owner 2026-11-21, Gate A on the text as written on PR #95's branch (Q31)"
 review: independent
 branch: 
 pr: 
 spec: docs/specs/imp-007-r7/spec.md
-spec_approved: 
-updated: 2026-11-20
+spec_approved: sha256:664d5c3a0b844ef78057e53c216de1711001c867cff0a6165f97edf1ee4e1f60
+updated: 2026-11-21
 ---
 
 # IMP-007O: Return the stored member context bytes from the bind result of reserve_member_v1
@@ -34,7 +34,7 @@ The upload route (IMP-007U) must send the import worker one frame holding the ha
 - The `Handoff` DTO in [wire-contracts.json](../docs/specs/imp-007-r7/wire-contracts.json) has `additionalProperties: false`, and its `context_bytes` is an integer length. The new key therefore cannot be called `context_bytes`, and the API (IMP-007U) removes it before it validates `Handoff`.
 - The frozen [sql-inventory.json](../docs/specs/imp-007-r7/sql-inventory.json) pins the function's signature (`text, uuid, bigint, jsonb, text, jsonb` returning `jsonb`), its grant (`identity_source_gateway`) and `search_path`, not its body. The body is pinned on the code side: `ingestion_migration.py` checks `EXPECTED_STRUCTURE_SHA256` and `EXPECTED_RESTORED_STRUCTURE_SHA256`, whose digest covers each function's `prosrc`, and `tests/fixtures/ingestion/oracle.json` holds the vectors.
 - Changing the `0004` function text in place is safe only if no database outside disposable tests ran `operator migrate-ingestion` at `0004`. On `main` at `d902717` no runtime profile can serve `0004` (IMP-007E adds it) and the repository has no release tags, but that does not prove no operator ran the migration. Requirements make this a check with a stop point.
-- Shares `ingestion-schema-sql` with IMP-007N, IMP-007Q and IMP-007R, so these build one at a time.
+- Shares `ingestion-schema-sql` with IMP-007Q, IMP-007R, IMP-007T and IMP-007W, so these build one at a time. IMP-007N, which also held it, is `done`. IMP-007W edits `ingestion_migration.py` but not the expected structure digests; if it merges first, this ticket changes the digests as `main` then has them.
 
 ## Requirements
 
@@ -65,7 +65,7 @@ The upload route (IMP-007U) must send the import worker one frame holding the ha
 
 ## Decisions needed
 
-- Gate A: the owner approves the Goal, Requirements and Acceptance criteria above, or asks for changes.
+- Gate A: the owner approves the Goal, Requirements and Acceptance criteria above, or asks for changes. **Resolved 2026-11-21.** Asked "Gate A, tickets whose text is unchanged since filing (full text on PR #95's branch). Which do you approve exactly as written?" with this ticket listed at sha256:664d5c3a0b844ef78057e53c216de1711001c867cff0a6165f97edf1ee4e1f60, the owner selected "IMP-007O,IMP-007P,IMP-007U,IMP-007S" (Q31). `gate_approval` and `spec_approved` record it.
 
 ## Handoff
 
@@ -78,3 +78,5 @@ The upload route (IMP-007U) must send the import worker one frame holding the ha
 ## Log
 
 - 2026-11-20 claude-code/opus-5.5: filed in plan pull request #87 from the owner's decision of 2026-11-20 on IMP-007E's question "Where should the bytes come from?": the owner chose "New SQL ticket (Recommended)": "a frontier SQL ticket makes the bind result also return the stored context bytes; keeps the frozen r7 frame." Status backlog; no Gate A yet.
+- 2026-11-21 claude-code/opus-5.5: checked against `main` at `1a6ff31` in plan pull request #95. Only the Context's lock line was stale: IMP-007N is `done`, and IMP-007T and IMP-007W also hold `ingestion-schema-sql`. Gated sections unchanged (sha256:664d5c3a0b844ef78057e53c216de1711001c867cff0a6165f97edf1ee4e1f60); still backlog, no Gate A.
+- 2026-11-21 claude-code/opus-5.5: recorded Gate A in plan pull request #95. Asked "Gate A, tickets whose text is unchanged since filing (full text on PR #95's branch). Which do you approve exactly as written?" (Q31) with this ticket listed at sha256:664d5c3a0b844ef78057e53c216de1711001c867cff0a6165f97edf1ee4e1f60, the owner selected "IMP-007O,IMP-007P,IMP-007U,IMP-007S". `gate_approval` set to "owner 2026-11-21, Gate A on the text as written on PR #95's branch (Q31)"; `spec_approved` set to sha256:664d5c3a0b844ef78057e53c216de1711001c867cff0a6165f97edf1ee4e1f60, which `tickets.py spec` reports as the current hash; status backlog becomes ready. Decisions needed item resolved. No Build plan yet; the planner writes it in a later pull request.

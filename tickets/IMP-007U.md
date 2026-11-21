@@ -2,7 +2,7 @@
 id: IMP-007U
 title: Add the authenticated V2 upload route
 priority: P0
-status: backlog
+status: ready
 type: feature
 parent: IMP-007
 depends_on: [IMP-007E, IMP-007O]
@@ -11,13 +11,13 @@ risk: high
 size: M
 agent_tier: frontier
 gate: owner
-gate_approval: 
+gate_approval: "owner 2026-11-21, Gate A on the text as written on PR #95's branch (Q31)"
 review: independent
 branch: 
 pr: 
 spec: docs/specs/imp-007-r7/spec.md
-spec_approved: 
-updated: 2026-11-20
+spec_approved: sha256:7c71ffd934cd5c7ea24177c16d437fd19beec5b34b22bd55c5c1cf8acd958e90
+updated: 2026-11-21
 ---
 
 # IMP-007U: Add the authenticated V2 upload route
@@ -86,7 +86,7 @@ Rules that reviewers will check:
 
 ## Decisions needed
 
-- Gate A: the owner approves the Goal, Requirements and Acceptance criteria above, or asks for changes.
+- Gate A: the owner approves the Goal, Requirements and Acceptance criteria above, or asks for changes. **Resolved 2026-11-21.** Asked "Gate A, tickets whose text is unchanged since filing (full text on PR #95's branch). Which do you approve exactly as written?" with this ticket listed at sha256:7c71ffd934cd5c7ea24177c16d437fd19beec5b34b22bd55c5c1cf8acd958e90, the owner selected "IMP-007O,IMP-007P,IMP-007U,IMP-007S" (Q31). `gate_approval` and `spec_approved` record it.
 
 ## Handoff
 
@@ -99,3 +99,4 @@ Rules that reviewers will check:
 ## Log
 
 - 2026-11-20 claude-code/opus-5.5: filed in plan pull request #87 from the owner's decision of 2026-11-20 on IMP-007E. The owner chose "Move upload out (Recommended)": "Upload route and its ACs move to a new ticket that depends on IMP-007O. IMP-007E (profile + 8 routes) can be built now and finishes sooner, unblocking APP-011I and APP-011E." The owner's "Accept both (Recommended)" for IMP-007E D3 (read the revision with `read_set_v1` before reserve, no wire change) and D5 (keep a single `import_busy` code and have the docs list both causes) is in Requirements. The context bytes come from IMP-007O ("New SQL ticket (Recommended)"). Status backlog; no Gate A yet.
+- 2026-11-21 claude-code/opus-5.5: recorded Gate A in plan pull request #95. Asked "Gate A, tickets whose text is unchanged since filing (full text on PR #95's branch). Which do you approve exactly as written?" (Q31) with this ticket listed at sha256:7c71ffd934cd5c7ea24177c16d437fd19beec5b34b22bd55c5c1cf8acd958e90, the owner selected "IMP-007O,IMP-007P,IMP-007U,IMP-007S". `gate_approval` set to "owner 2026-11-21, Gate A on the text as written on PR #95's branch (Q31)"; `spec_approved` set to sha256:7c71ffd934cd5c7ea24177c16d437fd19beec5b34b22bd55c5c1cf8acd958e90, which `tickets.py spec` reports as the current hash; status backlog becomes ready. Decisions needed item resolved. No Build plan yet; the planner writes it in a later pull request.
