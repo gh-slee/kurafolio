@@ -5,7 +5,7 @@ priority: P0
 status: ready
 type: feature
 parent: APP-011
-depends_on: [APP-011A, IMP-007E]
+depends_on: [APP-011A, IMP-007E, IMP-007U]
 resources: [frontend-imports-ui]
 risk: medium
 size: M
@@ -103,3 +103,4 @@ Upload, reconciled preview, decisions, confirmation and import history on the V2
 - 2026-11-10 planner: owner approved Gate A for the V2 MVP scope of this ticket on 2026-11-10 and released it (status ready).
 - 2026-11-18 claude-code/opus-5.5: ENG-113 migrated this ticket to the spec format without changing any wording: moved "Expected behaviour", "Scope" and "Implementation notes" from Context into Requirements and numbered the acceptance criteria AC-APP-011D-01 to 09. Spec hash sha256:0c597433e5a0769ec0d413329823746c94b9dc551ad54ea12123b036506476c5, awaiting the owner's confirmation.
 - 2026-11-18 claude-code/opus-5.5: the owner confirmed the migrated text of this ticket in conversation with "Confirm all 29", the batch listed in ENG-113 decision 3; `spec_approved` records sha256:0c597433e5a0769ec0d413329823746c94b9dc551ad54ea12123b036506476c5.
+- 2026-11-20 claude-code/opus-5.5: added IMP-007U to depends_on in plan PR #87, because the upload route moved out of IMP-007E into IMP-007U. The owner confirmed the change on 2026-11-20 (Q17). Question: "Three approved tickets still list only IMP-007E/IMP-007F, but upload moved to IMP-007U and activation to IMP-007S. Proposed depends_on changes: APP-011D (import UI) adds IMP-007U; OPS-021 (one-command deploy) adds IMP-007S and IMP-007U; IMP-007G (end-to-end acceptance) adds IMP-007U, IMP-007S and the prepare ticket (IMP-007P, or IMP-007V if split). Confirm?" Owner chose: "Confirm all (Recommended)": "Recorded with your confirmation in each ticket's Log, in the IMP-007E plan PR (#87)." Goal, Requirements and Acceptance criteria are unchanged; the spec hash still matches `spec_approved`.

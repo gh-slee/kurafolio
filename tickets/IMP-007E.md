@@ -6,30 +6,31 @@ status: ready
 type: feature
 parent: IMP-007
 depends_on: [IMP-007D, IMP-007J]
-resources: [v2-import-routes]
+resources: [v2-import-routes, identity-api]
 risk: high
 size: M
 agent_tier: frontier
 gate: owner
-gate_approval: "owner 2026-10-31, IMP-007 spec r7 (covers all child tickets)"
+gate_approval: "owner 2026-10-31, IMP-007 spec r7 (covers all child tickets); owner 2026-11-21, IMP-007E text after the upload split (Q13)"
 review: independent
 branch: 
 pr: 
 spec: docs/specs/imp-007-r7/spec.md
-spec_approved: sha256:6db6a5ba54ea92a37456cd15bf51124498e73d86d19d24cb6da26d4dcbac652b
-updated: 2026-11-18
+spec_approved: sha256:aba3bef4df145ca2355ad07c3fafb0954169d04ad8a05609502b23528a1c3d4c
+updated: 2026-11-21
 ---
 
 # IMP-007E: Add authenticated V2 import HTTP routes
 
 ## Goal
 
-Expose create, upload, read, decide, accept and cancel through authenticated FastAPI routes on the explicit sources profile, with CSRF/origin checks and bounded uploads.
+Add the `ingestion` runtime profile and expose create, read, decide, accept and cancel through authenticated FastAPI routes on it, with CSRF/origin checks. The bounded upload route is IMP-007U.
 
 ## Context
 
 - Pattern: `tests/test_web_v2_sources.py` and [web-v2-sources.md](../docs/web-v2-sources.md).
 - Background only: the revision 1 planning draft [docs/specs/v2-drafts/WL-P0-007.md](../docs/specs/v2-drafts/WL-P0-007.md) (sha256:fa0971a0da787cb327484c92144e4a5ecd916db4ad0328e03b408d647190acd5), which the r7 bundle supersedes.
+- On 2026-11-20 the owner moved the upload route and its acceptance criteria to IMP-007U, which depends on this ticket and on IMP-007O (Decisions needed, item 6). Activation of an instance is IMP-007S (item 4).
 
 ### Where to start
 
@@ -39,6 +40,37 @@ Expose create, upload, read, decide, accept and cancel through authenticated Fas
 - Tests to extend: `tests/test_postgres_migration.py`, `tests/test_ingestion_*.py`, `tests/test_web_v2_api.py`, `tests/test_web_v2_sources.py`; vectors in `tests/fixtures/ingestion/oracle.json`.
 - Public status and boundaries: [web-v2-imports.md](../docs/web-v2-imports.md). Product intent: [PRODUCT_CONTEXT.md](PRODUCT_CONTEXT.md).
 
+### Findings from the merged code (`main` at `a2f5f2b`)
+
+No file under `src/`, `tests/`, `docs/` or `scripts/` changed between `a2f5f2b` and `main` at `d902717`, so these findings still hold.
+
+- Both dependencies are merged: IMP-007D (`done`, the operator `0004_ingestion` migration and its grants) and IMP-007J (`done`, the granted `admit_rate_v1` gateway function).
+- No runtime profile on `main` can serve a `0004_ingestion` database. Every layer accepts only `identity` and `sources`:
+  - `Database` (`persistence/context.py:47`) maps only `foundation`, `identity` and `sources` to a revision. The principal check in `_transaction` (`:114`) and `RequestDatabase.__post_init__` (`:154`) accept only `identity` and `sources`.
+  - `IdentityStore.__init__` (`persistence/identity.py:104`) accepts only those two profiles, and `role_inventory` runs the source check only for `sources`.
+  - `SourceStore.__init__` (`persistence/source_store.py:14`) always opens `schema_mode="sources"`.
+  - `Settings.__post_init__` (`web_v2/config.py:49`) and `from_files` accept only those two. So do `serve --schema-profile` (`web_v2/__main__.py:21`) and the operator `--schema-profile` (`:36`).
+  - `Auth.__init__` and `Auth.ready` (`web_v2/auth.py:58-106`) build and verify only the `sources` stores.
+  - Route gating in `Boundary.request` (`web_v2/api.py:185`) and route registration in `create_app` (`:416`) test `== 'sources'`.
+- The r7 bundle, which Requirements adopt, already asks for that branch: [sql-appendix.md](../docs/specs/imp-007-r7/sql-appendix.md), "Profile integration and readiness", says to add an explicit ingestion branch in `identity.py`, `source_store.py`, `Database`, Auth and config. IMP-007D built only the operator side. The owner assigned the profile to this ticket on 2026-11-20 (Decisions needed, item 1).
+- Nothing on `main` activates the ingestion profile on a database.
+  - `migrate_ingestion` leaves `wl_ingestion.instance_state.ready` false. No code writes `wrapper_catalog_bytes`, `wrapper_catalog_digest` or `runtime_profile_digest`, sets `ready`, or adds an enabled `wl_ingestion.workers` row.
+  - Until that happens, `_guard_user_v1` answers `instance_not_ready`, and `create_set_v1` fails, because it parses the wrapper catalog.
+  - The runtime role cannot read `wl_ingestion.instance_state` (it is not in `READ_TABLES`), so `/readyz` cannot see that flag.
+  - IMP-007S builds activation (Decisions needed, item 4). This ticket's tests activate their synthetic database through a test-only helper.
+- The upload findings (the member context bytes the hand-off frame needs, `expected_set_revision` on a `RAW_BINARY` request, the Boundary's JSON body read, the worker's hand-off answers) moved to IMP-007U with the route.
+- `web_v2/schemas.py` `ERROR_CODES` has no `import_*` code and no `length_required`. `error_response` (`api.py:57`) turns any code outside that list into `instance_not_ready` (503).
+- `wire-contracts.json` `error_status` lists 13 `import_*` codes. Beyond the eleven in Requirements, it adds `import_cleanup_pending` (503) and `import_evidence_unsupported` (422). Requirements say the DTOs and the status for each error come from that file, so the plan follows it.
+- For unsafe methods, `Boundary.request` reads and parses a JSON body before the route runs (`api.py:252-283`). It answers an octet-stream body with 415 and a body over 16 KiB with 413. The eight routes here all take JSON bodies or none.
+- `docs/web-v2-imports.md` (around line 209) requires the HTTP gateway to commit `admit_rate_v1` in its own short transaction, before it decodes the request body or calls a read, create, decide, cancel or confirm function. A refusal or rollback later in the request leaves the attempt counted.
+- `wire-contracts.json` `Decide` is `{set_id, decisions}`, where `decisions` (codec `Decisions`) carries `operation_id` and `expected_set_revision`. `decide_set_v1` takes exactly those two keys. `accept_preview_v1` takes `operation_id`, `preview_digest` and `preview_id`. `cancel_set_v1` takes `operation_id`, `expected_set_revision` and `set_id`.
+- `read_sets_v1` and `read_preview_v1` return an unsigned `next` payload, which the API must sign with `ingestion/cursors.py`.
+- `requirements-pg-test.lock` has no FastAPI. The CI job that runs real-PostgreSQL HTTP tests must also install `requirements-web-test.lock`.
+- `ingestion/contracts.py` already holds `ERROR_STATUS`, a read-only map equal to `wire-contracts.json` `error_status`.
+- Inputs from the IMP-007F plan (PR #86, not merged):
+  - Its D1 asked who registers the worker and sets `ready`. The owner answered that with IMP-007S (Decisions needed, item 4).
+  - Its D2 finds that no merged code builds a `ReviewBundle`, so no worker can prepare a preview yet. IMP-007E's routes only read previews and confirm them, so this ticket does not depend on that answer; its tests seed a READY set with a preview from the oracle vectors.
+
 ## Requirements
 
 - Frozen r7 contract bundle, the contract approved as "IMP-007 spec r7": [docs/specs/imp-007-r7/](../docs/specs/imp-007-r7/README.md) (index sha256:75a859f65d7ee4564a20220b756b88ff44cf4449644167e2df2a87fd081e7fe7; the index lists the SHA-256 of each file), notably [spec.md](../docs/specs/imp-007-r7/spec.md), [sql-appendix.md](../docs/specs/imp-007-r7/sql-appendix.md), [sql-inventory.json](../docs/specs/imp-007-r7/sql-inventory.json), [contract-appendix.md](../docs/specs/imp-007-r7/contract-appendix.md) and [acceptance.md](../docs/specs/imp-007-r7/acceptance.md).
@@ -46,12 +78,13 @@ Expose create, upload, read, decide, accept and cancel through authenticated Fas
 
 ### What to build
 
-Nine routes, all under the ingestion profile only. On an `identity` or `sources` instance they do not exist (404), as the source routes behave today in `web_v2/api.py`.
+The `ingestion` runtime profile that r7 [sql-appendix.md](../docs/specs/imp-007-r7/sql-appendix.md) ("Profile integration and readiness") asks for, so that a `0004_ingestion` database can be served. Activating an instance is IMP-007S.
+
+Eight routes, all under the ingestion profile only. On an `identity` or `sources` instance they do not exist (404), as the source routes behave today in `web_v2/api.py`. The upload route, `PUT /api/v2/import-sets/{set}/members/{member}/raw`, is IMP-007U.
 
 | Route | Purpose | Answer |
 |---|---|---|
 | `POST /api/v2/import-sets` | Create a set of 1 to 4 members, each naming an enabled connection and a format version | New set and member IDs; the same `operation_id` and payload returns the same IDs |
-| `PUT /api/v2/import-sets/{set}/members/{member}/raw` | Upload one CSV as `application/octet-stream` | 202 after bounded reception and hand-off to the worker; the client then polls the set |
 | `GET /api/v2/import-sets` | History, with a signed cursor, `limit` 1 to 50 and a status filter | Set summaries without file content |
 | `GET /api/v2/import-sets/{set}` | One set | State, member progress, expiry, fixed error codes, preview and receipt IDs |
 | `PUT /api/v2/import-sets/{set}/decisions` | Mapping and conflict decisions at an expected set revision | 202; the worker prepares a new preview |
@@ -62,41 +95,260 @@ Nine routes, all under the ingestion profile only. On an `identity` or `sources`
 
 Rules that reviewers will check:
 
-- Order of checks on upload: route, method and headers first; then session, origin and CSRF; then the database reservation (`reserve_member_v1`); only then read the body. Never read a body for a request that will be refused.
-- Upload body: exactly one `Content-Length`, 1 to 10,485,760 bytes; no multipart, `Content-Encoding` or `Transfer-Encoding`; 30 seconds total and 5 seconds idle. Missing length is 411, both length and chunked is 400, an encoding is 415, too large is 413. `web_v2/imports.py` (`receive_raw`) already implements the bounded reader; call it, do not write another.
 - JSON control bodies are at most 16,384 bytes with a 10 second deadline, like the existing V2 routes.
 - Errors carry a code only: `import_invalid`, `import_limit`, `import_busy`, `import_expired`, `import_reupload_required`, `import_mapping_required`, `import_conflict`, `import_stale`, `import_operation_conflict`, `import_commit_uncertain`, `import_runner_unavailable`. No file content, path, connection string or parser message reaches a response or a log line.
 - The browser never sends financial values. Confirmation carries only the operation ID and the digest of the preview the user saw.
 - Rate limits are admitted inside the SQL functions (IMP-007J, merged). Do not add a second limiter in Python.
-- The hand-off of received bytes to the worker uses the one-use token from `reserve_member_v1` and the client in `src/kurafolio/ingestion/runner_client.py`. Until IMP-007F merges, test against a fake worker endpoint; the route's contract does not change when the real worker arrives.
 - The exact DTOs and the status code for each error are in [wire-contracts.json](../docs/specs/imp-007-r7/wire-contracts.json) in the r7 bundle, and the routes in [ingestion-api.md](../docs/specs/imp-007-r7/ingestion-api.md). Do not invent field names, because APP-011D builds its page on them.
 
 ## Acceptance criteria
 
-- [ ] AC-IMP-007E-01: Each of the nine routes above exists on the ingestion profile, appears in `/api/v2/openapi.json` with its DTOs, and is absent on the `identity` and `sources` profiles.
+- [ ] AC-IMP-007E-01: Each of the eight routes above exists on the ingestion profile, appears in `/api/v2/openapi.json` with its DTOs, and is absent on the `identity` and `sources` profiles.
 - [ ] AC-IMP-007E-02: Routes call only the r7 SQL functions; no route writes tables directly.
 - [ ] AC-IMP-007E-03: Unauthenticated, cross-tenant and stale-version requests are refused.
-- [ ] AC-IMP-007E-04: Upload size/time bounds and raw-byte retention follow r7.
 - [ ] AC-IMP-007E-05: HTTP tests cover each route and refusal.
-- [ ] AC-IMP-007E-06: A refused upload (no session, wrong origin, missing CSRF token, no reservation) is answered without reading the body; a test proves it with a body that would fail if read.
 - [ ] AC-IMP-007E-07: Replaying create, decisions, confirm or cancel with the same `operation_id` and payload returns the first answer and changes nothing; the same `operation_id` with a different payload is `import_operation_conflict`.
-- [ ] AC-IMP-007E-08: No response or log line in the test run contains bytes of an uploaded file.
 - [ ] AC-IMP-007E-09: `docs/web-v2-imports.md` lists the routes and their error codes, so APP-011D can be built from the public document.
+
+## Build plan
+
+- Based on: `main` at `a2f5f2b`; rechecked on 2026-11-20 against `main` at `d902717`, with no change under `src/`, `tests/`, `docs/` or `scripts/`.
+- The plan follows the owner's answers of 2026-11-20 under Decisions needed (items 1 to 5) and the new gated text (item 6). The owner approved the new gated text on 2026-11-21 (item 6), recorded in plan pull request #87. A builder starts only after that record is on `main`.
+- Build order:
+  1. Part A (profile).
+  2. Parts B to D (gateway caller, DTOs, the eight JSON routes).
+  3. Part F (docs).
+- One pull request.
+- Acceptance IDs 04, 06 and 08 moved to IMP-007U with the upload route; this ticket keeps 01, 02, 03, 05, 07 and 09 with their numbers.
+
+### Part A: the `ingestion` runtime profile on the API side
+
+Every change is additive. The `identity` and `sources` profiles keep their exact behaviour, revisions and inventory checks.
+
+- `src/kurafolio/persistence/context.py`:
+  - `Database.__init__` maps `"ingestion"` to `"0004_ingestion"`. Write the literal and add a unit test asserting that it equals `ingestion_schema.REVISION`; do not import the 5,500-line schema module here.
+  - The `ingestion` profile gets the same `connect_timeout` and `statement_timeout`/`lock_timeout`/`idle_in_transaction_session_timeout` options as `identity` and `sources`.
+  - Add `ingestion` to the set checked in `_transaction`'s principal branch and in `RequestDatabase.__post_init__`.
+- `src/kurafolio/persistence/identity.py`:
+  - `IdentityStore.__init__` accepts `"ingestion"`.
+  - In `role_inventory`, `source_role_inventory` also runs when `database.schema_mode == "ingestion"`.
+  - The other counts stay as they are (22 `wl_identity` functions, 7 identity tables, 22 RLS `wl_pg` tables), because `0004` replaces function bodies but adds no identity or `wl_pg` objects. If a real `0004` database disagrees, stop and ask.
+- `src/kurafolio/persistence/source_store.py`: `SourceStore.__init__(config, catalog, *, schema_mode="sources")` accepts `"sources"` or `"ingestion"`.
+- `src/kurafolio/web_v2/config.py`:
+  - `Settings.schema_profile` accepts `"ingestion"`. Like `sources`, `ingestion` requires a valid `source_catalog`.
+  - Add one keyword-only field, `worker_role: str | None`, a PostgreSQL role name. It is `None` unless the profile is `ingestion` and is required for it. Validate it with the same rule as the operator's `--worker-role`. `Auth.ready()` passes it to `verify_inventory`.
+  - `from_files(..., worker_role=None)` passes it through.
+  - The hand-off settings (worker URL, peer DNS name, instance ID and the TLS files) belong to the upload route and are IMP-007U's. Do not add them here.
+- `src/kurafolio/web_v2/__main__.py`:
+  - `serve --schema-profile` adds `ingestion`.
+  - New `serve` flag `--worker-role`, required with `ingestion` and refused without it.
+  - The operator `--schema-profile` choice (setup, invite, account, `identity status`) adds `ingestion`, so that an instance at `0004` can still issue invites and manage accounts.
+  - No other operator command changes. The activation command is IMP-007S.
+- `src/kurafolio/web_v2/auth.py`:
+  - For `sources` or `ingestion`, `Auth.__init__` opens `SourceStore(settings.identity, settings.source_catalog, schema_mode=profile)`.
+  - For `ingestion` it also opens `self.imports = IngestionStore(settings.identity, settings.source_catalog)` (Part B) and sets `self.cursor_key = cursors.derive_key(settings.key)`. `close()` closes `self.imports`.
+  - `Auth.ready()` on `ingestion` replaces the `sources` verification with `ingestion_migration.verify_inventory(conn, runtime_role=runtime_role, gateway_role=gateway_role, worker_role=self.settings.worker_role)`. That call already covers the identity inventory, the source structure digest, the `0004` structure digest, the functions and the grants. `ready()` keeps the realm comparison and the `wl_sources.catalog_state` digest check.
+  - `ready()` does not read `wl_ingestion.instance_state`. An unactivated instance passes `/readyz`, and every import route answers `instance_not_ready` (503) from SQL. Part F documents this.
+- `src/kurafolio/web_v2/api.py`:
+  - On `ingestion`, `Boundary.request` and `create_app` serve the source routes exactly as on `sources`, because `create_set_v1` needs an enabled connection and only the source routes create one. They also serve the import routes from Part D.
+  - On `identity` and `sources`, the import paths answer 404 `not_found` and are absent from `/api/v2/openapi.json`.
+  - The upload path `PUT /api/v2/import-sets/{set}/members/{member}/raw` is not registered by this ticket and answers 404 `not_found` on every profile until IMP-007U adds it.
+
+### Part B: the gateway caller
+
+- `src/kurafolio/persistence/ingestion_store.py` (new), modelled on `SourceStore.call`:
+  - `IngestionStore(config, catalog)` opens `Database(config, schema_mode="ingestion")` and keeps `catalog_digest(catalog)`.
+  - `call(name, principal, payload, *, deadline) -> dict`:
+    - Accepts only names in `ingestion_schema.GATEWAY` other than `admit_rate_v1`; anything else raises `IdentityError()` before any SQL runs. The routes here use `create_set_v1`, `read_sets_v1`, `read_set_v1`, `decide_set_v1`, `read_preview_v1`, `accept_preview_v1`, `cancel_set_v1` and `read_receipt_v1`. `reserve_member_v1` stays callable through the same method for IMP-007U.
+    - Arguments are `(session_digest, user_id, credential_version, realm, catalog_digest, payload)`, cast as `text, uuid, int8, jsonb, text, jsonb`.
+    - Each transaction sets the same per-transaction `statement_timeout` and `lock_timeout` as `SourceStore.call`.
+    - Retries the whole transaction at most 3 times on `40001`/`40P01`, within the deadline.
+  - `admit(principal, bucket)` calls `admit_rate_v1`, whose sixth argument is `text`, with `bucket` in `{'read', 'control'}`. It commits in its own transaction and returns nothing. The success value is `NULL`, so do not apply `SourceStore`'s "value is a dict" rule to it.
+  - Result mapping:
+    - `{'ok': True, 'value': dict}` returns the value.
+    - `{'ok': False, 'code': c}` raises `RequestError(c, ERROR_STATUS[c])` when `c` starts with `import_` and is a key of `contracts.ERROR_STATUS`. Otherwise it raises `SourceError(c)` for codes in `lifecycle_v1.STATUS`, `IdentityError(c)` for codes in `identity.STATUS`, and `IdentityError()` for anything else.
+    - A commit that fails after the function ran raises `import_commit_uncertain` (503) for `create_set_v1`, `decide_set_v1`, `accept_preview_v1`, `cancel_set_v1` and `reserve_member_v1`, and `IdentityError()` for reads.
+  - No SQL text, parameter, payload or driver message reaches an exception or a log.
+- Statuses come from `kurafolio.ingestion.contracts.ERROR_STATUS`, which already matches `wire-contracts.json` `error_status`. Add a test that compares the two. Do not load the bundle at runtime and do not keep a second copy.
+
+### Part C: DTOs and error codes
+
+- `src/kurafolio/web_v2/schemas.py`: append to `ERROR_CODES`, in the order of the `wire-contracts.json` `Error` code enum, every code that `error_status` holds and `ERROR_CODES` lacks:
+  - the 13 `import_*` codes
+  - `length_required`
+
+  Do not remove or rename an existing code. `length_required` stays in this ticket so that `ERROR_CODES` covers `error_status` in one change, although only IMP-007U's upload route returns it.
+- Validate request and response bodies with the frozen schemas already in `src/kurafolio/ingestion/contracts.py`, through `codec.validate(value, '<Name>')`. Write no Pydantic copy of any import DTO, because a copy could drift and APP-011D builds on these names.
+  - Requests use `Create`, `Decide`, `Confirm` and `Cancel`. A schema failure is `import_invalid` (422).
+  - Malformed JSON, duplicate keys and oversized bodies keep the Boundary's `invalid_input` (422) and `body_too_large` (413).
+  - Responses use `SetResult`, `SetList`, `PreviewPage` and `Receipt`. A response that fails its schema is `internal_error` (500) and is never sent.
+- OpenAPI: install a custom `app.openapi` that adds every `$defs` entry that the eight routes reach, directly or through references, to `components.schemas`, rewriting `codec-schema.json#/$defs/X` and `#/$defs/X` to `#/components/schemas/X`. Give each import route its request body and its success response through `openapi_extra`. The error responses use the existing `Error` model. Keep the function generic over a route list, so IMP-007U can add the upload route to it.
+- `src/kurafolio/web_v2/api.py`: `invalid_response` returns `internal_error` for import requests, as it does for source requests.
+
+### Part D: Boundary changes and the eight JSON routes
+
+- Route tables, consulted only when `settings.schema_profile == 'ingestion'`:
+
+  | Path pattern | Methods | Bucket |
+  |---|---|---|
+  | `/api/v2/import-sets` | `GET`, `POST` | read, control |
+  | `/api/v2/import-sets/[^/]+` | `GET` | read |
+  | `/api/v2/import-sets/[^/]+/decisions` | `PUT` | control |
+  | `/api/v2/import-sets/[^/]+/cancel` | `POST` | control |
+  | `/api/v2/import-previews/[^/]+` | `GET` | read |
+  | `/api/v2/import-previews/[^/]+/confirm` | `POST` | control |
+  | `/api/v2/import-receipts/[^/]+` | `GET` | read |
+
+- Order in `Boundary.request` for an import route:
+  1. The existing host, duplicate-header, length and cookie checks, then route and method (404/405).
+  2. Origin for unsafe methods (403 `origin_rejected`).
+  3. Session (401 `authentication_required`).
+  4. CSRF for unsafe methods (403 `csrf_rejected`).
+  5. Query keys: `GET /api/v2/import-sets` allows `cursor`, `limit` and `state`, and `GET /api/v2/import-previews/{preview}` allows `cursor` and `limit`. Any other key, or any query on another import route, is 422 `invalid_input`. The existing `query()` already refuses duplicates.
+  6. `await asyncio.to_thread(self.auth.imports.admit, principal, bucket)`, in its own committed transaction. An exhausted bucket is 429 `import_busy`.
+  7. Only then the existing 16,384-byte, 10-second JSON body read for unsafe methods.
+- The import routes never call `Auth.budget` or `consume_budget_v1`. That would be a second limiter, which Requirements forbid.
+- Path IDs go through `checked_uuid` (422 `invalid_input` on failure). The SQL reports foreign or missing IDs as 404 `not_found` and never reveals which.
+- The routes are registered in `create_app` under `if settings.schema_profile == 'ingestion'`. Each is a sync function that calls `auth.imports.call(...)` with `deadline=request.state.source_deadline`, which the Boundary sets to entry plus 20 seconds for every request.
+
+| Route | SQL call and payload | Success |
+|---|---|---|
+| `POST /api/v2/import-sets` | `create_set_v1` with the validated `Create` body | 201 `SetResult`, also on replay |
+| `GET /api/v2/import-sets` | `read_sets_v1` with `{cursor: verified payload or null, limit, state or null}`; `limit` defaults to 50 and allows `1..50` | 200 `SetList`; replace `next` with `next_cursor = cursors.sign(key, next)`, or null |
+| `GET /api/v2/import-sets/{set}` | `read_set_v1` with `{set_id}` | 200 `SetResult` |
+| `PUT /api/v2/import-sets/{set}/decisions` | `decide_set_v1` with the validated `Decide` body; `body.set_id` must equal `{set}`, otherwise 422 `import_invalid` | 202 `SetResult` |
+| `GET /api/v2/import-previews/{preview}` | `read_preview_v1` with `{cursor, limit, preview_id}` | 200 `PreviewPage`, with `next_cursor` as above |
+| `POST /api/v2/import-previews/{preview}/confirm` | `accept_preview_v1` with `Confirm` plus `preview_id` | 200 `Receipt` |
+| `POST /api/v2/import-sets/{set}/cancel` | `cancel_set_v1` with `Cancel` plus `set_id` | 200 `SetResult`; a lost race returns the set with its `receipt_id` |
+| `GET /api/v2/import-receipts/{receipt}` | `read_receipt_v1` with `{receipt_id}` | 200 `Receipt` |
+
+- Cursors: `cursors.verify(auth.cursor_key, token)` runs before any SQL read. A bad MAC or shape is 422 `import_invalid`.
+- The `next` key and the `next_cursor` key are the only differences allowed between the SQL value and the wire DTO. If the SQL value has any other key the DTO lacks, stop and ask; do not drop or rename keys.
+
+### Part F: documentation
+
+- `docs/web-v2-imports.md`:
+  - Replace "No route signs or verifies cursors yet" and the "Remaining acceptance" lines that this ticket settles.
+  - Add a section listing the eight routes (method, path, request DTO, success status) and every error code with its status, taken from `error_status`. Say that the upload route arrives with IMP-007U. List the `serve` flags of the `ingestion` profile (`--schema-profile ingestion` and `--worker-role`).
+  - State plainly that an `ingestion` instance passes `/readyz` before activation, and that every import route answers `instance_not_ready` (503) until the instance is activated (IMP-007S). An import also needs the worker (IMP-007F) and the upload route (IMP-007U) before it completes.
+  - Say what `import_busy` (429) means on these eight routes: the user's read bucket (60 calls in 300 seconds) or control bucket (30 calls in 300 seconds) is used up, or the instance-wide bucket is; the client waits and retries. The API sends only the code and the existing generic message.
+  - The paragraph on `import_busy` for the upload route, with its two causes (the raw rate window and a held raw slot), is IMP-007U's (its D5 (a) requirement). Do not write it here.
+- `docs/web-v2-sources.md`: one line saying the source routes are also served on `ingestion`.
+- Keep the language and publication checks passing. Quote no non-English strings.
+
+### Tests
+
+Tests that need no database go in `tests/test_web_v2_imports.py` (new). They patch `kurafolio.web_v2.api.Auth` with a fake that records calls, and use `fastapi.testclient` or raw ASGI messages.
+
+Real-PostgreSQL tests go in `tests/test_postgres_import_routes.py` (new), gated on `KURAFOLIO_INGESTION_TEST=1`. Each class builds its own environment the way `IngestionProviderPostgresTests` does:
+
+1. `scripts/postgres.py test-identity-environment`.
+2. `migrate-identity`, then `migrate-sources`, then `migrate-ingestion`.
+3. Activate the synthetic instance through the owner connection, in a test-only helper that is never shipped: a wrapper catalog for the synthetic source fixture, a runtime profile digest, the `instance_budgets` rows, an enabled `workers` row for the worker role and `ready = true`. Seed them the way `tests/test_postgres_migration.py` does today. If IMP-007F's plan moves those helpers into `tests/ingestion_pg_support.py`, reuse that file. Keep using this helper after IMP-007S lands; its operator command is that ticket's to test.
+4. Serve `create_app` on `ingestion`. No route here hands bytes to a worker, so no worker or fake worker is needed.
+5. For the preview, confirm and receipt routes, seed a READY set with a stored preview from the oracle vectors through the owner connection, the way the existing `accept_seed` helper does. No worker prepares a preview yet (IMP-007F's D2).
+
+Every test names its AC ID.
+
+| AC | Case | Expected |
+|---|---|---|
+| 01 | `GET /api/v2/openapi.json` on `ingestion` | 8 import method/path pairs; each request and success schema equals the `wire-contracts.json` definition after `$ref` rewriting; no `.../members/{member}/raw` path |
+| 01 | Each of the 8 method/paths on `identity` and on `sources` | 404 `not_found`; none in OpenAPI; the source routes unchanged on `sources` |
+| 01 | `PUT /api/v2/import-sets/{set}/members/{member}/raw` on each profile | 404 `not_found` without reading the body |
+| 01 | Source routes on `ingestion` | Served as on `sources` |
+| 02 | Fake store records every call during the whole run | Names a subset of `ingestion_schema.GATEWAY`; no `INSERT`, `UPDATE`, `DELETE` or `TRUNCATE` text in `api.py` or `ingestion_store.py` |
+| 02 | Real PG: `/readyz` on a migrated `0004` instance | 200; with one extra grant to the gateway role added by the owner connection, 503 |
+| 03 | Each of the 8 routes with no cookie | 401 `authentication_required` |
+| 03 | Each unsafe route with a wrong `Origin` / without `X-CSRF-Token` | 403 `origin_rejected` / 403 `csrf_rejected` |
+| 03 | Real PG: user B reads, decides, cancels or confirms user A's set, preview or receipt | 404 `not_found`; A's set `revision` unchanged |
+| 03 | Real PG: decide and cancel with `expected_set_revision` one below current | 409 `import_stale`; nothing changed |
+| 03 | Real PG: request with a session that a password change ended | The same status and code a source route gives for that session in the same test |
+| 05 | One success case per route, and one per refusal code that route can return | Status and code as in the expected values below |
+| 07 | Real PG: create, decide, confirm, cancel each sent twice with the same `operation_id` and body | Second answer byte-equal to the first; set `revision` and receipt list unchanged |
+| 07 | Same `operation_id`, different body, for each of the four | 409 `import_operation_conflict` |
+| 09 | Docs test | `docs/web-v2-imports.md` names all 8 method/paths and every `error_status` code |
+
+Independent expected values, from `ingestion-api.md` and `wire-contracts.json`, not from the code under test:
+
+- Status codes:
+  - 409: `import_busy` is 429; `import_expired`, `import_stale`, `import_conflict`, `import_mapping_required`, `import_reupload_required` and `import_operation_conflict` are 409.
+  - 413, 422 and 411: `import_limit` is 413; `import_invalid` and `import_evidence_unsupported` are 422; `length_required` is 411.
+  - 503: `import_commit_uncertain`, `import_runner_unavailable` and `import_cleanup_pending` are 503.
+- Budgets in a 300-second window:
+  - The 31st control call (create, decide, confirm or cancel) by one user is 429 `import_busy`. Calls 1 to 30 are admitted.
+  - The 61st read by one user is 429.
+  - A 9th outstanding set for one user is refused by `create_set_v1`.
+- `limit=0` and `limit=51` are 422; `limit=50` is allowed. A list cursor reused with a different `state` filter is refused.
+
+Negative cases the reviewer will look for:
+
+- An import route on a 404 profile does not touch the database. The fake `Auth` records no call.
+- An import route never reads a body before `admit` returns (fake `admit` raises `import_busy`, and `receive` raises if called).
+- An unknown `error_status` code from SQL never becomes a 200 or leaks text.
+
+CI and the skip guard:
+
+- Run `tests/test_postgres_import_routes.py` in the `postgres-ingestion` job with `--expect-skipped 0`, after installing `requirements-web-test.lock` as well as `requirements-pg-test.lock`.
+- The `postgres` job also discovers `test_postgres_*.py` and skips these tests there, so raise its `--expect-skipped 118` by the number of new gated tests and update its comment.
+- Also run the focused commands in Handoff, the full unit suite and `scripts/check_language.py`.
+
+### Rollback
+
+- Everything is additive behind `--schema-profile ingestion`. Reverting the pull request restores today's behaviour.
+- This ticket installs no migration and changes no SQL, so a reverted build leaves no database change behind.
+- After a revert, a database already at `0004` cannot be served at all, which is the state on `main` today. No data is lost.
+
+### Do not touch
+
+- `src/kurafolio/persistence/ingestion_schema.py`, `ingestion_migration.py`, `ingestion_restore.py` and the `0001` to `0004` providers and migration files: no SQL change in this ticket. IMP-007O changes the `0004` bind result separately.
+- The upload route, `web_v2/handoff.py`, the hand-off settings and their `serve` flags: IMP-007U.
+- The operator activation command in `web_v2/operator.py`: IMP-007S.
+- `identity` and `sources` route behaviour, error codes and budgets; the SQLite application and legacy routes.
+- The bounded reader in `web_v2/imports.py`.
+- The IMP-007F worker or launcher, the IMP-007M slot recovery, `tickets/ROADMAP.md` and other tickets' files.
+- The non-English strings in `error_response`: do not copy them into tests or docs.
+
+### Stop and ask if
+
+- The Gate A record of 2026-11-21 (Decisions needed, item 6) is not on `main`, or `python3 scripts/tickets.py spec IMP-007E` reports a changed spec.
+- `role_inventory`, `source_role_inventory` or `verify_inventory` refuses a correctly migrated `0004` database when called from the runtime or gateway role.
+- A SQL function returns keys that its wire DTO does not have, other than `next`, or a code outside `error_status`, `lifecycle_v1.STATUS` and `identity.STATUS`.
+- A requirement seems to need a SQL change, a new route, a new error code or a new DTO field.
+- A real-PostgreSQL test cannot run in the isolated environment. A skipped test is not acceptance.
 
 ## Plan
 
-- [ ] Route DTOs from r7 `wire-contracts.json`.
-- [ ] Implement routes.
-- [ ] HTTP tests.
-- [ ] Docs.
+- [ ] Part A: the `ingestion` runtime profile (context, identity, source store, config, CLI, Auth, Boundary).
+- [ ] Part B: `IngestionStore` gateway caller and `admit` for `admit_rate_v1`.
+- [ ] Part C: error codes, DTO validation from the frozen schemas, OpenAPI components.
+- [ ] Part D: Boundary order and the eight JSON routes.
+- [ ] Part F: docs.
+- [ ] Unit and real-PostgreSQL HTTP tests; CI job and skip counts.
+
+## Decisions needed
+
+Items 1 to 5 were answered by the owner on 2026-11-20 and item 6 on 2026-11-21; all are kept here as the record. None is open.
+
+1. **Which ticket builds the ingestion runtime profile?** Answered 2026-11-20: "IMP-007E (Recommended)", option (a). This ticket builds the profile as Build plan Part A describes, with no gated change for it; `resources` adds `identity-api`; APP-011I and APP-011E add IMP-007E to their `depends_on` in their own plans.
+2. **Where does the API get the member's context bytes for the hand-off?** Answered 2026-11-20: "New SQL ticket (Recommended)", option (a). IMP-007O makes the bind result of `reserve_member_v1` also return the stored context bytes. Because the upload route then moved to IMP-007U (item 6), the dependency on IMP-007O belongs to IMP-007U, and this ticket's `depends_on` does not change.
+3. **Where does the upload get `expected_set_revision`?** Answered 2026-11-20 with item 5: "Accept both (Recommended)", option (a). The upload route reads the set's current `revision` with `read_set_v1` right before `reserve`, with no wire change. It now applies to IMP-007U, whose Requirements carry it.
+4. **Which ticket activates the ingestion profile on a database?** Answered 2026-11-20: "New operator ticket (Recommended)", option (b). IMP-007S adds the operator command (wrapper catalog, runtime profile digest, `instance_budgets`, worker row, `ready` last) and depends on IMP-007E and IMP-007F. No activation work is in this ticket; its tests keep the test-only activation helper.
+5. **What does a client learn from `import_busy` on an upload?** Answered 2026-11-20 with item 3: "Accept both (Recommended)", option (a). One code; `docs/web-v2-imports.md` lists both causes and the action for each. It now applies to IMP-007U, whose Requirements carry it. This ticket's Part F documents `import_busy` only for its own read and control buckets.
+6. **Gate A for the new gated text.** Resolved 2026-11-21: the owner chose "Approve" for the text with hash sha256:aba3bef4df145ca2355ad07c3fafb0954169d04ad8a05609502b23528a1c3d4c. On 2026-11-20 the owner had chosen "Move upload out (Recommended)" and said they would approve the new text after the planner drafts it. The Goal, Requirements and Acceptance criteria above are that text:
+   - Goal: drops the upload and "bounded uploads", and names the `ingestion` runtime profile. The approved Goal said "on the explicit sources profile", which did not match Requirements ("On an `identity` or `sources` instance they do not exist"); the draft corrects it.
+   - Requirements: one line adopting the r7 "Profile integration and readiness" branch, with activation pointed to IMP-007S; "Nine routes" becomes "Eight routes" and the upload row leaves the table; the "Order of checks on upload", "Upload body" and hand-off bullets move to IMP-007U. Every other bullet is unchanged.
+   - Acceptance criteria: AC-01 says "eight" instead of "nine"; AC-04, AC-06 and AC-08 move to IMP-007U (as AC-IMP-007U-04, -05 and -06); AC-02, AC-03, AC-05, AC-07 and AC-09 are unchanged. Surviving IDs keep their numbers.
+   - Hashes from `python3 scripts/tickets.py spec IMP-007E`: approved sha256:6db6a5ba54ea92a37456cd15bf51124498e73d86d19d24cb6da26d4dcbac652b; new sha256:aba3bef4df145ca2355ad07c3fafb0954169d04ad8a05609502b23528a1c3d4c.
+   - `spec_approved` now records the new hash and `gate_approval` adds the 2026-11-21 approval. Both take effect when plan pull request #87 merges.
+   - The Build plan above was checked against the new text.
 
 ## Handoff
 
-- State: Not started.
-- Next step: Read `wire-contracts.json` and `ingestion-api.md` in the r7 bundle, then `web_v2/api.py` lines 440 to 475 (how the source routes are registered per profile) and `web_v2/imports.py`. Write the DTOs first and review them before any route code.
+- State: Not started. Plan updated on 2026-11-20 for the owner's decisions; the owner approved the new gated text on 2026-11-21 (Decisions needed, item 6), recorded in plan pull request #87.
+- Next step: After Gate A is on `main`, read `wire-contracts.json` and `ingestion-api.md` in the r7 bundle, then `web_v2/api.py` lines 440 to 475 (how the source routes are registered per profile). Write the DTOs first and review them before any route code.
 - Verify: `KURAFOLIO_INGESTION_TEST=1 PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -p 'test_postgres_migration.py' -v` and `PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -p 'test_ingestion_*.py' -v`; environment setup in [postgres-foundation.md](../docs/postgres-foundation.md) and [web-v2-imports.md](../docs/web-v2-imports.md)
-- Gotchas: None recorded.
-- Open questions: None.
+- Gotchas: IMP-007E, IMP-007U, APP-011I and APP-011E all hold `identity-api` (APP-011E adds it in its plan pull request #84, owner answer Q21 of 2026-11-21), so only one of them builds at a time.
+- Open questions: none.
 
 ## Log
 
@@ -107,3 +359,9 @@ Rules that reviewers will check:
 - 2026-11-17 planner: the owner confirmed in conversation ("Confirm all six") the changes PR #64 made to this ticket after its approval. The approval in gate_approval covers the text as it stands now.
 - 2026-11-18 claude-code/opus-5.5: ENG-113 migrated this ticket to the spec format without changing any wording: moved the bullet naming the r7 contract bundle, the "Real-PostgreSQL tests" bullet of Where to start and "What to build" from Context into Requirements and numbered the acceptance criteria AC-IMP-007E-01 to 09. Spec hash sha256:6db6a5ba54ea92a37456cd15bf51124498e73d86d19d24cb6da26d4dcbac652b, awaiting the owner's confirmation.
 - 2026-11-18 claude-code/opus-5.5: the owner confirmed the migrated text of this ticket in conversation with "Confirm all 29", the batch listed in ENG-113 decision 3; `spec_approved` records sha256:6db6a5ba54ea92a37456cd15bf51124498e73d86d19d24cb6da26d4dcbac652b.
+- 2026-11-20 claude-code/opus-5.5: wrote the frontier Build plan from `main` at `a2f5f2b` (plan pull request #87). Added findings to Context and five items to Decisions needed, including which ticket builds the ingestion runtime profile; item 5 came from the IMP-007M plan (#85). Goal, Requirements and Acceptance criteria are unchanged.
+- 2026-11-20 claude-code/opus-5.5: aligned Part E's hand-off responses with the IMP-007F plan (PR #86), took statuses from `contracts.ERROR_STATUS`, added the preview seeding the tests need while no worker builds a ReviewBundle, and widened Decisions needed item 4 to cover IMP-007F's D1. Gated sections unchanged.
+- 2026-11-20 claude-code/opus-5.5: added `identity-api` to `resources`. The owner confirmed it on 2026-11-20 by choosing "IMP-007E (Recommended)" for "Which ticket builds the ingestion runtime profile?", whose text says "IMP-007E adds the `identity-api` resource".
+- 2026-11-20 claude-code/opus-5.5: recorded the owner's answers of 2026-11-20 in Decisions needed: item 1 "IMP-007E (Recommended)"; item 2 "New SQL ticket (Recommended)" (IMP-007O); items 3 and 5 "Accept both (Recommended)"; item 4 "New operator ticket (Recommended)" (IMP-007S). `depends_on` is unchanged.
+- 2026-11-20 claude-code/opus-5.5: the owner chose "Move upload out (Recommended)": "Upload route and its ACs move to a new ticket that depends on IMP-007O. IMP-007E (profile + 8 routes) can be built now and finishes sooner, unblocking APP-011I and APP-011E. Changes IMP-007E's gated text: you approve the new text after the planner drafts it." Drafted the new Goal, Requirements and Acceptance criteria (AC-04, 06 and 08 moved to IMP-007U), removed Part E and the hand-off settings from the Build plan, and filed IMP-007U, IMP-007O and IMP-007S in plan pull request #87. Spec hash changes from sha256:6db6a5ba54ea92a37456cd15bf51124498e73d86d19d24cb6da26d4dcbac652b to sha256:aba3bef4df145ca2355ad07c3fafb0954169d04ad8a05609502b23528a1c3d4c; `spec_approved` and `gate_approval` are unchanged and wait for the owner's Gate A.
+- 2026-11-21 claude-code/opus-5.5: recorded Gate A for the new gated text. The owner was asked "Gate A for IMP-007E's new text (PR #87, hash aba3bef4…). Changes from the approved text: the Goal names the ingestion runtime profile and drops uploads ('upload route is IMP-007U'); Requirements add one paragraph adopting the r7 profile branch (activation is IMP-007S), say 'Eight routes' instead of nine with the upload row removed, and move the upload-order, upload-body and hand-off bullets to IMP-007U; AC-04, AC-06 and AC-08 move to IMP-007U, other AC IDs unchanged. Approve this exact text?" and chose "Approve". `spec_approved` changes from sha256:6db6a5ba54ea92a37456cd15bf51124498e73d86d19d24cb6da26d4dcbac652b to sha256:aba3bef4df145ca2355ad07c3fafb0954169d04ad8a05609502b23528a1c3d4c; `gate_approval` adds "owner 2026-11-21, IMP-007E text after the upload split (Q13)". Decisions needed item 6 resolved. The Build plan was checked against this text. Handoff now names IMP-007U and APP-011E as `identity-api` holders.
