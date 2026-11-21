@@ -5,7 +5,7 @@ priority: P0
 status: ready
 type: feature
 parent: APP-011
-depends_on: [APP-011A, IMP-007E, IMP-007U]
+depends_on: [APP-011A, IMP-007E, IMP-007U, IMP-007T]
 resources: [frontend-imports-ui]
 risk: medium
 size: M
@@ -17,7 +17,7 @@ branch:
 pr: 
 spec: docs/specs/v2-drafts/WL-P0-011.md
 spec_approved: sha256:0c597433e5a0769ec0d413329823746c94b9dc551ad54ea12123b036506476c5
-updated: 2026-11-18
+updated: 2026-11-21
 ---
 
 # APP-011D: Add V2 import upload, review and history UI
@@ -104,3 +104,4 @@ Upload, reconciled preview, decisions, confirmation and import history on the V2
 - 2026-11-18 claude-code/opus-5.5: ENG-113 migrated this ticket to the spec format without changing any wording: moved "Expected behaviour", "Scope" and "Implementation notes" from Context into Requirements and numbered the acceptance criteria AC-APP-011D-01 to 09. Spec hash sha256:0c597433e5a0769ec0d413329823746c94b9dc551ad54ea12123b036506476c5, awaiting the owner's confirmation.
 - 2026-11-18 claude-code/opus-5.5: the owner confirmed the migrated text of this ticket in conversation with "Confirm all 29", the batch listed in ENG-113 decision 3; `spec_approved` records sha256:0c597433e5a0769ec0d413329823746c94b9dc551ad54ea12123b036506476c5.
 - 2026-11-20 claude-code/opus-5.5: added IMP-007U to depends_on in plan PR #87, because the upload route moved out of IMP-007E into IMP-007U. The owner confirmed the change on 2026-11-20 (Q17). Question: "Three approved tickets still list only IMP-007E/IMP-007F, but upload moved to IMP-007U and activation to IMP-007S. Proposed depends_on changes: APP-011D (import UI) adds IMP-007U; OPS-021 (one-command deploy) adds IMP-007S and IMP-007U; IMP-007G (end-to-end acceptance) adds IMP-007U, IMP-007S and the prepare ticket (IMP-007P, or IMP-007V if split). Confirm?" Owner chose: "Confirm all (Recommended)": "Recorded with your confirmation in each ticket's Log, in the IMP-007E plan PR (#87)." Goal, Requirements and Acceptance criteria are unchanged; the spec hash still matches `spec_approved`.
+- 2026-11-21 claude-code/opus-5.5: added IMP-007T to depends_on, because step 2 of the import page asks "keep, or mark closed?" for an absent account and IMP-007T adds that question and stores the answer. The owner confirmed the change on 2026-11-21 (Q27). Question: "APP-011D's approved import page already promises the 'keep or mark closed' question in step 2, but it doesn't depend on IMP-007T, which adds that question. Add IMP-007T to APP-011D's depends_on?" The owner chose "Add the dependency (Recommended)". Gated sections, `gate_approval` and `spec_approved` are unchanged (sha256:0c597433e5a0769ec0d413329823746c94b9dc551ad54ea12123b036506476c5).

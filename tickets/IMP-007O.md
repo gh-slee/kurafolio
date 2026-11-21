@@ -17,7 +17,7 @@ branch:
 pr: 
 spec: docs/specs/imp-007-r7/spec.md
 spec_approved: 
-updated: 2026-11-20
+updated: 2026-11-21
 ---
 
 # IMP-007O: Return the stored member context bytes from the bind result of reserve_member_v1
@@ -34,7 +34,7 @@ The upload route (IMP-007U) must send the import worker one frame holding the ha
 - The `Handoff` DTO in [wire-contracts.json](../docs/specs/imp-007-r7/wire-contracts.json) has `additionalProperties: false`, and its `context_bytes` is an integer length. The new key therefore cannot be called `context_bytes`, and the API (IMP-007U) removes it before it validates `Handoff`.
 - The frozen [sql-inventory.json](../docs/specs/imp-007-r7/sql-inventory.json) pins the function's signature (`text, uuid, bigint, jsonb, text, jsonb` returning `jsonb`), its grant (`identity_source_gateway`) and `search_path`, not its body. The body is pinned on the code side: `ingestion_migration.py` checks `EXPECTED_STRUCTURE_SHA256` and `EXPECTED_RESTORED_STRUCTURE_SHA256`, whose digest covers each function's `prosrc`, and `tests/fixtures/ingestion/oracle.json` holds the vectors.
 - Changing the `0004` function text in place is safe only if no database outside disposable tests ran `operator migrate-ingestion` at `0004`. On `main` at `d902717` no runtime profile can serve `0004` (IMP-007E adds it) and the repository has no release tags, but that does not prove no operator ran the migration. Requirements make this a check with a stop point.
-- Shares `ingestion-schema-sql` with IMP-007N, IMP-007Q and IMP-007R, so these build one at a time.
+- Shares `ingestion-schema-sql` with IMP-007Q, IMP-007R, IMP-007T and IMP-007W, so these build one at a time. IMP-007N, which also held it, is `done`. IMP-007W edits `ingestion_migration.py` but not the expected structure digests; if it merges first, this ticket changes the digests as `main` then has them.
 
 ## Requirements
 
@@ -78,3 +78,4 @@ The upload route (IMP-007U) must send the import worker one frame holding the ha
 ## Log
 
 - 2026-11-20 claude-code/opus-5.5: filed in plan pull request #87 from the owner's decision of 2026-11-20 on IMP-007E's question "Where should the bytes come from?": the owner chose "New SQL ticket (Recommended)": "a frontier SQL ticket makes the bind result also return the stored context bytes; keeps the frozen r7 frame." Status backlog; no Gate A yet.
+- 2026-11-21 claude-code/opus-5.5: checked against `main` at `1a6ff31` in plan pull request `plan/new-ticket-decisions`. Only the Context's lock line was stale: IMP-007N is `done`, and IMP-007T and IMP-007W also hold `ingestion-schema-sql`. Gated sections unchanged (sha256:664d5c3a0b844ef78057e53c216de1711001c867cff0a6165f97edf1ee4e1f60); still backlog, no Gate A.
