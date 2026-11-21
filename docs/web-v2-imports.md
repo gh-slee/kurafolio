@@ -539,3 +539,79 @@ role privileges or an end-to-end authenticated import.
 
 See [source lifecycle](web-v2-sources.md), [parser SDK](parser-sdk.md) and
 [development validation](development.md) for the preceding contracts and workflow.
+
+## Reading accepted facts: the positions calculation
+
+The internal `kurafolio.projection` service calculates positions from accepted
+0004 facts. It has no HTTP route or page; ANL-012A owns those interfaces. Quotes
+and FX are caller-supplied inputs until MKT-009B provides their storage and
+refresh path. The old SQLite projection and saved-report readers are unchanged.
+
+`read_accepted_state(connection, context)` takes an already scoped SQLAlchemy
+connection in a `REPEATABLE READ READ ONLY` transaction. The caller sets the tenant
+and portfolio context. The reader uses `SELECT` only, checks the schema revision
+and instance readiness, and neither opens nor finishes a transaction. It resolves
+entities through the mappings pinned in the first accepting plan, reads current
+activity and holdings heads, and fails without a partial state if a reference or
+head is inconsistent. It needs only the existing financial reader grants.
+
+A newer holdings head replaces the positions for its covered account and scope,
+including when declared coverage is partial: an omitted position is treated as
+sold. An account absent from that newer file retains its own head. Partial heads
+add `missing_from_newer_snapshot_is_sold` as an assumption. This implements the
+owner-approved ANL-008 rule; the stored complete-base and uncertainty markers are
+retained by ingestion and are not changed by this reader.
+
+`calculate(state, inputs)` is pure. It reads no files or report artifacts and
+fetches, writes and logs no financial values. Securities, cash and crypto remain
+separate classes, and Total includes each projected position once. Securities use
+a matching supplied quote, or their dated source-reported market value when no
+quote is supplied. An unresolved corporate action blocks that security's value.
+Observed broker cash is valued at par; funding flows do not establish cash.
+
+Crypto activity groups count supported completed purchases minus sales on the
+same canonical account and instrument. Mirror, void, pending and cancelled facts
+are excluded. Transfers and balance observations on crypto accounts add nothing.
+BTC and Liquid LBTC count 1:1 as BTC-equivalent, while broker-held coins remain
+Crypto. Purchase spending stays the cost after a sale; gain is then unavailable
+with `sales_counted`. Sales exceeding purchases leave quantity and value unknown.
+
+When purchases are exactly offset by sales and no coin quote is supplied, the
+tracked quantity and every report-currency value are known zero. Native `value`,
+`value_basis` and `value_as_of` stay null because no native currency is established.
+This case needs neither a quote nor FX and adds no quote or FX gap. With a quote,
+a zero follows ordinary FX conversion. A broker crypto holdings row is outside
+this tracked-zero exception and still needs a quote.
+
+Amounts remain `Decimal`; `to_document` emits decimal strings without display
+rounding. Each class and Total expose `known_subtotal` and nullable
+`complete_total` per report currency. A complete total means every tracked position
+has a value in that currency; source membership may still be unknown. Unknown
+cost, gain, quote or FX never becomes zero. A tracked zero without a quote adds
+nothing to `native_known` and is excluded from `unknown_value_count`.
+`calculation_id` binds tenant, portfolio, accepted/mapping generations and all
+valuation inputs through canonical bytes and SHA-256. Nothing is persisted.
+
+The closed gap codes are `value_unavailable`, `quote_unavailable`,
+`quote_currency_mismatch`, `fx_unavailable`, `valuation_not_implemented`,
+`unsupported_position`, `corporate_action_unresolved`, `cost_unavailable`,
+`cost_currency_mixed`, `sales_exceed_purchases` and `sale_shape_unsupported`.
+Assumption and position codes are `acquisitions_assumed_held`, `sales_counted`,
+`valued_as_btc_equivalent`, `crypto_fees_not_deducted`, `source_reported_value` and
+`missing_from_newer_snapshot_is_sold`.
+
+The reader raises `ProjectionUnavailable` with one fixed code:
+`projection_snapshot_required`, `projection_scope_mismatch`,
+`projection_schema_unsupported`, `restore_required`, `projection_reference_missing`
+or `projection_head_inconsistent`. Errors contain no SQL or row values. Supported
+schema revisions are explicit in `projection.accepted.SUPPORTED_REVISIONS`; a
+default-suite test requires later migrations to preserve or deliberately revisit
+this read contract.
+
+Literal calculation oracles and failure cases are in
+[`test_projection_positions.py`](../tests/test_projection_positions.py).
+[`test_projection_accepted_postgres.py`](../tests/test_projection_accepted_postgres.py)
+runs against an isolated migrated PostgreSQL instance when
+`KURAFOLIO_INGESTION_TEST=1`. These are developer tests; independent review remains
+a separate acceptance step. No browser import, parser sale support or deployment
+is established by this internal service.

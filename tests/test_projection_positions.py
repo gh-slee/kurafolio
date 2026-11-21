@@ -317,6 +317,86 @@ assert result.total.complete_total['CAD'] == 0
         self.assertNotEqual(original.calculation_id,
                             calculate(replace(accepted, accepted_generation=3), valuation).calculation_id)
 
+    def test_ac_anl_008_02_04_tracked_zero_without_quote(self):
+        """AC-ANL-008-02 AC-ANL-008-04: Decision 12 literal zero oracle."""
+        closed = (*purchases(), sale('.030'))
+        no_quote = replace(inputs(), crypto_quotes={})
+        zero_values = {'CAD': D(0), 'USD': D(0), 'TWD': D(0)}
+        for valuation in (no_quote, replace(no_quote, fx=None),
+                          replace(no_quote, fx=replace(no_quote.fx, per_pivot={'USD': D(1)}))):
+            with self.subTest(fx=valuation.fx):
+                result = self.calc(closed, valuation=valuation)
+                item, = result.positions
+                self.assertEqual(item.quantity, D(0))
+                self.assertIsNone(item.value)
+                self.assertIsNone(item.value_basis)
+                self.assertIsNone(item.value_as_of)
+                self.assertEqual(item.values, zero_values)
+                self.assertEqual(result.gaps, ())
+                self.assertEqual(item.cost, Money(D(2200), 'CAD'))
+                self.assertEqual(item.cost_status, 'known')
+                self.assertIsNone(item.unrealized_gain)
+                self.assertTrue(all(value is None for value in item.gain_values.values()))
+                self.assertEqual(item.codes, ('sales_counted',))
+                self.assertEqual(result.crypto.purchases_counted, 2)
+                self.assertTrue(result.crypto.sales_counted)
+                self.assertEqual(result.crypto.sales_counted_count, 1)
+                self.assertEqual(result.crypto.btc_equivalent_quantity, D(0))
+                self.assertEqual(result.assumptions, ('acquisitions_assumed_held', 'sales_counted'))
+                for total in (result.classes['crypto'], result.total):
+                    self.assertEqual(total.known_subtotal, zero_values)
+                    self.assertEqual(total.complete_total, zero_values)
+                    self.assertEqual(total.native_known, {})
+                    self.assertEqual(total.unknown_value_count, 0)
+                if valuation.fx is None:
+                    self.assertIsNone(result.fx_as_of)
+                    self.assertIsNone(result.fx_source)
+
+    def test_ac_anl_008_04_zero_quote_and_holdings_boundaries(self):
+        """AC-ANL-008-04: quoted zero needs FX; a holdings zero still needs a quote."""
+        closed = (*purchases(), sale('.030'))
+        result = self.calc(closed)
+        item, = result.positions
+        self.assertEqual(item.value, Money(D(0), 'USD'))
+        self.assertEqual(item.value_basis, 'quote')
+        self.assertEqual(item.value_as_of, NOW.isoformat())
+        self.assertEqual(item.values, {'CAD': D(0), 'USD': D(0), 'TWD': D(0)})
+        self.assertEqual(result.gaps, ())
+        valuation = inputs()
+        valuation = replace(valuation, fx=replace(valuation.fx, per_pivot={'USD': D(1), 'CAD': D('1.4')}))
+        result = self.calc(closed, valuation=valuation)
+        self.assertEqual(result.positions[0].values, {'CAD': D(0), 'USD': D(0), 'TWD': None})
+        self.assertEqual([gap.code for gap in result.gaps], ['fx_unavailable'])
+        self.assertIsNone(result.classes['crypto'].complete_total['TWD'])
+        broker_zero = position('broker-zero', BTC, '0')
+        result = self.calc((), (head((broker_zero,)),), replace(inputs(), crypto_quotes={}))
+        self.assertIn('quote_unavailable', {gap.code for gap in result.gaps})
+        self.assertTrue(all(value is None for value in result.positions[0].values.values()))
+        self.assertEqual(result.total.unknown_value_count, 1)
+
+    def test_ac_anl_008_03_04_zero_aggregate_and_independent_unknown(self):
+        """AC-ANL-008-03 AC-ANL-008-04: zero does not hide another unknown."""
+        closed = (*purchases(), sale('.030'))
+        no_quote = replace(inputs(), crypto_quotes={})
+        result = self.calc(closed, securities(), no_quote)
+        self.assertEqual(result.classes['securities'].complete_total['CAD'], D(2200))
+        self.assertEqual(result.classes['crypto'].complete_total, {'CAD': D(0), 'USD': D(0), 'TWD': D(0)})
+        self.assertEqual(result.total.complete_total['CAD'], D(2200))
+        self.assertEqual(result.total.complete_total['USD'].quantize(D('.000000000000000001')),
+                         D('1571.428571428571428571'))
+        self.assertEqual(result.total.complete_total['TWD'].quantize(D('.01'), rounding=ROUND_HALF_UP), D('50285.71'))
+        self.assertFalse({'quote_unavailable', 'fx_unavailable'} & {gap.code for gap in result.gaps})
+        independent = buy('independent', '.005', account=replace(EXCHANGE, id='other'))
+        result = self.calc((*closed, independent), valuation=no_quote)
+        zero, unknown = result.positions
+        self.assertEqual(zero.values, {'CAD': D(0), 'USD': D(0), 'TWD': D(0)})
+        self.assertEqual(unknown.quantity, D('.005'))
+        self.assertTrue(all(value is None for value in unknown.values.values()))
+        self.assertEqual([(gap.code, gap.account_id) for gap in result.gaps], [('quote_unavailable', 'other')])
+        self.assertEqual(result.classes['crypto'].known_subtotal, {'CAD': D(0), 'USD': D(0), 'TWD': D(0)})
+        self.assertTrue(all(value is None for value in result.classes['crypto'].complete_total.values()))
+        self.assertEqual(result.classes['crypto'].unknown_value_count, 1)
+
     def test_ac_anl_008_04_supported_revisions(self):
         """AC-ANL-008-04: later migrations must explicitly preserve the reader contract."""
         from kurafolio.projection.accepted import SUPPORTED_REVISIONS

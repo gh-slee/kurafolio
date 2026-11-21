@@ -27,6 +27,7 @@ def _calculate(state, inputs):
     assumptions = set()
     excluded = dict.fromkeys(EXCLUDED_CODES, 0)
     positions = []
+    unquoted_zeros = set()
     observations = []
     sale_shape_gap = False
     purchases_counted = 0
@@ -52,17 +53,20 @@ def _calculate(state, inputs):
         return money.amount / source * target
 
     def result(asset_class, account, instrument, quantity, value, basis, as_of,
-               cost, book_cost=None, codes=(), gain=None, cost_status=None, btc=False):
-        values = {currency: convert(value, currency, account.id, instrument.id)
+               cost, book_cost=None, codes=(), gain=None, cost_status=None, btc=False, known_zero=False):
+        values = {currency: (_ZERO if known_zero else convert(value, currency, account.id, instrument.id))
                   for currency in inputs.report_currencies}
         gains = {currency: convert(gain, currency, account.id, instrument.id)
                  for currency in inputs.report_currencies}
-        return PositionResult(asset_class, account.id, instrument.id, quantity, btc,
+        position = PositionResult(asset_class, account.id, instrument.id, quantity, btc,
             value, basis, as_of, values, cost,
             cost_status or ('known' if cost is not None else 'unavailable'),
             book_cost, gain, gains, tuple(sorted(codes)))
+        if known_zero:
+            unquoted_zeros.add(id(position))
+        return position
 
-    def crypto_value(account, instrument, quantity):
+    def crypto_value(account, instrument, quantity, *, tracked=False):
         btc = (instrument.symbol == 'BTC' and instrument.network == 'bitcoin'
                or instrument.symbol == 'LBTC' and instrument.network == 'liquid')
         codes = set()
@@ -72,7 +76,8 @@ def _calculate(state, inputs):
             return None, None, btc, codes
         quote = inputs.crypto_quotes.get('BTC' if btc else instrument.symbol)
         if quote is None:
-            gap('quote_unavailable', account.id, instrument.id)
+            if not (tracked and quantity == 0):
+                gap('quote_unavailable', account.id, instrument.id)
             return None, None, btc, codes
         return Money(quantity * quote.price, quote.currency), quote.as_of.isoformat(), btc, codes
 
@@ -190,7 +195,7 @@ def _calculate(state, inputs):
         if quantity < 0:
             quantity = None
             gap('sales_exceed_purchases', account.id, instrument.id)
-        value, as_of, btc, codes = crypto_value(account, instrument, quantity)
+        value, as_of, btc, codes = crypto_value(account, instrument, quantity, tracked=True)
         cost, gain = None, None
         costs = group['costs']
         if any(cost is None for cost in costs):
@@ -206,7 +211,8 @@ def _calculate(state, inputs):
             if converted is not None:
                 gain = Money(converted - cost.amount, cost.currency)
         positions.append(result('crypto', account, instrument, quantity, value,
-            'quote' if value is not None else None, as_of, cost, codes=codes, gain=gain, btc=btc))
+            'quote' if value is not None else None, as_of, cost, codes=codes, gain=gain, btc=btc,
+            known_zero=quantity == 0 and value is None))
 
     positions = tuple(sorted(positions, key=lambda item: (item.asset_class, item.account_id, item.instrument_id)))
     crypto_positions = [item for item in positions if item.asset_class == 'crypto']
@@ -225,7 +231,7 @@ def _calculate(state, inputs):
             values = [item.values[currency] for item in scope if item.values[currency] is not None]
             known[currency] = sum(values, _ZERO) if values or not scope else None
             complete[currency] = known[currency] if len(values) == len(scope) and not incomplete else None
-        return ClassResult(len(scope), sum(item.value is None for item in scope),
+        return ClassResult(len(scope), sum(item.value is None and id(item) not in unquoted_zeros for item in scope),
                            known, complete, dict(sorted(native.items())))
 
     classes = {name: aggregate([item for item in positions if item.asset_class == name],
