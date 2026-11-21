@@ -11,13 +11,13 @@ risk: high
 size: M
 agent_tier: frontier
 gate: owner
-gate_approval: "owner 2026-10-31, IMP-007 spec r7 (covers all child tickets)"
+gate_approval: "owner 2026-10-31, IMP-007 spec r7 (covers all child tickets); owner 2026-11-21, IMP-007E text after the upload split (Q13)"
 review: independent
 branch: 
 pr: 
 spec: docs/specs/imp-007-r7/spec.md
-spec_approved: sha256:6db6a5ba54ea92a37456cd15bf51124498e73d86d19d24cb6da26d4dcbac652b
-updated: 2026-11-20
+spec_approved: sha256:aba3bef4df145ca2355ad07c3fafb0954169d04ad8a05609502b23528a1c3d4c
+updated: 2026-11-21
 ---
 
 # IMP-007E: Add authenticated V2 import HTTP routes
@@ -113,7 +113,7 @@ Rules that reviewers will check:
 ## Build plan
 
 - Based on: `main` at `a2f5f2b`; rechecked on 2026-11-20 against `main` at `d902717`, with no change under `src/`, `tests/`, `docs/` or `scripts/`.
-- The plan follows the owner's answers of 2026-11-20 under Decisions needed (items 1 to 5) and the new gated text (item 6). A builder starts only after the owner approves the new gated text and that approval is on `main`: until then `python3 scripts/tickets.py spec IMP-007E` reports a changed spec and `claim` refuses.
+- The plan follows the owner's answers of 2026-11-20 under Decisions needed (items 1 to 5) and the new gated text (item 6). The owner approved the new gated text on 2026-11-21 (item 6), recorded in plan pull request #87. A builder starts only after that record is on `main`.
 - Build order:
   1. Part A (profile).
   2. Parts B to D (gateway caller, DTOs, the eight JSON routes).
@@ -310,7 +310,7 @@ CI and the skip guard:
 
 ### Stop and ask if
 
-- The owner's Gate A for the new gated text (Decisions needed, item 6) is not on `main`, or `python3 scripts/tickets.py spec IMP-007E` reports a changed spec.
+- The Gate A record of 2026-11-21 (Decisions needed, item 6) is not on `main`, or `python3 scripts/tickets.py spec IMP-007E` reports a changed spec.
 - `role_inventory`, `source_role_inventory` or `verify_inventory` refuses a correctly migrated `0004` database when called from the runtime or gateway role.
 - A SQL function returns keys that its wire DTO does not have, other than `next`, or a code outside `error_status`, `lifecycle_v1.STATUS` and `identity.STATUS`.
 - A requirement seems to need a SQL change, a new route, a new error code or a new DTO field.
@@ -327,28 +327,28 @@ CI and the skip guard:
 
 ## Decisions needed
 
-Items 1 to 5 were answered by the owner on 2026-11-20 and are kept here as the record. Item 6 is open.
+Items 1 to 5 were answered by the owner on 2026-11-20 and item 6 on 2026-11-21; all are kept here as the record. None is open.
 
 1. **Which ticket builds the ingestion runtime profile?** Answered 2026-11-20: "IMP-007E (Recommended)", option (a). This ticket builds the profile as Build plan Part A describes, with no gated change for it; `resources` adds `identity-api`; APP-011I and APP-011E add IMP-007E to their `depends_on` in their own plans.
 2. **Where does the API get the member's context bytes for the hand-off?** Answered 2026-11-20: "New SQL ticket (Recommended)", option (a). IMP-007O makes the bind result of `reserve_member_v1` also return the stored context bytes. Because the upload route then moved to IMP-007U (item 6), the dependency on IMP-007O belongs to IMP-007U, and this ticket's `depends_on` does not change.
 3. **Where does the upload get `expected_set_revision`?** Answered 2026-11-20 with item 5: "Accept both (Recommended)", option (a). The upload route reads the set's current `revision` with `read_set_v1` right before `reserve`, with no wire change. It now applies to IMP-007U, whose Requirements carry it.
 4. **Which ticket activates the ingestion profile on a database?** Answered 2026-11-20: "New operator ticket (Recommended)", option (b). IMP-007S adds the operator command (wrapper catalog, runtime profile digest, `instance_budgets`, worker row, `ready` last) and depends on IMP-007E and IMP-007F. No activation work is in this ticket; its tests keep the test-only activation helper.
 5. **What does a client learn from `import_busy` on an upload?** Answered 2026-11-20 with item 3: "Accept both (Recommended)", option (a). One code; `docs/web-v2-imports.md` lists both causes and the action for each. It now applies to IMP-007U, whose Requirements carry it. This ticket's Part F documents `import_busy` only for its own read and control buckets.
-6. **Gate A for the new gated text (open).** On 2026-11-20 the owner chose "Move upload out (Recommended)" and said they would approve the new text after the planner drafts it. The Goal, Requirements and Acceptance criteria above are that draft:
+6. **Gate A for the new gated text.** Resolved 2026-11-21: the owner chose "Approve" for the text with hash sha256:aba3bef4df145ca2355ad07c3fafb0954169d04ad8a05609502b23528a1c3d4c. On 2026-11-20 the owner had chosen "Move upload out (Recommended)" and said they would approve the new text after the planner drafts it. The Goal, Requirements and Acceptance criteria above are that text:
    - Goal: drops the upload and "bounded uploads", and names the `ingestion` runtime profile. The approved Goal said "on the explicit sources profile", which did not match Requirements ("On an `identity` or `sources` instance they do not exist"); the draft corrects it.
    - Requirements: one line adopting the r7 "Profile integration and readiness" branch, with activation pointed to IMP-007S; "Nine routes" becomes "Eight routes" and the upload row leaves the table; the "Order of checks on upload", "Upload body" and hand-off bullets move to IMP-007U. Every other bullet is unchanged.
    - Acceptance criteria: AC-01 says "eight" instead of "nine"; AC-04, AC-06 and AC-08 move to IMP-007U (as AC-IMP-007U-04, -05 and -06); AC-02, AC-03, AC-05, AC-07 and AC-09 are unchanged. Surviving IDs keep their numbers.
    - Hashes from `python3 scripts/tickets.py spec IMP-007E`: approved sha256:6db6a5ba54ea92a37456cd15bf51124498e73d86d19d24cb6da26d4dcbac652b; new sha256:aba3bef4df145ca2355ad07c3fafb0954169d04ad8a05609502b23528a1c3d4c.
-   - `spec_approved` and `gate_approval` still record the old text. Until the owner approves the new hash in conversation and the record merges, `spec` reports a changed spec and `claim` refuses this ticket.
+   - `spec_approved` now records the new hash and `gate_approval` adds the 2026-11-21 approval. Both take effect when plan pull request #87 merges.
    - The Build plan above was checked against the new text.
 
 ## Handoff
 
-- State: Not started. Plan updated on 2026-11-20 for the owner's decisions; the new gated text waits for the owner's Gate A (Decisions needed, item 6).
+- State: Not started. Plan updated on 2026-11-20 for the owner's decisions; the owner approved the new gated text on 2026-11-21 (Decisions needed, item 6), recorded in plan pull request #87.
 - Next step: After Gate A is on `main`, read `wire-contracts.json` and `ingestion-api.md` in the r7 bundle, then `web_v2/api.py` lines 440 to 475 (how the source routes are registered per profile). Write the DTOs first and review them before any route code.
 - Verify: `KURAFOLIO_INGESTION_TEST=1 PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -p 'test_postgres_migration.py' -v` and `PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -p 'test_ingestion_*.py' -v`; environment setup in [postgres-foundation.md](../docs/postgres-foundation.md) and [web-v2-imports.md](../docs/web-v2-imports.md)
-- Gotchas: `identity-api` is shared with APP-011I and APP-011E, so only one of them builds at a time.
-- Open questions: Gate A for the new gated text (Decisions needed, item 6).
+- Gotchas: IMP-007E, IMP-007U, APP-011I and APP-011E all hold `identity-api` (APP-011E adds it in its plan pull request #84, owner answer Q21 of 2026-11-21), so only one of them builds at a time.
+- Open questions: none.
 
 ## Log
 
@@ -364,3 +364,4 @@ Items 1 to 5 were answered by the owner on 2026-11-20 and are kept here as the r
 - 2026-11-20 claude-code/opus-5.5: added `identity-api` to `resources`. The owner confirmed it on 2026-11-20 by choosing "IMP-007E (Recommended)" for "Which ticket builds the ingestion runtime profile?", whose text says "IMP-007E adds the `identity-api` resource".
 - 2026-11-20 claude-code/opus-5.5: recorded the owner's answers of 2026-11-20 in Decisions needed: item 1 "IMP-007E (Recommended)"; item 2 "New SQL ticket (Recommended)" (IMP-007O); items 3 and 5 "Accept both (Recommended)"; item 4 "New operator ticket (Recommended)" (IMP-007S). `depends_on` is unchanged.
 - 2026-11-20 claude-code/opus-5.5: the owner chose "Move upload out (Recommended)": "Upload route and its ACs move to a new ticket that depends on IMP-007O. IMP-007E (profile + 8 routes) can be built now and finishes sooner, unblocking APP-011I and APP-011E. Changes IMP-007E's gated text: you approve the new text after the planner drafts it." Drafted the new Goal, Requirements and Acceptance criteria (AC-04, 06 and 08 moved to IMP-007U), removed Part E and the hand-off settings from the Build plan, and filed IMP-007U, IMP-007O and IMP-007S in plan pull request #87. Spec hash changes from sha256:6db6a5ba54ea92a37456cd15bf51124498e73d86d19d24cb6da26d4dcbac652b to sha256:aba3bef4df145ca2355ad07c3fafb0954169d04ad8a05609502b23528a1c3d4c; `spec_approved` and `gate_approval` are unchanged and wait for the owner's Gate A.
+- 2026-11-21 claude-code/opus-5.5: recorded Gate A for the new gated text. The owner was asked "Gate A for IMP-007E's new text (PR #87, hash aba3bef4…). Changes from the approved text: the Goal names the ingestion runtime profile and drops uploads ('upload route is IMP-007U'); Requirements add one paragraph adopting the r7 profile branch (activation is IMP-007S), say 'Eight routes' instead of nine with the upload row removed, and move the upload-order, upload-body and hand-off bullets to IMP-007U; AC-04, AC-06 and AC-08 move to IMP-007U, other AC IDs unchanged. Approve this exact text?" and chose "Approve". `spec_approved` changes from sha256:6db6a5ba54ea92a37456cd15bf51124498e73d86d19d24cb6da26d4dcbac652b to sha256:aba3bef4df145ca2355ad07c3fafb0954169d04ad8a05609502b23528a1c3d4c; `gate_approval` adds "owner 2026-11-21, IMP-007E text after the upload split (Q13)". Decisions needed item 6 resolved. The Build plan was checked against this text. Handoff now names IMP-007U and APP-011E as `identity-api` holders.
