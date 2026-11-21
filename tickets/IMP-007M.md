@@ -56,8 +56,8 @@ When `finish_member_v1` ends an attempt with `reupload_required` but its launche
 
 ## Acceptance criteria
 
-- [ ] AC-IMP-007M-01: The owner records a decision on whether and how a held slot of a fenced attempt in a live set is released.
-- [ ] AC-IMP-007M-02: If a change is chosen, a follow-up implementation ticket names the function, its fencing and its PostgreSQL tests.
+- [x] AC-IMP-007M-01: The owner records a decision on whether and how a held slot of a fenced attempt in a live set is released.
+- [x] AC-IMP-007M-02: If a change is chosen, a follow-up implementation ticket names the function, its fencing and its PostgreSQL tests.
 
 
 ## Build plan
@@ -142,11 +142,12 @@ All three decisions were answered by the owner on 2026-11-20. Nothing is open. T
 
 ## Handoff
 
-- State: `codex/gpt-6.1-sol` claimed the ticket-only closeout from `origin/main` at `1274b54`. The approved spec matches and the Build plan is merged. Decisions needed 1 to 3, IMP-007Q and IMP-007F's proof wait are present on `main`.
-- Next step: Tick the acceptance criteria with the verified decision and follow-up references, run the ticket-only checks and prepare the pull request.
-- Verify: `python3 scripts/tickets.py spec IMP-007M --base origin/main`, `python3 scripts/tickets.py check`, `git show origin/main:tickets/IMP-007Q.md`.
-- Gotchas: This closeout changes only this file. Option B and the worker's release call belong to IMP-007Q; option F belongs to IMP-007F. No SQL, worker, docs or runtime changes here.
-- Open questions: None for this ticket. Independent review must use the configured reviewer model.
+- State: AC-01 and AC-02 are verified. AC-01 is covered by Decisions needed 1 to 3 and the 2026-11-20 Log entries: B with F, `stage_admitted` included and the resource removed. AC-02 is covered by IMP-007Q on `origin/main` at `1274b54`: AC-IMP-007Q-01 names `release_member_slot_v1`, AC-IMP-007Q-05 its fencing and AC-IMP-007Q-11 its opt-in PostgreSQL tests. IMP-007F stage 1 normalize step 6 and resolved D8 retain option F. These are recorded decisions and planned follow-up work, not shipped slot-release behaviour.
+- Next step: Obtain publication approval for the locally checked ticket-only branch and open the pull request. Keep `status: in_progress`, `pr:` empty and the final Plan box unticked until publication and independent-review steps are complete. After the PR exists, the final closeout commit sets `status: done`, its actual `pr:` URL and the outcome line under the normal ticket workflow.
+- Verify: `python3 scripts/tickets.py check`, `python3 scripts/tickets.py spec IMP-007M --base origin/main`, `python3 scripts/check_language.py`, `python3 scripts/check_publication.py --worktree` and `python3 scripts/check_pr_image.py` from the clean committed branch.
+- Review: NOT RUN. Codex cannot start the configured Claude Opus 5.5 reviewer. Run `review IMP-007M` in Claude Code for the required independent QA and architecture review after the PR opens; this frontier ticket waits for that review before the owner's review.
+- Gotchas: Never release a slot without proof that the attempt has no live child or raw buffer. This closeout changes only this file and leaves the approved gated text unchanged. Option B and the worker's release call belong to IMP-007Q; option F belongs to IMP-007F. No SQL, worker, docs or runtime changes here. The final Plan box includes the uncompleted PR and independent review.
+- Open questions: No product decision is open for this ticket.
 
 ## Log
 
@@ -160,3 +161,5 @@ All three decisions were answered by the owner on 2026-11-20. Nothing is open. T
 - 2026-11-20 claude-code/opus-5.5: decisions 2 and 3 answered, and the owner's confirmation of the `resources` change. The owner was asked "IMP-007M #2 the new release also covers a slot held after a stage_admitted finish; #3 drop IMP-007M's resources: [ingestion-schema-sql] so it isn't stuck behind IMP-007N's lock (your edit or confirmation). APP-011E #2 preferences routes return 404 and are absent from OpenAPI on identity/sources instances. Accept all three?" and chose "Accept all (Recommended)". Decision 2 is yes; decision 3 is drop. On that confirmation `resources` changes from `[ingestion-schema-sql]` to `[]`. Plan PR #85.
 - 2026-11-20 claude-code/opus-5.5: filed IMP-007Q (option B: worker-fenced late-proof release of a held raw slot, covering `reupload_required` and `stage_admitted` finishes, plus the worker's call) in plan PR #85, as `backlog` with no Gate A. Rewrote this ticket's Build plan as a ticket-only closeout that checks the record and IMP-007Q on `main` and ticks AC-01 and AC-02; updated Context, Plan, Decisions needed and Handoff. No gated section changed; `spec IMP-007M` still matches sha256:cf968d22fe6dcdfadf0a39af3744c41c18ba150851cc4b05611ef5f8f1fe2aaa.
 - 2026-11-21 codex/gpt-6.1-sol: claimed the ticket-only closeout from `origin/main` at `1274b54`; the Build plan is merged, `resources: []` is unchanged and the approved spec matches. Verified the three recorded owner decisions, IMP-007Q AC-01/05/11 and IMP-007F stage 1 normalize step 6 with D8 resolved. No product implementation is included.
+- 2026-11-21 codex/gpt-6.1-sol: verified AC-IMP-007M-01 against Decisions needed 1 to 3 and the 2026-11-20 decision Log entries on `origin/main` at `1274b54`; verified AC-IMP-007M-02 against IMP-007Q AC-01/05/11 on that same base. Both criteria are ticked without changing the approved spec text. IMP-007F stage 1 normalize step 6 and D8 retain option F. The final Plan box remains open because no PR or independent review exists yet.
+- 2026-11-21 codex/gpt-6.1-sol: local closeout checks passed: `tickets.py check` (139 tickets, 0 errors), `tickets.py spec IMP-007M --base origin/main` (MATCHES; gated sections unchanged), `check_language.py` (532 files, no violations) and `check_publication.py --worktree` (686 files, no violations). No code tests are required by this ticket-only Build plan. Independent QA and architecture review: NOT RUN, because Codex cannot start the configured Claude Opus 5.5 reviewer; run `review IMP-007M` in Claude Code after the PR opens. Publication, the actual PR URL, final status and outcome line remain pending.
