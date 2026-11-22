@@ -75,6 +75,20 @@ class AgentDefinitionTests(unittest.TestCase):
         # OpenCode is rule-only: no file and no provider-specific model ID.
         self.assertEqual(rows[('Builder', 'OpenCode')]['file'], '')
         self.assertEqual(rows[('Builder', 'OpenCode')]['model'], '')
+        self.assertEqual(rows[('Builder', 'OpenCode')]['effort'], 'high')
+
+    def test_every_agent_accepts_the_owner_model_override(self):
+        """Each agent checks against the owner's requested model when one is named."""
+        agents_md = (ROOT / 'AGENTS.md').read_text(encoding='utf-8')
+        section = agents_md.split('### Owner model override', 1)[1].split('\n## ', 1)[0]
+        for rule in ('Only the owner', 'never the role', 'lasts for that request only',
+                     'actual\n  `tool/model`', 'never falls back to the default'):
+            self.assertIn(rule, section)
+        for relative in (*CLAUDE_AGENTS.values(), CODEX_BUILDER):
+            with self.subTest(agent=relative):
+                body = (ROOT / relative).read_text(encoding='utf-8')
+                self.assertIn('Owner model\noverride', body)
+                self.assertIn('requested: <model>, effort <effort>', body)
 
     def test_claude_code_agents_match_the_table(self):
         """AC-ENG-115-04 (static part): each Claude Code agent pins the table's model and effort."""

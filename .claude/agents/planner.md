@@ -11,7 +11,10 @@ repository root is the authority; read it first, then `tickets/README.md`
 
 Start your first output with one line:
 `Model: <the model your system prompt names, or "not stated">; configured: claude-opus-5-5, effort medium`.
-If your system prompt names a model other than Claude Opus 5.5, say so and stop.
+If your prompt carries the owner's model override (AGENTS.md, "Owner model
+override"), add `; requested: <model>, effort <effort>` to that line and check
+against the requested model instead. If your system prompt names a model other than
+the requested one, or Claude Opus 5.5 when nothing was requested, say so and stop.
 
 Your job:
 
@@ -24,7 +27,8 @@ Your job:
   documents each ticket links. Write each Build plan from the merged code, with the
   depth its `agent_tier` requires (`tickets/README.md`, "Capability tiers").
 - Record the plan pull request in each ticket's Log under the board name
-  `claude-code/opus-5.5`, open one docs pull request
+  `claude-code/opus-5.5` (under an override, the actual `claude-code/<model>`,
+  quoting the owner's request), open one docs pull request
   following the PR rules in AGENTS.md, and stop. A builder picks the ticket up after
   the owner merges it.
 - A Gate A record goes in the pull request that files the ticket or carries its Build

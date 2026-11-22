@@ -371,3 +371,6 @@ evidence, are deleted with it, so move anything you still need first. Run
 Agent names use `tool/model`. Use the board names in
 [AGENTS.md](../AGENTS.md#models-and-roles), for example `claude-code/sonnet-5.5`,
 `codex/gpt-6.1-sol` or `opencode/deepseek-flash`. The board uses them to show who is working.
+When the owner names another model for a request
+([Owner model override](../AGENTS.md#owner-model-override)), use the actual
+`tool/model`, for example `claude-code/opus-5.5`, and quote the request in the Log.
