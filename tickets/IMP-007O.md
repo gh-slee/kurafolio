@@ -2,7 +2,7 @@
 id: IMP-007O
 title: Return the stored member context bytes from the bind result of reserve_member_v1
 priority: P0
-status: ready
+status: in_progress
 type: feature
 parent: IMP-007
 depends_on: []
@@ -13,7 +13,7 @@ agent_tier: frontier
 gate: owner
 gate_approval: "owner 2026-11-22, Gate A on the amended text (hash 53f3126f…): Approve Gate A"
 review: independent
-branch: 
+branch: ticket/imp-007o-return-the-stored-member-context-bytes-f
 pr: 
 spec: docs/specs/imp-007-r7/spec.md
 spec_approved: sha256:53f3126f8a92fbaaf5bb874cdfaf90d5107dd1305a6f7efc5ef76b41f9faef06
@@ -278,11 +278,11 @@ Revert the commit. There is no data migration and no table, column, index, grant
 
 ## Handoff
 
-- State: Filed on 2026-11-20; backlog, waiting for the owner's Gate A and a Build plan.
-- Next step: The planner writes the Build plan from `RESERVE_DDL` and `ingestion_migration.py` after Gate A.
-- Verify: `KURAFOLIO_INGESTION_TEST=1 PYTHONPATH=src .venv/bin/python -m unittest tests.test_postgres_migration -v`
-- Gotchas: The bind result already uses the key `context_bytes` for the length; do not reuse it.
-- Open questions: Gate A.
+- State: Claimed by codex/gpt-6.1-sol from origin/main at 9a10704. The approved amended spec matches sha256:53f3126f8a92fbaaf5bb874cdfaf90d5107dd1305a6f7efc5ef76b41f9faef06. Baseline hashes match all five planned values; the three unchanged reserve tests pass on disposable PostgreSQL (3 tests, 0 skips).
+- Next step: Apply the exact bind insertion, constants and static/gated tests from the Build plan.
+- Verify: `KURAFOLIO_INGESTION_TEST=1 PYTHONPATH=src python -m unittest tests.test_postgres_migration -v` using the locked Web/PostgreSQL environment and disposable Docker resources.
+- Gotchas: The existing `context_bytes` key remains a length. Keep inventories, DTOs, structure digests and provider files unchanged. Independent QA and Architecture review require the configured Claude Code reviewer and are NOT RUN.
+- Open questions: None in the approved implementation scope. Publication requires separate concrete approval.
 
 ## Log
 
@@ -293,3 +293,4 @@ Revert the commit. There is no data migration and no table, column, index, grant
 - 2026-11-22 claude-code/opus-5.5: on Decisions needed item 1 the owner chose "Option B: amend spec", relayed to this planning session by the coordinating session. Replaced the Requirements bullet on the in-place `0004` change and AC-IMP-007O-03 with the wording proposed in item 1: the structure digests and `oracle.json` stay unchanged. New spec hash sha256:53f3126f8a92fbaaf5bb874cdfaf90d5107dd1305a6f7efc5ef76b41f9faef06. No Gate A on the amended text yet; `spec_approved` keeps sha256:664d5c3a0b844ef78057e53c216de1711001c867cff0a6165f97edf1ee4e1f60, so the ticket cannot be claimed until the owner approves the new hash. Item 2 stays open. Build plan checked against the amended text: unchanged apart from the claim preconditions. Plan pull request https://github.com/gh-slee/kurafolio/pull/101.
 - 2026-11-22 claude-code/opus-5.5: recorded Gate A on the amended text in plan pull request https://github.com/gh-slee/kurafolio/pull/101. Shown the amended Requirements bullet, the amended AC-IMP-007O-03 and the hash, and asked "Do you give Gate A on IMP-007O hash sha256:53f3126f…faef06?", the owner replied "Approve Gate A" (relayed to this planning session by the coordinating session). Before recording, `tickets.py spec` reported the current hash as sha256:53f3126f8a92fbaaf5bb874cdfaf90d5107dd1305a6f7efc5ef76b41f9faef06. `gate_approval` changed from "owner 2026-11-21, Gate A on the text as written on PR #95's branch (Q31)" to "owner 2026-11-22, Gate A on the amended text (hash 53f3126f…): Approve Gate A"; `spec_approved` changed from sha256:664d5c3a0b844ef78057e53c216de1711001c867cff0a6165f97edf1ee4e1f60 to sha256:53f3126f8a92fbaaf5bb874cdfaf90d5107dd1305a6f7efc5ef76b41f9faef06. Status stays ready. Decisions needed item 2 is still open and blocks the build.
 - 2026-11-22 claude-code/opus-5.5: recorded the owner's answer to Decisions needed item 2 in plan pull request https://github.com/gh-slee/kurafolio/pull/101. Asked "Has any database outside disposable tests run `operator migrate-ingestion` at `0004`, or been backed up with `backup-ingestion`: no, or yes/unsure?", the owner replied "No, none has" (relayed to this planning session by the coordinating session). That is option (a): the change is made in place at `0004_ingestion`, and this line is the owner's part of the AC-IMP-007O-06 evidence. Updated the Build plan's claim steps and stop points so a builder is no longer held on item 2. Gated sections unchanged; `tickets.py spec` reports MATCHES at sha256:53f3126f8a92fbaaf5bb874cdfaf90d5107dd1305a6f7efc5ef76b41f9faef06.
+- 2026-11-22 codex/gpt-6.1-sol: claimed from origin/main 9a10704 after cleanup and matching amended spec; no persistence changes since the plan base 96eadc2. Baseline hashes match the Build plan and the three pre-change reserve tests passed (3 tests, 0 skips, 4.916s) on disposable PostgreSQL. AC-IMP-007O-06: the owner answered "No, none has" on 2026-11-22 in the preceding planning Log line; `git tag --list` and `gh release list --repo gh-slee/kurafolio` are empty, the build-base Database profiles stop at 0003 and docs still state there is no operational 0004 profile.
