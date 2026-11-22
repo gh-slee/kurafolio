@@ -89,9 +89,25 @@ per role and tool, so routing does not depend on anyone's personal settings:
 
 Each file pins a full model ID and an effort level, never a floating alias, and
 holds only role rules that point back to AGENTS.md. OpenCode has no file: each user
-configures DeepSeek Flash with their own provider, and no tracked file carries a
-provider-specific model ID. Keep such configuration in the ignored `.opencode/`
-directory or in user-level settings.
+configures DeepSeek Flash at high effort with their own provider, and no tracked
+file carries a provider-specific model ID. Keep such configuration in the ignored
+`.opencode/` directory or in user-level settings.
+
+The pinned models are defaults. For one request the owner can name another model
+and effort, for example "build ENG-123 with opus high", under the rules in
+[Owner model override](../AGENTS.md#owner-model-override). How each tool applies it:
+
+- Claude Code: the routing session passes the Agent tool's `model` and `effort`,
+  which take precedence over the agent file's frontmatter, and repeats the owner's
+  words in the agent's prompt so its self-check accepts the requested model. The
+  `model` setting accepts only the aliases `opus`, `sonnet`, `haiku` and `fable`,
+  so an override runs the latest model of that family, not a pinned ID. The
+  transcript or `/tasks` row shows the model that ran.
+- Codex: the agent file pins its model and no per-request override of a spawned
+  agent is documented here, so the owner starts the Codex session on the requested
+  model and effort, and that session does the builder's work itself.
+- OpenCode: the owner switches the session to the requested model in their own
+  configuration before giving the request.
 
 Known limits:
 

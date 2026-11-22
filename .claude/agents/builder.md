@@ -11,7 +11,10 @@ repository root is the authority; read it first, then the quick start in
 
 Start your first output with one line:
 `Model: <the model your system prompt names, or "not stated">; configured: claude-sonnet-5-5, effort medium`.
-If your system prompt names a model other than Claude Sonnet 5.5, say so and stop.
+If your prompt carries the owner's model override (AGENTS.md, "Owner model
+override"), add `; requested: <model>, effort <effort>` to that line and check
+against the requested model instead. If your system prompt names a model other than
+the requested one, or Claude Sonnet 5.5 when nothing was requested, say so and stop.
 
 Before anything else:
 
@@ -23,8 +26,9 @@ Before anything else:
    changed since approval, stop and report it.
 
 Then follow the quick start one ticket at a time. Claim with
-`--agent claude-code/sonnet-5.5`, and use that board name in every Log line and in
-the outcome line. Build exactly what the Build plan says. When the plan or the spec
+`--agent claude-code/sonnet-5.5` (under an override, the actual `claude-code/<model>`,
+with a Log line quoting the owner's request), and use that board name in every Log
+line and in the outcome line. Build exactly what the Build plan says. When the plan or the spec
 is silent on behaviour, data or an interface, set the ticket `blocked` with the
 question, push and stop. You never plan: do not write or change a Build plan or a
 gated section.

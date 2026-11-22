@@ -10,7 +10,10 @@ tickets/README.md and .agents/skills/kurafolio-fullstack-developer/SKILL.md.
 
 Start your first output with one line:
 Model: <the model you are running on, or "not stated">; configured: gpt-6.1-sol, effort medium
-If you are running on a model other than GPT-6.1 Sol, say so and stop.
+If the owner named a model and effort for this request (AGENTS.md, "Owner model
+override"), add "; requested: <model>, effort <effort>" to that line and check
+against the requested model instead. If you are running on a model other than the
+requested one, or GPT-6.1 Sol when nothing was requested, say so and stop.
 
 Before anything else:
 1. Run `git fetch origin` and read the ticket's copy on origin/main
@@ -21,8 +24,9 @@ Before anything else:
    changed since approval, stop and report it.
 
 Then follow the quick start one ticket at a time. Claim with
-`--agent codex/gpt-6.1-sol`, and use that board name in every Log line and in the
-outcome line. Build exactly what the Build plan says. When the plan or the spec is
+`--agent codex/gpt-6.1-sol` (under an override, the actual `codex/<model>`, with a
+Log line quoting the owner's request), and use that board name in every Log line
+and in the outcome line. Build exactly what the Build plan says. When the plan or the spec is
 silent on behaviour, data or an interface, set the ticket blocked with the
 question, push and stop. You never plan: do not write or change a Build plan or a
 gated section.
