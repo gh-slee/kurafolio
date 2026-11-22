@@ -69,7 +69,7 @@ After every member of an import set is normalized, the import worker must turn t
 ## Build plan
 
 - Based on: `main` at `1274b54` (2026-11-21). Nothing under `src/kurafolio/ingestion/`, `src/kurafolio/persistence/ingestion_schema.py` or `tests/fixtures/ingestion/` changed since `d902717`.
-- Owner decisions this plan depends on: D1 and D2 under Decisions needed. The plan is written for the recommended answers. Every place where D1 changes the outcome gives both answers, so only the owner's answer, recorded before this plan merges, picks the column. If D1 has no recorded answer when a builder claims the ticket, build everything except Part G and its tests, then stop and ask.
+- Owner decisions, recorded 2026-11-21 under Decisions needed: D1 is (b), so the builder also produces CONFLICT and NEEDS_MAPPING reviews at a reconciling set and Part G with its tests is required; D2 is (a), so an initial review always offers a proposed new entity beside the existing candidates (Part C).
 - The planner checked the review layout of Part F against every READY oracle review (all eleven reproduce row for row, with their `content_digest`, `plan_digest` and `review_content_digest`), the two head key formulas of Part E against `ab5991be…` and `87eb6e28…`, that every case's decisions digest equals its Plan's `decision_digest`, and that every existing-mode target body is in the oracle. A builder repeats none of this; it is recorded so the reviewer knows what was checked.
 - Build order: Part A, then B to F with the AC-01 tests case by case (first-use, native, metadata-native, mixed-set, snapshot-seed-t2, then the cases with an accepted prestate), then G, H and the other tests, then the real-PostgreSQL tests, then docs. One pull request.
 
@@ -78,7 +78,7 @@ After every member of an import set is normalized, the import worker must turn t
 - `src/kurafolio/ingestion/review_bundle.py` (new): the whole builder. Imports only `__future__`, `collections`, `copy`, `dataclasses`, `functools`, `itertools`, `operator`, `typing`, and from this package `approval`, `codec`, `contracts`, `mapping` and `reconciliation`. Nothing else (AC-06).
 - `tests/test_ingestion_review_bundle.py` (new): AC-01, 03, 04, 05, 06 and 07, and the Part G cases. Core-only; runs in the default suite.
 - `tests/test_postgres_review_bundle.py` (new, opt-in with `KURAFOLIO_INGESTION_TEST=1`): AC-02.
-- `tests/fixtures/ingestion/review-bundle-cases.json` (new): literal expected reviews for the Part G cases (D1 (b) only). `oracle.json` is not edited.
+- `tests/fixtures/ingestion/review-bundle-cases.json` (new): literal expected reviews for the Part G cases. `oracle.json` is not edited.
 - `docs/web-v2-imports.md`: a new subsection "Review bundle builder" after the paragraph on `read_plan_basis_v1` and `prepare_preview_v1` (around line 389), and one sentence in "Remaining acceptance" (AC-09).
 - `tickets/IMP-007P.md`: this ticket only.
 
@@ -146,14 +146,16 @@ The `mappings` resource (the latest accepted mapping for each incoming source id
 
 ### Part B: which review the builder produces
 
-| Basis | D1 (b), recommended | D1 (a) |
-|---|---|---|
-| No decisions (the set is `NORMALIZING`) | NEEDS_MAPPING, initial layout (Part C) | same |
-| Decisions, and a source entity has no mapping, or an existing-mode mapping names a target that is not an `entities` row of that entity | NEEDS_MAPPING, initial layout, decisions ignored | refuse `import_mapping_required` (missing) or `import_stale` (target not offered), `$.decisions` |
-| Decisions, a proposed-mode mapping whose `mapping.proposed_body(...)` digest differs from `target.version`, or that `proposed_body` refuses | refuse with `import_conflict` (or the helper's code), `$.decisions` | same |
-| Decisions, two mappings for one entity (`MappingIndex` raises) | refuse `import_conflict`, `$.decisions` | same |
-| Decisions, every entity mapped, every fact classified by Part D without `conflict` | READY with a Plan | same |
-| Decisions, every entity mapped, at least one fact classified `conflict` | CONFLICT, no Plan (Part G) | refuse `import_conflict`, `$.facts` |
+The owner chose D1 (b) on 2026-11-21, so the builder produces all three states.
+
+| Basis | Outcome |
+|---|---|
+| No decisions (the set is `NORMALIZING`) | NEEDS_MAPPING, initial layout (Part C) |
+| Decisions, and a source entity has no mapping, or an existing-mode mapping names a target that is not an `entities` row of that entity | NEEDS_MAPPING, initial layout, decisions ignored (Part G) |
+| Decisions, a proposed-mode mapping whose `mapping.proposed_body(...)` digest differs from `target.version`, or that `proposed_body` refuses | refuse with `import_conflict` (or the helper's code), `$.decisions` |
+| Decisions, two mappings for one entity (`MappingIndex` raises) | refuse `import_conflict`, `$.decisions` |
+| Decisions, every entity mapped, every fact classified by Part D without `conflict` | READY with a Plan |
+| Decisions, every entity mapped, at least one fact classified `conflict` | CONFLICT, no Plan (Part G) |
 
 ### Part C: entity rows and candidates
 
@@ -162,7 +164,7 @@ The `mappings` resource (the latest accepted mapping for each incoming source id
   1. Allocate the proposed IDs first: for each member, each entity in the order above, call `new_id(('entity', member_id, kind, local_id))`.
   2. Build the issuer proposals first: `body = mapping.proposed_body(minimal, 'issuer', local, id, tenant, portfolio, MappingIndex([], member))`, `version = codec.digest(body)`.
   3. Then accounts and instruments with `MappingIndex(issuer_mappings, member)`, where `issuer_mappings` is one `{member_id, entity_kind: 'issuer', local_id, target: {mode: 'proposed', id, version}}` per issuer of that member. An instrument with an issuer therefore names the proposed issuer, as `review-metadata-native-initial.json` shows.
-  4. Candidates of one entity, in order: every `entities` row for `(member, kind, local)` in key order (mode `existing`, body as served), then the proposed one (`{member_id, entity_kind, local_id, target: {mode: 'proposed', id, version}, body}`). If `proposed_body` raises `import_evidence_unsupported` and the entity has at least one existing candidate, leave the proposed one out; with no existing candidate, re-raise (D2).
+  4. Candidates of one entity, in order: every `entities` row for `(member, kind, local)` in key order (mode `existing`, body as served), then the proposed one (`{member_id, entity_kind, local_id, target: {mode: 'proposed', id, version}, body}`). The proposed candidate is always offered beside the existing ones, even when an existing entity matches (D2 (a), the owner's answer of 2026-11-21). The one exception: if `proposed_body` raises `import_evidence_unsupported` and the entity has at least one existing candidate, leave the proposed one out; with no existing candidate, re-raise.
 - READY and CONFLICT candidates: exactly one per source entity, the decisions mapping's target. For mode `existing` the body is the `entities` row with the same target ID and version. For mode `proposed` the body is `mapping.proposed_body(minimal, kind, local, target id, tenant, portfolio, MappingIndex(decisions['mappings'], member))`.
 - `tenant` and `portfolio` come from the `context` row.
 
@@ -250,7 +252,7 @@ Apply the first rule that matches:
   - `heads`: all members' heads in order.
   - `review_content_digest` is the review's `content_digest`.
 
-### Part G: CONFLICT and NEEDS_MAPPING at a reconciling set (D1 (b) only)
+### Part G: CONFLICT and NEEDS_MAPPING at a reconciling set (required, D1 (b))
 
 - A CONFLICT review uses the READY layout without `effect` and `head` rows, with `state: 'CONFLICT'`, `set_revision` the page value, `plan` and `plan_digest` null.
 - Every fact gets a row: its outcome as `action` (`conflict` for D1, D2, D3, D5 to D7, D9 to D11 and the Part D and E authority and coverage cases).
@@ -258,7 +260,6 @@ Apply the first rule that matches:
   - `required_decision` is the code from the tables (`identity`, `parent`, `authority` or `coverage`) for `conflict` and null otherwise.
 - No `new_id` call is made for a CONFLICT review.
 - A NEEDS_MAPPING review at a reconciling set is the initial layout of Part C and F, with the page `set_revision` and pins.
-- Under D1 (a) none of this is built; the same bases refuse as in Part B.
 
 ### Part H: final checks
 
@@ -357,7 +358,7 @@ Other tests:
 | 07 | The four-member case of AC-05 | Refused in under 10 s |
 | 09 | Docs | See Docs below |
 
-Part G tests (D1 (b)). Expected values are literal in `tests/fixtures/ingestion/review-bundle-cases.json`. Write that file once, by copying the named oracle rows and applying exactly the listed edits; recompute `content_digest` with `codec.digest`. Never generate it with `review_bundle`.
+Part G tests (required; they run in the default suite with the AC-01 tests). Expected values are literal in `tests/fixtures/ingestion/review-bundle-cases.json`. Write that file once, by copying the named oracle rows and applying exactly the listed edits; recompute `content_digest` with `codec.digest`. Never generate it with `review_bundle`.
 
 | Case | Basis | Expected review (`plan` null, `plan_digest` null) |
 |---|---|---|
@@ -365,8 +366,6 @@ Part G tests (D1 (b)). Expected values are literal in `tests/fixtures/ingestion/
 | `conflict-authority` | snapshot-historical-t1 with decisions `authorities` emptied | `snapshot-historical-t1-review.json` without the `authority` and `effect` rows, renumbered; records/0, records/1 and coverage/0 have `action 'append'` and `accepted_revision_id` null; snapshots/0 has `action 'conflict'`, `accepted_revision_id` null and `required_decision 'authority'`; `state 'CONFLICT'`, `set_revision '2'`; no `new_id` call |
 | `needs-mapping` | First use with decisions whose `mappings` and `new_entities` are both empty (so no `40000000-…` ID is in the basis and Part H's collision check passes); `new_id` as for the parser2 initial case | The rows of `review-parser2-initial.json` unchanged; `id` the case's `preview_id`, `set_revision '2'`, `control_generation '1'`, `state 'NEEDS_MAPPING'`, same `content_digest` |
 | twins | Two members with the same `minimal-parser2.json` and the same pinned connection, decisions mapping both members to the same four proposed targets | `state 'CONFLICT'`; all six fact rows have `action 'conflict'` and `required_decision 'identity'` (asserted directly, no fixture) |
-
-Under D1 (a) the same four bases must refuse: `import_conflict`, `import_conflict`, `import_mapping_required`, `import_conflict`.
 
 `tests/test_postgres_review_bundle.py` (AC-02):
 
@@ -392,7 +391,7 @@ Under D1 (a) the same four bases must refuse: `import_conflict`, `import_conflic
 In `docs/web-v2-imports.md`, subsection "Review bundle builder", plain English:
 
 - what the builder reads (the eight resources of one lease), its entry point and that it is pure;
-- the three states it produces and when (Part B, for the owner's D1 answer);
+- the three states it produces and when (Part B);
 - what it decides: actions, heads, candidates and the `required_decision` codes;
 - what it never does: no amount, balance, contribution or eligibility, no zero for unknown values, no target chosen for the user;
 - its fixed error codes;
@@ -413,7 +412,6 @@ The change adds one module, two test files, one fixture file and a docs section.
 
 ### Stop and ask if
 
-- D1 has no recorded answer: build everything except Part G and its tests, then stop. D2 has no recorded answer: build its option (a), as Part C says, and say so in the pull request.
 - An AC-01 vector cannot be reproduced with these rules. Report the case and the first differing row. Never edit the oracle or add a per-case rule.
 - A case cannot be expressed as basis pages from oracle inputs, or needs data outside the eight resources.
 - `prepare_preview_v1` refuses a builder bundle for a listed AC-02 case, or `validate_review_bundle` refuses a bundle these rules produced.
@@ -423,11 +421,11 @@ The change adds one module, two test files, one fixture file and a docs section.
 
 ## Plan
 
-- [ ] Owner answers D1 and D2 (Decisions needed); the planner records them in this plan pull request.
+- [x] Owner answers D1 and D2 (Decisions needed); the planner records them in this plan pull request (2026-11-21: D1 (b), D2 (a)).
 - [ ] Part A basis assembly and the AC-05 refusal tests.
 - [ ] Parts B, C and F for NEEDS_MAPPING; the three initial AC-01 cases.
 - [ ] Parts D, E and F for READY; the AC-01 cases without prestate, then with prestate.
-- [ ] Part G (D1 (b)) with `review-bundle-cases.json`; Part H; AC-03, 04, 06 and 07.
+- [ ] Part G with `review-bundle-cases.json`; Part H; AC-03, 04, 06 and 07.
 - [ ] Real-PostgreSQL acceptance (AC-02).
 - [ ] Docs (AC-09); full suite; pull request with the independent review.
 
@@ -435,27 +433,27 @@ The change adds one module, two test files, one fixture file and a docs section.
 
 - Gate A: the owner approves the Goal, Requirements and Acceptance criteria above, or asks for changes. **Resolved 2026-11-21.** Asked "Gate A, tickets whose text is unchanged since filing (full text on PR #95's branch). Which do you approve exactly as written?" with this ticket listed at sha256:ab4f0a665240bd37f278712f3dc78aa90db9a7ecb92f3fc7e0700f67a4bab766, the owner selected "IMP-007O,IMP-007P,IMP-007U,IMP-007S" (Q31). `gate_approval` and `spec_approved` record it.
 
-Only the owner answers D1 and D2. The planner recommends an option for each. Neither changes a gated section.
+The owner answered D1 and D2 on 2026-11-21. Neither changes a gated section.
 
-- **D1. What the builder does when the user's decisions do not make the set READY.**
+- **D1. What the builder does when the user's decisions do not make the set READY.** **Resolved 2026-11-21: (b).** The owner chose "CONFLICT/NEEDS_MAPPING too (Recommended)": "(b) The builder also produces CONFLICT and NEEDS_MAPPING reviews, so the user sees what is still open and can answer it. Adds Part G (4 more test cases)." (Q34). Part G and its four tests are required.
   - **The problem.** After a decision, the set is `RECONCILING` and the user cannot decide again until a preview exists (`decide_set_v1` accepts only `NEEDS_MAPPING`, `CONFLICT` and `READY`). `prepare_preview_v1` accepts a CONFLICT or NEEDS_MAPPING review there, but no oracle vector has one.
   - **A common case.** The merged Bull Bitcoin parser gives the order coverage row the same source identity in every export: scope `exported-orders`, no observation ID, revision = a digest of the rows. A later export with more orders therefore has a new coverage revision with different meaning. An order whose content changed (for example pending, then completed) gets a new revision the same way. Both need a `parents` decision under r7. The initial review cannot ask for one, because it has no fact rows. Wealthsimple exports are not affected: each snapshot and its coverage have a new identity per export time.
   - **(a)** Produce READY or refuse. A set whose decisions leave a conflict or an unmapped entity gets a fixed error code; under IMP-007V's Decision 1 it waits until it is cancelled or expires, and the user is not told why. A Bull Bitcoin re-import with new orders cannot reach a preview through the worker.
   - **(b)** Also produce a CONFLICT review, listing every fact with its `required_decision` (`parent`, `authority`, `identity` or `coverage`), and a NEEDS_MAPPING review when an entity has no valid mapping. The user can then decide again. Expected values for these reviews are oracle rows with named edits, in a new fixture file (Build plan, Part G). Scope grows by Part G and four tests; no SQL or DTO changes.
   - **Recommendation: (b).** Without it, the "import a newer file" journey in PRODUCT_CONTEXT.md does not work for Bull Bitcoin, and refusals would be routine rather than rare, which IMP-007V's Decision 1 assumed. The UI still has to show the CONFLICT review and send the parent decisions; that is the UI tickets' work, not this one.
-- **D2. Offer "new entity" when an existing one matches.**
+- **D2. Offer "new entity" when an existing one matches.** **Resolved 2026-11-21: (a).** The owner chose "Always offer new (Recommended)": "(a) The user can always choose a new entity instead of a match." (Q35). Part C states it as the rule.
   - In an initial review, the SQL requires every compatible existing entity to be offered. It allows a proposed new one beside them, and no vector shows that case.
   - **(a)** Always also offer a proposed new entity (left out only when the source metadata cannot form one and an existing candidate is available). Accounts match only on category and role, so the user may need a separate account.
   - **(b)** Offer a proposed one only when no existing entity matches.
-  - **Recommendation: (a).** The user keeps the choice; mapping.py's rule is that the module never selects a target for a user. The Build plan (Part C) follows (a); (b) changes one rule there.
+  - **Recommendation: (a).** The user keeps the choice; mapping.py's rule is that the module never selects a target for a user. The Build plan (Part C) follows (a).
 
 ## Handoff
 
-- State: Filed on 2026-11-20; backlog, waiting for the owner's Gate A and a Build plan.
-- Next step: The planner reads `reconciliation.md`, the merged `approval.py`, `mapping.py`, `reconciliation.py` and `prepare_preview_v1`, maps each oracle case to basis pages, and writes the Build plan, including the builder's exact signature for IMP-007V.
+- State: Ready, Gate A recorded. The Build plan is in plan pull request #99 with D1 (b) and D2 (a) recorded; the ticket is buildable once that pull request merges to `main`. Not claimed.
+- Next step: After #99 merges, a builder claims the ticket and follows the Build plan in its build order, Part G included.
 - Verify: `PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -p 'test_ingestion_*.py' -v` and `KURAFOLIO_INGESTION_TEST=1 PYTHONPATH=src .venv/bin/python -m unittest tests.test_postgres_migration -v`
 - Gotchas: IMP-007V (the worker's prepare step) waits for this ticket, so no set reaches a preview through the worker until both land. IMP-007F and the activation ticket IMP-007S do not wait for it.
-- Open questions: Gate A.
+- Open questions: none.
 
 ## Log
 
@@ -463,3 +461,4 @@ Only the owner answers D1 and D2. The planner recommends an option for each. Nei
 - 2026-11-20 claude-code/opus-5.5: the owner chose "Split prepare out (Recommended)" (Q16): "Move the prepare step and AC-04 to a new ticket (IMP-007V) that depends on IMP-007F and IMP-007P." The caller of this builder is now IMP-007V, not IMP-007F's third pull request; Context, the Requirements "Not in scope" line and Handoff say so. Spec hash changes from sha256:def5b60480742768882339fd55443e0f9af5f984b7c7d6f5ac094087b21bed27 to sha256:ab4f0a665240bd37f278712f3dc78aa90db9a7ecb92f3fc7e0700f67a4bab766; the ticket was never approved.
 - 2026-11-21 claude-code/opus-5.5: recorded Gate A in plan pull request #95. Asked "Gate A, tickets whose text is unchanged since filing (full text on PR #95's branch). Which do you approve exactly as written?" (Q31) with this ticket listed at sha256:ab4f0a665240bd37f278712f3dc78aa90db9a7ecb92f3fc7e0700f67a4bab766, the owner selected "IMP-007O,IMP-007P,IMP-007U,IMP-007S". `gate_approval` set to "owner 2026-11-21, Gate A on the text as written on PR #95's branch (Q31)"; `spec_approved` set to sha256:ab4f0a665240bd37f278712f3dc78aa90db9a7ecb92f3fc7e0700f67a4bab766, which `tickets.py spec` reports as the current hash; status backlog becomes ready. Decisions needed item resolved. No Build plan yet; the planner writes it in a later pull request.
 - 2026-11-21 claude-code/opus-5.5: wrote the Build plan from `main` at `1274b54` in plan pull request #99 (not claimed). Context now lists the eight basis resources that merged `read_plan_basis_v1` serves; IMP-007V's Context still says six, and its planner should read this plan. New Decisions needed D1 (CONFLICT and NEEDS_MAPPING reviews at a reconciling set; recommended (b)) and D2 (offer a new entity beside existing ones; recommended (a)). Gated sections unchanged; `spec IMP-007P` still matches sha256:ab4f0a665240bd37f278712f3dc78aa90db9a7ecb92f3fc7e0700f67a4bab766.
+- 2026-11-21 claude-code/opus-5.5: recorded the owner's plan decisions in plan pull request #99. D1 (Q34, "IMP-007P D1: after the user's decisions, a reconciling set can still be short of READY (a conflict or a missing mapping remains). What should the ReviewBundle builder produce then?"): the owner chose "CONFLICT/NEEDS_MAPPING too (Recommended)": "(b) The builder also produces CONFLICT and NEEDS_MAPPING reviews, so the user sees what is still open and can answer it. Adds Part G (4 more test cases)." D2 (Q35, "IMP-007P D2: when an incoming account or instrument matches existing ones, should the review always also offer 'create a new entity' beside the matches?"): the owner chose "Always offer new (Recommended)": "(a) The user can always choose a new entity instead of a match." Part G and its tests are now required; the D1 stop point, the D1 (a) column and refusals, and the D2 fallback are removed. No Decisions needed remain open. Gated sections unchanged; `spec IMP-007P` still matches sha256:ab4f0a665240bd37f278712f3dc78aa90db9a7ecb92f3fc7e0700f67a4bab766.
