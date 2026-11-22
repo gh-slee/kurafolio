@@ -1,7 +1,7 @@
 """Fixed ingestion storage structure; this is not full migration acceptance."""
-import json
-import importlib.util
 import hashlib
+import importlib.util
+import json
 import os
 import secrets
 import subprocess
@@ -277,7 +277,6 @@ class IngestionStorageDDLTests(unittest.TestCase):
         self.assertNotIn("q.value->'job_id' IS DISTINCT FROM p_request->'job_id'", schema.CLEANUP_SET_DDL)
 
 
-
 @unittest.skipUnless(os.environ.get('KURAFOLIO_INGESTION_TEST') == '1',
                      'Opt-in isolated ingestion PostgreSQL runtime inventory acceptance')
 class IngestionRuntimeInventoryPostgresTests(unittest.TestCase):
@@ -390,11 +389,29 @@ class IngestionRuntimeInventoryPostgresTests(unittest.TestCase):
                         SELECT pg_catalog.has_schema_privilege(:role,n.oid,'CREATE')
                         FROM pg_catalog.pg_namespace n ORDER BY n.nspname
                     """, role=role).scalars().all())
-                return acls, privileges
+                role_names = dict(zip(('runtime', 'gateway', 'worker'), self.roles))
+                attributes = execute(conn, """
+                    SELECT rolname,rolsuper,rolinherit,rolcreaterole,rolcreatedb,rolcanlogin,
+                           rolreplication,rolbypassrls,rolconnlimit,rolvaliduntil,rolconfig
+                    FROM pg_catalog.pg_roles
+                    WHERE rolname IN (:runtime,:gateway,:worker) ORDER BY rolname
+                """, **role_names).all()
+                memberships = execute(conn, """
+                    WITH roles AS (
+                        SELECT oid FROM pg_catalog.pg_roles
+                        WHERE rolname IN (:runtime,:gateway,:worker)
+                    )
+                    SELECT m.* FROM pg_catalog.pg_auth_members m
+                    WHERE m.member IN (SELECT oid FROM roles) OR m.roleid IN (SELECT oid FROM roles)
+                    ORDER BY m.roleid,m.member,m.grantor
+                """, **role_names).all()
+                return acls, privileges, attributes, memberships
 
         before = snapshot()
         self.assertTrue(before[0])
         self.assertFalse(any(before[1]))
+        self.assertEqual(3, len(before[2]))
+        self.assertEqual([], before[3])
         with self.operator.engine.begin() as conn:
             operator = verify_inventory(conn, **self.arguments)
         self.assertEqual({'schema_revision': '0004_ingestion', 'functions': 68}, operator)
