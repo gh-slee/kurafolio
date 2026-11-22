@@ -112,16 +112,17 @@ agents (any vendor or model) may work at once, one ticket each:
 
 ## Models and roles
 
-The owner chose these on 2026-11-17 (ENG-115). One model plans and reviews every
-ticket; the builder models write all the code, for tickets of every tier.
+The owner chose these on 2026-11-17 (ENG-115) and set every pinned effort to medium
+on 2026-11-22. One model plans and reviews every ticket; the builder models write
+all the code, for tickets of every tier.
 
 | Role | Tool | Model | Effort | Agent file | Board name |
 |---|---|---|---|---|---|
-| Planner | Claude Code | Claude Opus 5.5 (`claude-opus-5-5`) | high | `.claude/agents/planner.md` | `claude-code/opus-5.5` |
+| Planner | Claude Code | Claude Opus 5.5 (`claude-opus-5-5`) | medium | `.claude/agents/planner.md` | `claude-code/opus-5.5` |
 | Builder | Claude Code | Claude Sonnet 5.5 (`claude-sonnet-5-5`) | medium | `.claude/agents/builder.md` | `claude-code/sonnet-5.5` |
-| Builder | Codex | GPT-6.1 Sol (`gpt-6.1-sol`) | high | `.codex/agents/builder.toml` | `codex/gpt-6.1-sol` |
+| Builder | Codex | GPT-6.1 Sol (`gpt-6.1-sol`) | medium | `.codex/agents/builder.toml` | `codex/gpt-6.1-sol` |
 | Builder | OpenCode | DeepSeek Flash | set by each user | none; each user configures the model | `opencode/deepseek-flash` |
-| Reviewer | Claude Code | Claude Opus 5.5 (`claude-opus-5-5`) | high | `.claude/agents/reviewer.md` | `claude-code/opus-5.5` |
+| Reviewer | Claude Code | Claude Opus 5.5 (`claude-opus-5-5`) | medium | `.claude/agents/reviewer.md` | `claude-code/opus-5.5` |
 
 - The planner model plans and reviews. It never builds: it does not claim a ticket
   for a build or write its code, and it hands the build to a builder model.
