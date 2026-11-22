@@ -56,13 +56,13 @@ The upload route (IMP-007U) must send the import worker one frame holding the ha
 
 ## Acceptance criteria
 
-- [ ] AC-IMP-007O-01: A successful bind returns the new key, and its value decodes to exactly the member's stored `context_bytes`, whose SHA-256 equals `context_sha256` and whose length equals `context_bytes` in the same result.
-- [ ] AC-IMP-007O-02: Every other key and value of the bind result, every `action: reserve` result and every refusal are unchanged; a test compares them with the vectors recorded before this change.
-- [ ] AC-IMP-007O-03: The function's signature, return type, grant and `search_path`, the frozen and oracle inventories, `EXPECTED_STRUCTURE_SHA256` and `EXPECTED_RESTORED_STRUCTURE_SHA256` are unchanged; only the text of `reserve_member_v1` changes, and `tests/test_postgres_migration.py` passes against a real `0004` install.
-- [ ] AC-IMP-007O-04: No DTO in `wire-contracts.json` or `codec-schema.json` changes, and the new key is not a property of `Handoff`.
-- [ ] AC-IMP-007O-05: Opt-in PostgreSQL tests cover a bind at the smallest and the largest allowed context sizes (1 and 1,048,576 bytes).
+- [x] AC-IMP-007O-01: A successful bind returns the new key, and its value decodes to exactly the member's stored `context_bytes`, whose SHA-256 equals `context_sha256` and whose length equals `context_bytes` in the same result.
+- [x] AC-IMP-007O-02: Every other key and value of the bind result, every `action: reserve` result and every refusal are unchanged; a test compares them with the vectors recorded before this change.
+- [x] AC-IMP-007O-03: The function's signature, return type, grant and `search_path`, the frozen and oracle inventories, `EXPECTED_STRUCTURE_SHA256` and `EXPECTED_RESTORED_STRUCTURE_SHA256` are unchanged; only the text of `reserve_member_v1` changes, and `tests/test_postgres_migration.py` passes against a real `0004` install.
+- [x] AC-IMP-007O-04: No DTO in `wire-contracts.json` or `codec-schema.json` changes, and the new key is not a property of `Handoff`.
+- [x] AC-IMP-007O-05: Opt-in PostgreSQL tests cover a bind at the smallest and the largest allowed context sizes (1 and 1,048,576 bytes).
 - [ ] AC-IMP-007O-06: The pull request records the evidence that no database outside disposable tests ran `operator migrate-ingestion` at `0004`, or the owner's decision to use a new revision.
-- [ ] AC-IMP-007O-07: `docs/web-v2-imports.md` says that the bind result carries the context bytes for the trusted API only.
+- [x] AC-IMP-007O-07: `docs/web-v2-imports.md` says that the bind result carries the context bytes for the trusted API only.
 
 ## Build plan
 
@@ -259,9 +259,9 @@ Revert the commit. There is no data migration and no table, column, index, grant
 - [x] Owner chooses how to reconcile the digest wording (Decisions needed item 1: option B, amend the spec).
 - [x] Owner gives Gate A on the amended text (2026-11-22, sha256:53f3126f8a92fbaaf5bb874cdfaf90d5107dd1305a6f7efc5ef76b41f9faef06).
 - [x] Owner answers Decisions needed item 2 (2026-11-22: "No, none has"; proceed in place).
-- [ ] Claim after `cleanup`; record the baseline hashes and the passing baseline run of the three reserve tests.
-- [ ] Insert the key into the bind `RETURN`; add the constants and the static test.
-- [ ] Add the four gated tests and the extra assertion; raise the `postgres-foundation` skip count to 132.
+- [x] Claim after `cleanup`; record the baseline hashes and the passing baseline run of the three reserve tests.
+- [x] Insert the key into the bind `RETURN`; add the constants and the static test.
+- [x] Add the four gated tests and the extra assertion; raise the `postgres-foundation` skip count to 132.
 - [ ] Update `docs/web-v2-imports.md`; record the AC-06 evidence; run the gated and full suites; start the independent review; open the PR.
 
 ## Decisions needed
@@ -278,11 +278,11 @@ Revert the commit. There is no data migration and no table, column, index, grant
 
 ## Handoff
 
-- State: Claimed by codex/gpt-6.1-sol from origin/main at 9a10704. The approved amended spec matches sha256:53f3126f8a92fbaaf5bb874cdfaf90d5107dd1305a6f7efc5ef76b41f9faef06. Baseline hashes match all five planned values; the three unchanged reserve tests pass on disposable PostgreSQL (3 tests, 0 skips).
-- Next step: Apply the exact bind insertion, constants and static/gated tests from the Build plan.
-- Verify: `KURAFOLIO_INGESTION_TEST=1 PYTHONPATH=src python -m unittest tests.test_postgres_migration -v` using the locked Web/PostgreSQL environment and disposable Docker resources.
-- Gotchas: The existing `context_bytes` key remains a length. Keep inventories, DTOs, structure digests and provider files unchanged. Independent QA and Architecture review require the configured Claude Code reviewer and are NOT RUN.
-- Open questions: None in the approved implementation scope. Publication requires separate concrete approval.
+- State: Exact approved bind insertion, static test, four gated tests, CI skip count and docs are implemented. Full opt-in PostgreSQL migration suite PASS (154 tests, 0 skips/failures/errors, 97.968s). Static DDL suite PASS (18 tests); non-opt-in migration suite PASS (154 tests, 131 expected skips). Hash stripping reproduces all five baselines; inventories, DTOs and provider files have no diff. Language and worktree/staged/reachable-history privacy guards pass. Full Python suite is still running once under the Build plan.
+- Next step: Finish the running full Python suite, record its result, commit the local checkpoint, then run the candidate image gate against that exact clean HEAD. Obtain concrete publication approval before pushing or opening the prepared PR.
+- Verify: `KURAFOLIO_INGESTION_TEST=1 PYTHONPATH=src .venv/bin/python scripts/run_gated_tests.py --expect-skipped 0 -- discover -s tests -p 'test_postgres_migration.py'`; `PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -v`; local evidence is under ignored `work/imp-007o/`.
+- Gotchas: The existing `context_bytes` key remains a length. Installed old bodies and their ingestion backups are incompatible with current source body verification despite unchanged structure digests. Independent QA and Architecture review are NOT RUN because Codex cannot start the configured reviewer; run `review IMP-007O` in Claude Code after the PR is opened. No PR or CI exists yet.
+- Open questions: None in implementation scope. Publication requires separate concrete approval.
 
 ## Log
 
@@ -294,3 +294,4 @@ Revert the commit. There is no data migration and no table, column, index, grant
 - 2026-11-22 claude-code/opus-5.5: recorded Gate A on the amended text in plan pull request https://github.com/gh-slee/kurafolio/pull/101. Shown the amended Requirements bullet, the amended AC-IMP-007O-03 and the hash, and asked "Do you give Gate A on IMP-007O hash sha256:53f3126f…faef06?", the owner replied "Approve Gate A" (relayed to this planning session by the coordinating session). Before recording, `tickets.py spec` reported the current hash as sha256:53f3126f8a92fbaaf5bb874cdfaf90d5107dd1305a6f7efc5ef76b41f9faef06. `gate_approval` changed from "owner 2026-11-21, Gate A on the text as written on PR #95's branch (Q31)" to "owner 2026-11-22, Gate A on the amended text (hash 53f3126f…): Approve Gate A"; `spec_approved` changed from sha256:664d5c3a0b844ef78057e53c216de1711001c867cff0a6165f97edf1ee4e1f60 to sha256:53f3126f8a92fbaaf5bb874cdfaf90d5107dd1305a6f7efc5ef76b41f9faef06. Status stays ready. Decisions needed item 2 is still open and blocks the build.
 - 2026-11-22 claude-code/opus-5.5: recorded the owner's answer to Decisions needed item 2 in plan pull request https://github.com/gh-slee/kurafolio/pull/101. Asked "Has any database outside disposable tests run `operator migrate-ingestion` at `0004`, or been backed up with `backup-ingestion`: no, or yes/unsure?", the owner replied "No, none has" (relayed to this planning session by the coordinating session). That is option (a): the change is made in place at `0004_ingestion`, and this line is the owner's part of the AC-IMP-007O-06 evidence. Updated the Build plan's claim steps and stop points so a builder is no longer held on item 2. Gated sections unchanged; `tickets.py spec` reports MATCHES at sha256:53f3126f8a92fbaaf5bb874cdfaf90d5107dd1305a6f7efc5ef76b41f9faef06.
 - 2026-11-22 codex/gpt-6.1-sol: claimed from origin/main 9a10704 after cleanup and matching amended spec; no persistence changes since the plan base 96eadc2. Baseline hashes match the Build plan and the three pre-change reserve tests passed (3 tests, 0 skips, 4.916s) on disposable PostgreSQL. AC-IMP-007O-06: the owner answered "No, none has" on 2026-11-22 in the preceding planning Log line; `git tag --list` and `gh release list --repo gh-slee/kurafolio` are empty, the build-base Database profiles stop at 0003 and docs still state there is no operational 0004 profile.
+- 2026-11-22 codex/gpt-6.1-sol: implemented only the planned SQL insertion/comment, four gated tests plus static and existing-bind assertions, CI skip count and trusted-API docs. PostgreSQL acceptance PASS: 154 tests, 0 skips/failures/errors in 97.968s, including size/alphabet vectors, exact old-body result comparison, closed Handoff framing and installed-body rejection/recovery. Static suite PASS 18 tests; non-opt-in suite PASS 154 tests with 131 expected skips. Hash and protected-path checks, language and worktree/staged/reachable-history privacy guards PASS. Full Python suite remains running; candidate image, CI and independent reviews remain outstanding. No push or PR.

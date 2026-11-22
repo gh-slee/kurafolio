@@ -1,4 +1,5 @@
 """Fixed ingestion storage structure; this is not full migration acceptance."""
+import base64
 import hashlib
 import importlib.util
 import json
@@ -16,8 +17,42 @@ from kurafolio.persistence import ingestion_schema as schema
 
 ORACLE = json.loads((Path(__file__).parent / 'fixtures/ingestion/oracle.json').read_text())
 
+# IMP-007O: the one insertion into the bind RETURN of reserve_member_v1.
+IMP_007O_ADDED = ("\n  'context_unpadded_base64',pg_catalog.translate(pg_catalog.encode("
+                  "mem.context_bytes,'base64'),pg_catalog.chr(10)||'=',''),")
+# SHA-256 of RESERVE_DDL before IMP-007O. A later ticket that changes another part
+# of reserve_member_v1 replaces this pin with its own pre-change hash or retires the
+# IMP-007O comparison tests; its plan decides which.
+PRE_IMP_007O_RESERVE_SHA256 = 'a697e3798ee898150bf1291773cb154b63680705b7ea845aef48f7217ada2e47'
+# Result keys recorded from the pre-change body (AC-IMP-007O-02).
+BIND_KEYS = frozenset({'version', 'job_id', 'set_id', 'member_id', 'fence', 'raw_sha256', 'raw_bytes',
+                       'context_sha256', 'context_bytes', 'realm_digest', 'expires_at', 'raw_deadline'})
+RESERVE_KEYS = frozenset({'action', 'set_id', 'member_id', 'lease_id', 'fence', 'raw_deadline',
+                          'offer_expires_at'})
+
 
 class IngestionStorageDDLTests(unittest.TestCase):
+    def test_bind_returns_the_context_bytes_under_one_private_key(self):
+        """AC-IMP-007O-01; AC-IMP-007O-02; AC-IMP-007O-03; AC-IMP-007O-04."""
+        from kurafolio.ingestion import contracts
+        ddl = schema.RESERVE_DDL
+        for text in (IMP_007O_ADDED, "'context_unpadded_base64'", "'base64'",
+                     'pg_catalog.encode(mem.context_bytes'):
+            self.assertEqual(1, ddl.count(text))
+        position = ddl.index(IMP_007O_ADDED)
+        self.assertGreater(position, ddl.index('-- Handoff metadata for the trusted API only'))
+        self.assertGreater(position, ddl.index("'offer_expires_at',"))
+        self.assertLess(position, ddl.index("EXCEPTION WHEN SQLSTATE '22023'"))
+        self.assertEqual(PRE_IMP_007O_RESERVE_SHA256,
+                         hashlib.sha256(ddl.replace(IMP_007O_ADDED, '', 1).encode()).hexdigest())
+        frozen = json.loads((Path(__file__).resolve().parents[1] /
+                             'docs/specs/imp-007-r7/wire-contracts.json').read_text())['$defs']
+        for definitions in ({key: json.loads(value) for key, value in contracts._WIRE.items()}, frozen):
+            for definition in definitions.values():
+                self.assertNotIn('context_unpadded_base64', definition.get('properties', {}))
+            self.assertEqual(BIND_KEYS | {'handoff_token'}, set(definitions['Handoff']['properties']))
+        self.assertIsNone(re.search(r'RAISE\s+(NOTICE|LOG|WARNING|INFO|DEBUG)', ddl))
+
     def test_inventory_is_the_exact_closed_contract_and_copy_isolated(self):
         expected = ORACLE['sql-inventory']
         self.assertEqual(expected, schema.inventory())
@@ -347,6 +382,38 @@ class IngestionRuntimeInventoryPostgresTests(unittest.TestCase):
 
     def _assert_clean(self):
         self.assertEqual({'schema_revision': '0004_ingestion', 'functions': 68}, self._check())
+
+    def test_imp_007o_installed_bind_body_with_unchanged_digests(self):
+        """AC-IMP-007O-03: old function bodies fail both live inventory checks."""
+        from kurafolio.persistence.context import execute
+        from kurafolio.persistence.errors import PersistenceError
+        from kurafolio.persistence.ingestion_migration import verify_inventory
+        self._assert_clean()
+        with self.operator.engine.begin() as conn:
+            self.assertEqual({'schema_revision': '0004_ingestion', 'functions': 68},
+                             verify_inventory(conn, **self.arguments))
+            body = execute(conn, "SELECT p.prosrc FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n "
+                           "ON n.oid=p.pronamespace WHERE n.nspname='wl_ingestion' "
+                           "AND p.proname='reserve_member_v1'").scalar_one()
+        self.assertEqual(1, body.count("'context_unpadded_base64'"))
+        old = schema.RESERVE_DDL.replace(IMP_007O_ADDED, '', 1)
+        self.assertEqual(PRE_IMP_007O_RESERVE_SHA256, hashlib.sha256(old.encode()).hexdigest())
+        replace = lambda ddl: ddl.replace('CREATE FUNCTION ', 'CREATE OR REPLACE FUNCTION ', 1)
+        try:
+            with self.operator.engine.begin() as conn:
+                conn.exec_driver_sql(replace(old), execution_options={'no_parameters': True})
+            with self.assertRaisesRegex(PersistenceError, '^migration_target_invalid$'):
+                self._check()
+            with self.operator.engine.begin() as conn:
+                with self.assertRaisesRegex(PersistenceError, '^migration_target_invalid$'):
+                    verify_inventory(conn, **self.arguments)
+        finally:
+            with self.operator.engine.begin() as conn:
+                conn.exec_driver_sql(replace(schema.RESERVE_DDL), execution_options={'no_parameters': True})
+            self._assert_clean()
+            with self.operator.engine.begin() as conn:
+                self.assertEqual({'schema_revision': '0004_ingestion', 'functions': 68},
+                                 verify_inventory(conn, **self.arguments))
 
     def test_ac_01_02_equal_inventory_and_unchanged_privileges(self):
         """AC-IMP-007W-01; AC-IMP-007W-02: same catalog, no rights changed."""
@@ -4049,6 +4116,129 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
         "l.work_kind='normalize'),'raw',(SELECT pg_catalog.jsonb_build_array(used_count,lease_count) FROM wl_ingestion.quotas "
         "WHERE bucket='raw'))::text;")
 
+    def context_update(self, expression):
+        return ("SET LOCAL session_replication_role=replica;UPDATE wl_ingestion.members m "
+                "SET context_bytes=v.b,context_digest=pg_catalog.encode(pg_catalog.sha256(v.b),'hex') "
+                "FROM (SELECT " + expression + " AS b) v WHERE m.id=" + self.NEW_MEMBER +
+                "::uuid;SET LOCAL session_replication_role=origin;")
+
+    STORED = ("SELECT 'STORED '||pg_catalog.jsonb_build_object('hex',pg_catalog.encode(m.context_bytes,'hex'),"
+              "'digest',m.context_digest)::text FROM wl_ingestion.members m JOIN wl_ingestion.sets x "
+              "ON x.id=m.set_id WHERE x.state='RECEIVING' ORDER BY m.ordinal LIMIT 1;")
+
+    def test_bind_returns_the_stored_context_bytes_for_the_worker_frame(self):
+        """AC-IMP-007O-01; AC-IMP-007O-04: exact bytes and closed Handoff framing."""
+        from kurafolio.ingestion.codec import encode
+        from kurafolio.ingestion.contracts import IngestionError
+        from kurafolio.ingestion.runner_client import pack_input
+        raw = b'synthetic,raw\n'
+        token = 'ab' * 32
+        token_digest = hashlib.sha256(bytes.fromhex(token)).hexdigest()
+        plan, pin, seed, catalog = self.reserve_seed()
+        out = self.run_labelled(seed + self.reserve_call('reserve', catalog) +
+            self.reserve_call('bind', catalog, action='bind', raw_sha256="'" + hashlib.sha256(raw).hexdigest() + "'",
+                              raw_bytes=str(len(raw)), handoff_token_digest="'" + token_digest + "'") + self.STORED)
+        self.assertTrue(out['BIND']['ok'])
+        value = out['BIND']['value']
+        self.assertEqual(BIND_KEYS | {'context_unpadded_base64'}, set(value))
+        ctx = bytes.fromhex(out['STORED']['hex'])
+        self.assertGreater(len(ctx), 57)
+        encoded = value['context_unpadded_base64']
+        self.assertRegex(encoded, r'^[A-Za-z0-9+/]+$')
+        self.assertNotIn('\n', encoded)
+        self.assertNotIn('=', encoded)
+        self.assertEqual(base64.b64encode(ctx).decode().rstrip('='), encoded)
+        self.assertEqual(ctx, base64.b64decode(encoded + '=' * (-len(encoded) % 4), validate=True))
+        self.assertEqual(hashlib.sha256(ctx).hexdigest(), value['context_sha256'])
+        self.assertEqual(out['STORED']['digest'], value['context_sha256'])
+        self.assertEqual(len(ctx), value['context_bytes'])
+        for secret in (token, token_digest, raw.hex()):
+            self.assertNotIn(secret, json.dumps(out['BIND']))
+        self.assertNotIn('handoff_token', value)
+        metadata = {key: item for key, item in value.items() if key != 'context_unpadded_base64'}
+        metadata['handoff_token'] = token
+        frame = pack_input(metadata, ctx, raw, schema='Handoff')
+        self.assertTrue(frame.endswith(ctx + raw))
+        self.assertEqual(len(encode(metadata)), int.from_bytes(frame[:4], 'big'))
+        with self.assertRaises(IngestionError):
+            pack_input({**metadata, 'context_unpadded_base64': encoded}, ctx, raw, schema='Handoff')
+
+    def test_bind_returns_context_bytes_at_the_size_bounds(self):
+        """AC-IMP-007O-01; AC-IMP-007O-05: exact 1-byte through 1-MiB vectors."""
+        job = '90000000-0000-4000-8000-00000000a001'
+        large = ('{"job_id":"' + job + '","x":"' + 'a' * 1048520 + '"}').encode()
+        large_sql = ("pg_catalog.convert_to('{\"job_id\":\"" + job + "\",\"x\":\"'||"
+                     "pg_catalog.repeat('a',1048520)||'\"}','UTF8')")
+        cases = (
+            (b'7', 'Nw', '7902699be42c8a8e46fbbb4501726517e86b22c56a189f7625a6da49081b2451'),
+            (b'12', 'MTI', '6b51d431df5d7f141cbececcf79edf3dd861c3b4069f0b11661a3eefacbba918'),
+            (b'123', 'MTIz', 'a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3'),
+            (bytes.fromhex('22dfbf22'), 'It+/Ig', '96f88d3928c2796bc818c6fc1e7e77602e02d53cc796b5187cabab09ced06a07'),
+            (large, base64.b64encode(large).decode().rstrip('='),
+             'eefc21395b5b6c4f8b8b03b673c889e05029c574b1339d9d3020a0212a91bb43'))
+        for context, expected, digest in cases:
+            with self.subTest(size=len(context)):
+                expression = large_sql if len(context) == 1048576 else "pg_catalog.decode('" + context.hex() + "','hex')"
+                plan, pin, seed, catalog = self.reserve_seed()
+                out = self.run_labelled(seed + self.reserve_call('reserve', catalog) + self.context_update(expression) +
+                                        self.reserve_call('bind', catalog, action='bind'))
+                self.assertTrue(out['BIND']['ok'])
+                value = out['BIND']['value']
+                encoded = value['context_unpadded_base64']
+                self.assertEqual(expected, encoded)
+                self.assertEqual(len(context), value['context_bytes'])
+                self.assertEqual(digest, value['context_sha256'])
+                self.assertEqual(job if len(context) == 1048576 else None, value['job_id'])
+                self.assertEqual(context, base64.b64decode(encoded + '=' * (-len(encoded) % 4), validate=True))
+                if len(context) == 1048576:
+                    self.assertEqual(1398102, len(encoded))
+                    self.assertTrue(encoded.startswith('eyJqb2JfaWQiOiI5MDAwMDAw'))
+                    self.assertTrue(encoded.endswith('FhYWEifQ'))
+                    self.assertIsNotNone(re.fullmatch('[A-Za-z0-9+/]+', encoded))
+
+    def test_bind_and_reserve_match_the_pre_change_body_except_the_new_key(self):
+        """AC-IMP-007O-02: compare successful results and refusals with the old body."""
+        old = schema.RESERVE_DDL.replace(IMP_007O_ADDED, '', 1)
+        self.assertEqual(PRE_IMP_007O_RESERVE_SHA256, hashlib.sha256(old.encode()).hexdigest())
+        old = old.replace('CREATE FUNCTION ', 'CREATE OR REPLACE FUNCTION ', 1)
+        plan, pin, seed, catalog = self.reserve_seed()
+        deadline = ("SET LOCAL session_replication_role=replica;UPDATE wl_ingestion.members SET "
+                    "raw_deadline=pg_catalog.clock_timestamp()+interval '20 seconds' WHERE id=" + self.NEW_MEMBER +
+                    "::uuid;SET LOCAL session_replication_role=origin;")
+        out = self.run_labelled(seed + self.reserve_call('reserve', catalog) + deadline + 'SAVEPOINT imp007o;' +
+            self.reserve_call('new', catalog, action='bind') + self.reserve_call('newagain', catalog, action='bind') +
+            'ROLLBACK TO SAVEPOINT imp007o;' + old + self.reserve_call('old', catalog, action='bind') +
+            self.reserve_call('oldagain', catalog, action='bind'))
+        self.assertTrue(out['NEW']['ok'] and out['OLD']['ok'])
+        self.assertEqual(BIND_KEYS, set(out['OLD']['value']))
+        self.assertEqual(out['OLD']['value'],
+                         {key: value for key, value in out['NEW']['value'].items() if key != 'context_unpadded_base64'})
+        for label in ('NEWAGAIN', 'OLDAGAIN'):
+            self.assertEqual({'ok': False, 'code': 'import_conflict'}, out[label])
+        plan, pin, seed, catalog = self.reserve_seed()
+        calls = lambda prefix: (self.reserve_call(prefix + 'reserve', catalog) +
+            self.reserve_call(prefix + 'busy', catalog) +
+            self.reserve_call(prefix + 'fence', catalog, action='bind', fence="'2'") +
+            self.reserve_call(prefix + 'bad', catalog, action='bind', raw_sha256="'XYZ'"))
+        out = self.run_labelled(seed + 'SAVEPOINT imp007o;' + old + calls('old') +
+                               'ROLLBACK TO SAVEPOINT imp007o;' + calls('new'))
+        old_value, new_value = (out[label]['value'] for label in ('OLDRESERVE', 'NEWRESERVE'))
+        for value in (old_value, new_value):
+            self.assertEqual(RESERVE_KEYS, set(value))
+            self.assertEqual('reserve', value['action'])
+            self.assertEqual('1', value['fence'])
+            self.assertEqual(str(uuid.UUID(value['lease_id'])), value['lease_id'])
+            for key in ('raw_deadline', 'offer_expires_at'):
+                from kurafolio.ingestion.codec import validate
+                self.assertEqual(value[key], validate(value[key], 'Instant'))
+                self.assertEqual(6, value[key]['fractional_digits'])
+        self.assertNotEqual(old_value['lease_id'], new_value['lease_id'])
+        for key in ('action', 'set_id', 'member_id', 'fence'):
+            self.assertEqual(old_value[key], new_value[key])
+        for suffix, code in (('BUSY', 'import_busy'), ('FENCE', 'import_stale'), ('BAD', 'import_invalid')):
+            self.assertEqual({'ok': False, 'code': code}, out['OLD' + suffix])
+            self.assertEqual(out['OLD' + suffix], out['NEW' + suffix])
+
     def test_reserve_then_bind_opens_one_bounded_attempt_and_hands_off_metadata(self):
         plan, pin, seed, catalog = self.reserve_seed()
         context = ("SELECT 'CTX '||pg_catalog.jsonb_build_object('job',pg_catalog.convert_from(m.context_bytes,'UTF8')::jsonb->>'job_id',"
@@ -4070,6 +4260,7 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
         self.assertEqual(out['RSTATE'], out['RAGAIN'])
         self.assertEqual({'ok': False, 'code': 'import_stale'}, out['WRONGFENCE'])
         handoff = out['BIND']['value']
+        self.assertEqual(BIND_KEYS | {'context_unpadded_base64'}, set(handoff))
         self.assertTrue(out['BIND']['ok'], out['BIND'])
         self.assertEqual((1, out['CTX']['job'], '1', '5' * 64, 1234, out['CTX']['digest'], out['CTX']['length'], out['CTX']['realm']),
                          (handoff['version'], handoff['job_id'], handoff['fence'], handoff['raw_sha256'], handoff['raw_bytes'],
