@@ -65,12 +65,12 @@ def function_ddl():
     ))
 
 
-def _checked_roles(conn, roles):
+def _checked_roles(conn, roles, *, owner=None):
     from .context import execute
     from .errors import PersistenceError
     from .migration import _operator, _role
 
-    owner = _operator(conn)
+    owner = _operator(conn) if owner is None else owner
     if len({owner, *roles}) != 4:
         raise PersistenceError("migration_role_required")
     quoted_roles = {role: _role(role) for role in roles}
@@ -311,7 +311,7 @@ EXPECTED_STRUCTURE_SHA256 = "bfa65a6614b9c31be0acbaf2ee4ead29cfc814f18eae2b89267
 EXPECTED_RESTORED_STRUCTURE_SHA256 = "7008e006523e3bb88f72b7816061f4658f1eade29958c411ecf78479608e7d67"
 
 
-def verify_grants(conn, runtime_role, gateway_role, worker_role, *, quarantined=False):
+def verify_grants(conn, runtime_role, gateway_role, worker_role, *, quarantined=False, owner=None):
     """Reject extra ACLs, grant options, role powers, or missing grants."""
     from . import identity_schema
     from .context import execute
@@ -319,7 +319,7 @@ def verify_grants(conn, runtime_role, gateway_role, worker_role, *, quarantined=
     from .schema import ddl
 
     roles = (runtime_role, gateway_role, worker_role)
-    owner, _ = _checked_roles(conn, roles)
+    owner, _ = _checked_roles(conn, roles, owner=owner)
     expected = set()
     for role, namespaces in (
         (runtime_role, ("wl_pg", "wl_sources", "wl_ingestion")),
@@ -395,13 +395,22 @@ def verify_inventory(conn, *, runtime_role, gateway_role, worker_role, quarantin
     """Verify the explicit 0004 catalog before enabling the profile."""
     from .context import execute
     from .errors import PersistenceError
-    from .migration import _identity_target_inventory, _operator
-    from .source_migration import EXPECTED_STRUCTURE_SHA256 as SOURCE_STRUCTURE_SHA256
-    from .source_migration import structure_digest as source_structure_digest
+    from .migration import _operator
 
     if execute(conn, "SELECT version_num FROM wl_pg.alembic_version").scalars().all() != [ingestion.REVISION]:
         raise PersistenceError("schema_unsupported")
     owner = _operator(conn)
+    return _verify_installed(conn, owner, runtime_role=runtime_role, gateway_role=gateway_role,
+                             worker_role=worker_role, quarantined=quarantined)
+
+
+def _verify_installed(conn, owner, *, runtime_role, gateway_role, worker_role, quarantined):
+    from .context import execute
+    from .errors import PersistenceError
+    from .migration import _identity_target_inventory
+    from .source_migration import EXPECTED_STRUCTURE_SHA256 as SOURCE_STRUCTURE_SHA256
+    from .source_migration import structure_digest as source_structure_digest
+
     namespaces = execute(conn, """
         SELECT nspname,pg_catalog.pg_get_userbyid(nspowner)
         FROM pg_catalog.pg_namespace
@@ -417,8 +426,51 @@ def verify_inventory(conn, *, runtime_role, gateway_role, worker_role, quarantin
                 EXPECTED_RESTORED_STRUCTURE_SHA256 if quarantined else EXPECTED_STRUCTURE_SHA256)):
         raise PersistenceError("migration_target_invalid")
     functions = verify_functions(conn)
-    verify_grants(conn, runtime_role, gateway_role, worker_role, quarantined=quarantined)
+    verify_grants(conn, runtime_role, gateway_role, worker_role, quarantined=quarantined, owner=owner)
     return {"schema_revision": ingestion.REVISION, "functions": functions}
+
+
+def _runtime_owner(conn, *, runtime_role, gateway_role, worker_role):
+    from .context import execute
+    from .errors import PersistenceError
+    from .migration import _role
+
+    for role in (runtime_role, gateway_role, worker_role):
+        _role(role)
+    if not 180000 <= execute(conn, "SELECT current_setting('server_version_num')::integer").scalar_one() < 190000:
+        raise PersistenceError("schema_unsupported")
+    if execute(conn, "SELECT current_user").scalar_one() != runtime_role:
+        raise PersistenceError("migration_role_required")
+    namespaces = execute(conn, """
+        SELECT nspname,pg_catalog.pg_get_userbyid(nspowner)
+        FROM pg_catalog.pg_namespace
+        WHERE nspname IN ('wl_pg','wl_identity','wl_sources','wl_ingestion')
+    """).all()
+    owners = {row[1] for row in namespaces}
+    if len(namespaces) != 4 or len(owners) != 1:
+        raise PersistenceError("migration_target_invalid")
+    owner = owners.pop()
+    if len({owner, runtime_role, gateway_role, worker_role}) != 4:
+        raise PersistenceError("migration_role_required")
+    return owner
+
+
+def verify_runtime_inventory(conn, *, runtime_role, gateway_role, worker_role):
+    """Read-only inventory for the runtime login; operators use verify_inventory."""
+    from sqlalchemy.exc import SQLAlchemyError
+
+    from .context import execute
+    from .errors import PersistenceError
+
+    try:
+        owner = _runtime_owner(conn, runtime_role=runtime_role, gateway_role=gateway_role,
+                               worker_role=worker_role)
+        if execute(conn, "SELECT version_num FROM wl_pg.alembic_version").scalars().all() != [ingestion.REVISION]:
+            raise PersistenceError("schema_unsupported")
+        return _verify_installed(conn, owner, runtime_role=runtime_role, gateway_role=gateway_role,
+                                 worker_role=worker_role, quarantined=False)
+    except SQLAlchemyError:
+        raise PersistenceError("migration_target_invalid") from None
 
 
 def migrate_ingestion(database, runtime_role, gateway_role, worker_role, key_digest, catalog,

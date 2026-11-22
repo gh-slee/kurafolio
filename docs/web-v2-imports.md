@@ -405,6 +405,11 @@ for tracking and reports. Existing Web/CLI workspaces remain on SQLite.
   IMP-007D verifies the installed functions and grants.
 ## Explicit 0004 installation
 
+For API readiness on a `0004` target, `verify_runtime_inventory` checks the exact
+installed inventory through the runtime role's own login with its existing rights.
+It only reads; `verify_inventory` remains an operator check requiring database
+CREATE. IMP-007E is planned to call it from `/readyz`; no application calls it yet.
+
 The operator command installs the schema on a verified PostgreSQL 18
 `0003_source_lifecycle` instance with completed identity setup. Use a synthetic
 instance and separate operator, financial reader, identity/source gateway and

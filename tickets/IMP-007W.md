@@ -2,7 +2,7 @@
 id: IMP-007W
 title: Add a runtime-role readiness check of the 0004 ingestion inventory
 priority: P0
-status: ready
+status: done
 type: feature
 parent: IMP-007
 depends_on: [IMP-007D]
@@ -13,8 +13,8 @@ agent_tier: frontier
 gate: owner
 gate_approval: "owner 2026-11-21, IMP-007W spec as written (hash 69f601c8…)"
 review: independent
-branch: 
-pr: 
+branch: ticket/imp-007w-add-a-runtime-role-readiness-check-of-th
+pr: https://github.com/gh-slee/kurafolio/pull/96
 spec: docs/specs/imp-007-r7/spec.md
 spec_approved: sha256:69f601c821550d5e487bb972ab128e3a8e71d1bce1ed8110081dba13426f7094
 updated: 2026-11-21
@@ -189,10 +189,10 @@ Negative cases the reviewer will look for:
 ## Plan
 
 - [x] Gate A: the owner approves Goal, Requirements and Acceptance criteria.
-- [ ] Step 0: probe catalog visibility through the runtime login; stop on any difference.
-- [ ] Owner keyword on `_checked_roles` and `verify_grants`; `_verify_installed`; `_runtime_owner`; `verify_runtime_inventory`.
-- [ ] Real-PostgreSQL class and unit tests, one per AC; CI skip count.
-- [ ] Docs; full suite, focused PostgreSQL run, language and publication checks; pull request with independent review.
+- [x] Step 0: probe catalog visibility through the runtime login; stop on any difference.
+- [x] Owner keyword on `_checked_roles` and `verify_grants`; `_verify_installed`; `_runtime_owner`; `verify_runtime_inventory`.
+- [x] Real-PostgreSQL class and unit tests, one per AC; CI skip count.
+- [x] Docs; full suite, focused PostgreSQL run, language and publication checks; pull request with independent review.
 
 ## Decisions needed
 
@@ -200,13 +200,19 @@ Negative cases the reviewer will look for:
 
 ## Handoff
 
-- State: Filed on 2026-11-21 in plan pull request #93, with a Build plan. The owner gave Gate A on 2026-11-21 (Decisions needed, item 1); status `ready` once #93 merges. Not started.
-- Next step: After Gate A is on `main`, run step 0 of the Build plan before writing code.
-- Verify: `KURAFOLIO_INGESTION_TEST=1 PYTHONPATH=src .venv/bin/python -m unittest tests.test_postgres_migration -v`, in a virtual environment with `requirements-pg-test.lock`; environment setup in [postgres-foundation.md](../docs/postgres-foundation.md) and [web-v2-imports.md](../docs/web-v2-imports.md).
-- Gotchas: The runtime login sees the catalog but not `wl_identity` tables; the gateway login cannot read `wl_pg`. Drift cases must commit, because the check runs on another connection.
-- Open questions: none.
+- State: [PR #96](https://github.com/gh-slee/kurafolio/pull/96) at fc2b1f9 received the [Claude Opus 5.5 independent QA/Architect review](https://github.com/gh-slee/kurafolio/pull/96#issuecomment-7074265972): "Approve, once F1 is fixed or answered", with all eight ACs passing. [F1 is answered](https://github.com/gh-slee/kurafolio/pull/96#issuecomment-7074297561) by the owner's original clarification and the resolved-deviation Log below. This first review repair round strengthens the privilege snapshot with role attributes/memberships, corrects the planned readiness wording and test formatting, and updates review records. Runtime code, SQL, grants, providers and digests are unchanged. Developer targeted retests passed 22 unit/DDL tests and five isolated PostgreSQL tests, with zero skips.
+- Next step: Finish the exact-commit candidate/privacy gates and obtain approval for this review-repair push, complete PR description and remaining nit response. Then verify new-head CI before owner review. Keep the claim until owner merge and all follow-ups are complete.
+- Verify: `KURAFOLIO_INGESTION_TEST=1 PYTHONPATH=src <pg-test-python> -m unittest tests.test_postgres_migration.IngestionRuntimeInventoryPostgresTests -v`; `PYTHONPATH=src <pg-test-python> -m unittest tests.test_postgres_migration.IngestionRuntimeInventoryUnitTests tests.test_postgres_migration.IngestionStorageDDLTests -v`; `python3 scripts/tickets.py spec IMP-007W --base origin/main`; `python3 scripts/tickets.py pr-check --branch ticket/imp-007w-add-a-runtime-role-readiness-check-of-th`; `python3 scripts/check_pr_image.py`. Local evidence is under `work/imp-007w/`; exact-HEAD candidate receipts are under `work/pr-images/`.
+- Gotchas: The independent review covered fc2b1f9, ran 22 local unit/DDL tests, and relied on that head's successful CI for real PostgreSQL; it did not repeat Step 0, the full default suite, image or publication gates. This follow-up has developer retests and has not been independently retested. The nine-job [CI baseline](https://github.com/gh-slee/kurafolio/actions/runs/44961654998) applies to fc2b1f9, not an unpushed repair commit. F1 preserves internal Python `__context__`; only the error string and normal suppressed traceback rendering omit driver details. Reporters must not assume the context object is empty. No merge or deployment has occurred.
+- Open questions: none. N3's swapped gateway/runtime configuration still fails closed with `migration_target_invalid`; IMP-007E owns any additional configuration validation. No API/readiness behavior is changed here.
 
 ## Log
 
 - 2026-11-21 claude-code/opus-5.5: filed from the owner's answer "New prerequisite ticket" to IMP-007E Decisions needed item 7, with a frontier Build plan from `main` at `cd68c5e`, in plan pull request https://github.com/gh-slee/kurafolio/pull/93. Spec hash at filing sha256:69f601c821550d5e487bb972ab128e3a8e71d1bce1ed8110081dba13426f7094, awaiting the owner's Gate A. Status backlog; no Gate A yet.
 - 2026-11-21 claude-code/opus-5.5: recorded Gate A, as relayed from the owner's conversation by the coordinating session. The owner was asked "Approve IMP-007W's spec (hash 69f601c8…) for Gate A?", with the full hash sha256:69f601c821550d5e487bb972ab128e3a8e71d1bce1ed8110081dba13426f7094 stated, and answered "Approve". `spec_approved` records that hash, `gate_approval` adds "owner 2026-11-21, IMP-007W spec as written (hash 69f601c8…)", status changes from backlog to ready, and Decisions needed item 1 is resolved. The gated text is unchanged since filing, so the Build plan was written against the approved text.
+- 2026-11-21 codex/gpt-6.1-sol: claimed the merged Build plan at 1a6ff31 after confirming approved spec hash sha256:69f601c821550d5e487bb972ab128e3a8e71d1bce1ed8110081dba13426f7094. Starting the required catalog-visibility probe before implementation.
+- 2026-11-21 codex/gpt-6.1-sol: Step 0 passed all six operator/runtime comparisons on one synthetic PostgreSQL 18 target; AC-07 matched the approved expected results. Added the exact runtime-only inventory interface and owner-aware shared helpers without changing SQL providers, grants or frozen digests. New unit tests 5/5 and real-PostgreSQL tests 5/5 passed. The owner clarified the exception test: preserve `raise ... from None` and require the original driver traceback to be hidden; internal Python `__context__` retention is allowed. Gated sections and Build plan are unchanged.
+- 2026-11-21 codex/gpt-6.1-sol: committed the implementation as d6dd601. Full ingestion migration module passed 149 tests with zero skips in 97.200 seconds; the default developer suite ran 1,395 tests in 814.507 seconds with 1,142 passing and 253 skips. Existing assertions, protected functions, SQL providers, grants and digest constants are unchanged. Language, worktree/staged publication and approved-spec checks passed. Preparing exact-commit candidate-image validation; independent review and CI remain NOT RUN, with no push or PR.
+- 2026-11-21 codex/gpt-6.1-sol: after explicit approval, pushed exactly e74bf79, d6dd601 and 134bd3b and opened https://github.com/gh-slee/kurafolio/pull/96 with independent review marked NOT RUN. Preparing this local ticket-only completion-metadata commit for the own-ticket CI gate; its push requires separate approval. Outcome: implementing model codex/gpt-6.1-sol; reviewing model claude-code/opus-5.5, NOT RUN because unavailable in this Codex session; review repair rounds 0; missing from spec/Build plan: the unit-test phrase about exception context needed owner clarification, preserving `raise ... from None` and suppressed driver traceback while allowing internal Python `__context__`. No other behavior, data or interface choice was missing. Independent review and owner merge remain outstanding.
+- 2026-11-21 codex/gpt-6.1-sol: resolved review deviation F1 using the owner's prior Traditional Chinese reply, quoted verbatim in [the F1 response](https://github.com/gh-slee/kurafolio/pull/96#issuecomment-7074297561). English translation, not verbatim English owner wording: "Keep `from None`; require the original traceback to be hidden (recommended)." The question disclosed that internal Python `__context__` remains attached and offered complete context removal through a planner change; the owner selected suppression. The prescribed runtime behavior is unchanged: `__cause__` is None and normal traceback rendering suppresses the driver exception, while `__context__` can still contain the SQLAlchemy statement and parameters. This explicitly resolves the test-table phrase "with no cause or context attached" without changing the gated spec or Build plan.
+- 2026-11-21 codex/gpt-6.1-sol: addressed N1 with role-attribute and membership snapshots, N2 with future-tense readiness documentation, N4/N5 with current Handoff and review Plan completion, N6 with concrete synthetic probe values in the prepared PR body, and N7 with test import/spacing cleanup. N3 remains an IMP-007E configuration concern; no other ticket or runtime behavior changed. Developer retests: 22 unit/DDL tests and five isolated PostgreSQL tests passed, zero skips. Outcome: implementing model codex/gpt-6.1-sol; reviewing model claude-code/opus-5.5, reviewed fc2b1f9 with all eight ACs passing and verdict "Approve, once F1 is fixed or answered"; F1 answered by the linked owner clarification; review repair rounds 1; missing from spec/Build plan: the conflicting exception-context test wording was resolved by the owner as recorded above. This repair revision has not been independently retested.
