@@ -463,6 +463,166 @@ assert not any(name in sys.modules for name in ('kurafolio.source_report', 'kura
         self.assertTrue(all(value is None for value in result.classes['crypto'].complete_total.values()))
         self.assertEqual(result.classes['crypto'].unknown_value_count, 1)
 
+    def test_ac_anl_008_03_04_signed_cash_totals(self):
+        """AC-ANL-008-03 AC-ANL-008-04: Decision 13 signed-cash literal oracles."""
+        signed = position('signed-cash', CASH, '-50', '-50', None, 'CAD',
+                          unsupported_reasons=('signed_position',))
+        for extra, cash_values, cad, usd, twd in (
+            ((), {'CAD': None, 'USD': None, 'TWD': None}, '4720',
+             '3371.428571428571428571', '107885.714285714285714286'),
+            ((position('usd-cash', replace(CASH, id='usd', currency='USD'), '100', '100', None),),
+             {'CAD': D(140), 'USD': D(100), 'TWD': D(3200)}, '4860',
+             '3471.428571428571428571', '111085.714285714285714286'),
+        ):
+            with self.subTest(extra=bool(extra)):
+                holdings = (head((*securities()[0].positions, signed, *extra)),)
+                result = self.calc(holdings=holdings)
+                item = next(p for p in result.positions if p.instrument_id == 'cad')
+                self.assertEqual(item.quantity, D(-50))
+                self.assertEqual(signed.market_value, Money(D(-50), 'CAD'))
+                self.assertIsNone(item.value)
+                self.assertIsNone(item.value_basis)
+                self.assertIsNone(item.value_as_of)
+                self.assertTrue(all(v is None for v in item.values.values()))
+                self.assertIsNone(item.cost)
+                self.assertEqual(item.cost_status, 'not_applicable')
+                self.assertIsNone(item.unrealized_gain)
+                self.assertTrue(all(v is None for v in item.gain_values.values()))
+                self.assertEqual(item.codes, ())
+                self.assertEqual([(g.code, g.account_id, g.instrument_id) for g in result.gaps],
+                                 [('valuation_not_implemented', 'broker', 'cad')])
+                cash = result.classes['cash']
+                self.assertEqual(cash.position_count, 1 + len(extra))
+                self.assertEqual(cash.known_subtotal, cash_values)
+                self.assertTrue(all(v is None for v in cash.complete_total.values()))
+                self.assertEqual(cash.unknown_value_count, 1)
+                self.assertEqual(cash.native_known, {'USD': D(100)} if extra else {})
+                self.assertEqual(result.classes['securities'].complete_total['CAD'], D(2200))
+                self.assertEqual(result.classes['crypto'].complete_total['CAD'], D(2520))
+                self.assertEqual(result.total.known_subtotal['CAD'], D(cad))
+                self.assertEqual(result.total.known_subtotal['USD'].quantize(D('.000000000000000001')), D(usd))
+                self.assertEqual(result.total.known_subtotal['TWD'].quantize(D('.000000000000000001')), D(twd))
+                self.assertTrue(all(v is None for v in result.total.complete_total.values()))
+                self.assertEqual(result.total.unknown_value_count, 1)
+                document = to_document(result)
+                self.assertEqual(next(p['quantity'] for p in document['positions'] if p['instrument_id'] == 'cad'), '-50')
+
+    def test_ac_anl_008_04_signed_cash_without_fx(self):
+        """AC-ANL-008-04: unvalued cash never attempts FX conversion."""
+        usd = replace(CASH, id='usd', currency='USD')
+        signed = position('signed-usd', usd, '-100', '-100', None,
+                          unsupported_reasons=('signed_position',))
+        result = self.calc((), (head((signed,)),), replace(inputs(), fx=None))
+        self.assertEqual([g.code for g in result.gaps], ['valuation_not_implemented'])
+        for total in (result.classes['cash'], result.total):
+            self.assertTrue(all(v is None for v in total.known_subtotal.values()))
+            self.assertTrue(all(v is None for v in total.complete_total.values()))
+            self.assertEqual(total.unknown_value_count, 1)
+            self.assertEqual(total.native_known, {})
+
+    def test_ac_anl_008_04_signed_crypto_oracles(self):
+        """AC-ANL-008-04: signed BTC/LBTC never net down tracked acquisitions."""
+        for instrument in (BTC, replace(BTC, id='lbtc', symbol='LBTC', network='liquid')):
+            for quoted in (True, False):
+                with self.subTest(symbol=instrument.symbol, quoted=quoted):
+                    signed = position('signed-coin', instrument, '-0.010', '-600', None,
+                                      unsupported_reasons=('signed_position',))
+                    valuation = inputs() if quoted else replace(inputs(), crypto_quotes={})
+                    result = self.calc(holdings=(head((signed,)),), valuation=valuation)
+                    item = next(p for p in result.positions if p.account_id == 'broker')
+                    self.assertEqual(item.quantity, D('-0.010'))
+                    self.assertTrue(item.btc_equivalent)
+                    self.assertIsNone(item.value)
+                    self.assertIsNone(item.value_basis)
+                    self.assertIsNone(item.value_as_of)
+                    self.assertTrue(all(v is None for v in item.values.values()))
+                    self.assertIsNone(item.cost)
+                    self.assertEqual(item.cost_status, 'unavailable')
+                    self.assertIsNone(item.unrealized_gain)
+                    self.assertTrue(all(v is None for v in item.gain_values.values()))
+                    self.assertEqual(item.codes, ())
+                    self.assertEqual({g.code for g in result.gaps if g.account_id == 'broker'},
+                                     {'valuation_not_implemented', 'cost_unavailable'})
+                    crypto = result.classes['crypto']
+                    self.assertEqual(crypto.position_count, 2)
+                    self.assertEqual(crypto.known_subtotal, {'CAD': D(2520), 'USD': D(1800), 'TWD': D(57600)}
+                                     if quoted else {'CAD': None, 'USD': None, 'TWD': None})
+                    self.assertTrue(all(v is None for v in crypto.complete_total.values()))
+                    self.assertEqual(crypto.unknown_value_count, 1 if quoted else 2)
+                    self.assertEqual(crypto.native_known, {'USD': D(1800)} if quoted else {})
+                    self.assertIsNone(result.crypto.btc_equivalent_quantity)
+                    self.assertTrue(all(v is None for v in result.total.complete_total.values()))
+                    self.assertIn('acquisitions_assumed_held', result.assumptions)
+                    self.assertEqual({g.code for g in result.gaps if g.account_id == 'exchange'},
+                                     set() if quoted else {'quote_unavailable'})
+
+    def test_ac_anl_008_02_04_signed_exclusions_and_supported_zero(self):
+        """AC-ANL-008-02 AC-ANL-008-04: Decision 13 does not change exclusions or supported zero."""
+        balance = position('signed-balance', BTC, '-0.010', cost=None, account=EXCHANGE,
+                           unsupported_reasons=('signed_position',))
+        result = self.calc(holdings=(head((balance,), EXCHANGE),))
+        self.assertEqual(result.crypto.excluded['balance_observation'], 1)
+        self.assertEqual(result.crypto.btc_equivalent_quantity, D('.030'))
+        self.assertEqual(result.classes['crypto'].complete_total['CAD'], D(2520))
+        self.assertEqual(result.gaps, ())
+        funding = replace(BROKER, id='funding', role='funding')
+        signed_cash = position('funding-cash', CASH, '-50', cost=None, account=funding,
+                               unsupported_reasons=('signed_position',))
+        result = self.calc((), (head((signed_cash,), funding),))
+        self.assertEqual(result.positions, ())
+        self.assertEqual(result.gaps, ())
+        self.assertEqual(result.classes['cash'].position_count, 0)
+        zero = position('zero-cash', CASH, '-0.0000', cost=None)
+        result = self.calc((), (head((*securities()[0].positions, zero)),))
+        item = next(p for p in result.positions if p.instrument_id == 'cad')
+        self.assertEqual(item.value, Money(D(0), 'CAD'))
+        self.assertEqual(item.value_basis, 'par')
+        self.assertEqual(result.classes['cash'].complete_total, {'CAD': D(0), 'USD': D(0), 'TWD': D(0)})
+        self.assertEqual(result.total.complete_total['CAD'], D(2200))
+        self.assertEqual(result.gaps, ())
+
+    def test_ac_anl_008_04_reasons_guard_precedes_all_valuation(self):
+        """AC-ANL-008-04: positive/negative reason-bearing holdings never look up quotes."""
+        class NoQuoteLookup(dict):
+            def get(self, *args):
+                raise AssertionError('unsupported holding looked up a quote')
+        valuation = replace(inputs(), security_quotes=NoQuoteLookup(), crypto_quotes=NoQuoteLookup(), fx=None)
+        for instrument, quantity, cost in ((CASH, '50', None), (BTC, '.010', None),
+                                           (A, '-3', '800'), (BTC, '-.010', '125')):
+            with self.subTest(kind=instrument.kind, quantity=quantity, cost=cost):
+                signed = position('reason-bearing', instrument, quantity, cost=cost,
+                                  unsupported_reasons=('signed_position',))
+                result = self.calc((), (head((signed,)),), valuation)
+                item, = result.positions
+                self.assertEqual(item.quantity, D(quantity))
+                self.assertIsNone(item.value)
+                self.assertTrue(all(v is None for v in item.values.values()))
+                self.assertEqual(item.codes, ())
+                self.assertEqual({g.code for g in result.gaps}, {'valuation_not_implemented', 'cost_unavailable'}
+                                 if instrument.kind == 'CRYPTO' and cost is None else {'valuation_not_implemented'})
+                if instrument.kind == 'CASH':
+                    self.assertEqual(item.cost_status, 'not_applicable')
+                elif cost is not None:
+                    self.assertEqual(item.cost, Money(D(cost), 'USD'))
+                    self.assertEqual(item.cost_status, 'known')
+                if instrument.kind == 'CRYPTO':
+                    self.assertIsNone(result.crypto.btc_equivalent_quantity)
+        unsupported = replace(BTC, kind='UNSUPPORTED')
+        result = self.calc((), (head((position('unsupported', unsupported, '-.010', cost=None,
+                                             unsupported_reasons=('signed_position',)),)),), valuation)
+        self.assertEqual(result.positions[0].asset_class, 'unsupported')
+        self.assertEqual([gap.code for gap in result.gaps], ['unsupported_position'])
+
+    def test_ac_anl_008_04_tracked_zero_with_signed_cash(self):
+        """AC-ANL-008-04: Decision 12 zero stays known beside a Decision 13 holding."""
+        signed = position('signed-cash', CASH, '-50', cost=None, unsupported_reasons=('signed_position',))
+        result = self.calc((*purchases(), sale('.030')), (head((signed,)),), replace(inputs(), crypto_quotes={}))
+        self.assertEqual(result.classes['crypto'].complete_total, {'CAD': D(0), 'USD': D(0), 'TWD': D(0)})
+        self.assertEqual(result.total.known_subtotal, {'CAD': D(0), 'USD': D(0), 'TWD': D(0)})
+        self.assertTrue(all(v is None for v in result.total.complete_total.values()))
+        self.assertEqual(result.total.unknown_value_count, 1)
+        self.assertEqual([g.code for g in result.gaps], ['valuation_not_implemented'])
+
     def test_ac_anl_008_04_supported_revisions(self):
         """AC-ANL-008-04: later migrations must explicitly preserve the reader contract."""
         from kurafolio.projection.accepted import SUPPORTED_REVISIONS

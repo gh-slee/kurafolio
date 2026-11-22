@@ -16,6 +16,11 @@ def _time_token(value):
     return value['token']
 
 
+def _btc_equivalent(instrument):
+    return (instrument.symbol == 'BTC' and instrument.network == 'bitcoin'
+            or instrument.symbol == 'LBTC' and instrument.network == 'liquid')
+
+
 def calculate(state, inputs) -> Calculation:
     """Calculate without fetching, persisting, logging values or reading files."""
     with localcontext(_ARITHMETIC):
@@ -28,6 +33,7 @@ def _calculate(state, inputs):
     excluded = dict.fromkeys(EXCLUDED_CODES, 0)
     positions = []
     unquoted_zeros = set()
+    unvalued_btc_holding = False
     observations = []
     sale_shape_gap = False
     purchases_counted = 0
@@ -67,8 +73,7 @@ def _calculate(state, inputs):
         return position
 
     def crypto_value(account, instrument, quantity, *, tracked=False):
-        btc = (instrument.symbol == 'BTC' and instrument.network == 'bitcoin'
-               or instrument.symbol == 'LBTC' and instrument.network == 'liquid')
+        btc = _btc_equivalent(instrument)
         codes = set()
         if btc and instrument.symbol == 'LBTC':
             codes.add('valued_as_btc_equivalent')
@@ -96,51 +101,51 @@ def _calculate(state, inputs):
             if instrument.kind == 'CRYPTO' and account.role == 'crypto':
                 excluded['balance_observation'] += 1
                 continue
-            cost, gain = fact.cost_native, None
+            asset_class = {'SECURITY': 'securities', 'CASH': 'cash',
+                           'CRYPTO': 'crypto', 'UNSUPPORTED': 'unsupported'}[instrument.kind]
+            cost = None if instrument.kind == 'CASH' else fact.cost_native
+            cost_status = ('not_applicable' if instrument.kind == 'CASH' else
+                           'known' if cost is not None else 'unavailable')
+            gain, value, basis, as_of = None, None, None, None
+            btc = instrument.kind == 'CRYPTO' and _btc_equivalent(instrument)
             codes = set()
-            basis, as_of, value, btc = None, None, None, False
-            if instrument.kind == 'CASH':
-                asset_class = 'cash'
-                value = Money(fact.quantity, instrument.currency)
-                basis, as_of, cost = 'par', _time_token(fact.observed_at), None
-                cost_status = 'not_applicable'
+            if instrument.kind == 'UNSUPPORTED':
+                gap('unsupported_position', account.id, instrument.id)
             else:
-                cost_status = 'known' if cost is not None else 'unavailable'
-                if cost is None:
+                if cost is None and instrument.kind != 'CASH':
                     gap('cost_unavailable', account.id, instrument.id)
-                if instrument.kind == 'UNSUPPORTED':
-                    asset_class = 'unsupported'
-                    gap('unsupported_position', account.id, instrument.id)
+                if fact.unsupported_reasons:
+                    gap('valuation_not_implemented', account.id, instrument.id)
+                    if btc:
+                        unvalued_btc_holding = True
+                elif instrument.kind == 'CASH':
+                    value = Money(fact.quantity, instrument.currency)
+                    basis, as_of = 'par', _time_token(fact.observed_at)
                 elif instrument.kind == 'CRYPTO':
-                    asset_class = 'crypto'
                     value, as_of, btc, codes = crypto_value(account, instrument, fact.quantity)
                     basis = 'quote' if value is not None else None
+                elif instrument.id in corporate_actions:
+                    gap('corporate_action_unresolved', account.id, instrument.id)
                 else:
-                    asset_class = 'securities'
-                    if fact.unsupported_reasons:
-                        gap('valuation_not_implemented', account.id, instrument.id)
-                    elif instrument.id in corporate_actions:
-                        gap('corporate_action_unresolved', account.id, instrument.id)
+                    try:
+                        listing = Listing.of(instrument.mic, instrument.ticker)
+                    except ValueError:
+                        # Admission accepts broader source tickers than the quote contract.
+                        quote = None
                     else:
-                        try:
-                            listing = Listing.of(instrument.mic, instrument.ticker)
-                        except ValueError:
-                            # Admission accepts broader source tickers than the quote contract.
-                            quote = None
+                        quote = inputs.security_quotes.get(listing)
+                    if quote is not None:
+                        if quote.currency != instrument.currency:
+                            gap('quote_currency_mismatch', account.id, instrument.id)
                         else:
-                            quote = inputs.security_quotes.get(listing)
-                        if quote is not None:
-                            if quote.currency != instrument.currency:
-                                gap('quote_currency_mismatch', account.id, instrument.id)
-                            else:
-                                value = Money(fact.quantity * quote.price, quote.currency)
-                                basis, as_of = 'quote', quote.as_of.isoformat()
-                        elif fact.market_value is not None:
-                            value = fact.market_value
-                            basis, as_of = 'source_reported', _time_token(fact.observed_at)
-                            codes.add('source_reported_value')
-                        else:
-                            gap('value_unavailable', account.id, instrument.id)
+                            value = Money(fact.quantity * quote.price, quote.currency)
+                            basis, as_of = 'quote', quote.as_of.isoformat()
+                    elif fact.market_value is not None:
+                        value = fact.market_value
+                        basis, as_of = 'source_reported', _time_token(fact.observed_at)
+                        codes.add('source_reported_value')
+                    else:
+                        gap('value_unavailable', account.id, instrument.id)
                 if value is not None and cost is not None and value.currency == cost.currency:
                     gain = Money(value.amount - cost.amount, cost.currency)
             positions.append(result(asset_class, account, instrument, fact.quantity, value,
@@ -225,7 +230,7 @@ def _calculate(state, inputs):
     if crypto_positions:
         assumptions.add('acquisitions_assumed_held')
     btc_quantities = [item.quantity for item in crypto_positions if item.btc_equivalent]
-    btc_quantity = None if None in btc_quantities else sum(btc_quantities, _ZERO)
+    btc_quantity = None if unvalued_btc_holding or None in btc_quantities else sum(btc_quantities, _ZERO)
 
     def aggregate(scope, incomplete=False):
         known, complete = {}, {}

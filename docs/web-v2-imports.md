@@ -568,6 +568,16 @@ separate classes, and Total includes each projected position once. Securities us
 a matching supplied quote, or their dated source-reported market value when no
 quote is supplied. An unresolved corporate action blocks that security's value.
 Observed broker cash is valued at par; funding flows do not establish cash.
+Holdings with non-empty unsupported reasons keep their accepted quantity and
+class, but securities, cash and investment-account crypto remain unvalued with
+`valuation_not_implemented`. They add no quote or FX gap. Cash cost stays
+not applicable; security and crypto source costs remain available where provided.
+Their class and Total complete totals stay unknown, and an unvalued BTC or LBTC
+holding makes `btc_equivalent_quantity` unknown rather than netting down tracked
+acquisitions. Crypto-account balance observations and funding heads keep their
+exclusions. Supported zero cash, including negative-zero tokens, remains known zero at par.
+The guard uses unsupported reasons, including when such a reason appears on a
+positive holding.
 
 Crypto activity groups count supported completed purchases minus sales on the
 same canonical account and instrument. Mirror, void, pending and cancelled facts
