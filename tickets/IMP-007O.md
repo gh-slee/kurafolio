@@ -2,7 +2,7 @@
 id: IMP-007O
 title: Return the stored member context bytes from the bind result of reserve_member_v1
 priority: P0
-status: in_progress
+status: done
 type: feature
 parent: IMP-007
 depends_on: []
@@ -14,7 +14,7 @@ gate: owner
 gate_approval: "owner 2026-11-22, Gate A on the amended text (hash 53f3126f…): Approve Gate A"
 review: independent
 branch: ticket/imp-007o-return-the-stored-member-context-bytes-f
-pr: 
+pr: https://github.com/gh-slee/kurafolio/pull/103
 spec: docs/specs/imp-007-r7/spec.md
 spec_approved: sha256:53f3126f8a92fbaaf5bb874cdfaf90d5107dd1305a6f7efc5ef76b41f9faef06
 updated: 2026-11-22
@@ -61,7 +61,7 @@ The upload route (IMP-007U) must send the import worker one frame holding the ha
 - [x] AC-IMP-007O-03: The function's signature, return type, grant and `search_path`, the frozen and oracle inventories, `EXPECTED_STRUCTURE_SHA256` and `EXPECTED_RESTORED_STRUCTURE_SHA256` are unchanged; only the text of `reserve_member_v1` changes, and `tests/test_postgres_migration.py` passes against a real `0004` install.
 - [x] AC-IMP-007O-04: No DTO in `wire-contracts.json` or `codec-schema.json` changes, and the new key is not a property of `Handoff`.
 - [x] AC-IMP-007O-05: Opt-in PostgreSQL tests cover a bind at the smallest and the largest allowed context sizes (1 and 1,048,576 bytes).
-- [ ] AC-IMP-007O-06: The pull request records the evidence that no database outside disposable tests ran `operator migrate-ingestion` at `0004`, or the owner's decision to use a new revision.
+- [x] AC-IMP-007O-06: The pull request records the evidence that no database outside disposable tests ran `operator migrate-ingestion` at `0004`, or the owner's decision to use a new revision.
 - [x] AC-IMP-007O-07: `docs/web-v2-imports.md` says that the bind result carries the context bytes for the trusted API only.
 
 ## Build plan
@@ -278,11 +278,11 @@ Revert the commit. There is no data migration and no table, column, index, grant
 
 ## Handoff
 
-- State: Exact approved bind insertion, static test, four gated tests, CI skip count and docs are implemented. Full opt-in PostgreSQL migration suite PASS (154 tests, 0 skips/failures/errors, 97.968s). Static DDL suite PASS (18 tests); non-opt-in migration suite PASS (154 tests, 131 expected skips). Hash stripping reproduces all five baselines; inventories, DTOs and provider files have no diff. Language and worktree/staged/reachable-history privacy guards pass. Full Python suite PASS (1,433 tests, 261 opt-in skips, 757.560s).
-- Next step: Check the exact-HEAD candidate image receipt under ignored `work/pr-images/`, then obtain concrete publication approval before pushing or opening the prepared PR. The candidate image gate runs after this clean checkpoint; its receipt must match HEAD.
-- Verify: `KURAFOLIO_INGESTION_TEST=1 PYTHONPATH=src .venv/bin/python scripts/run_gated_tests.py --expect-skipped 0 -- discover -s tests -p 'test_postgres_migration.py'`; `PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -v`; local evidence is under ignored `work/imp-007o/`.
-- Gotchas: The existing `context_bytes` key remains a length. Installed old bodies and their ingestion backups are incompatible with current source body verification despite unchanged structure digests. Independent QA and Architecture review are NOT RUN because Codex cannot start the configured reviewer; run `review IMP-007O` in Claude Code after the PR is opened. No PR or CI exists yet.
-- Open questions: None in implementation scope. Publication requires separate concrete approval.
+- State: Implementation complete and published in PR https://github.com/gh-slee/kurafolio/pull/103 at 8dc382b. This checkpoint adds the PR URL and implementation outcome; it changes only this ticket. Full opt-in PostgreSQL suite PASS (154 tests, 0 skips/failures/errors); full Python suite PASS (1,433 tests, 261 opt-in skips). Inventories, structure digests, DTOs, predecessor providers and the approved gated text are unchanged. The source-only candidate at 8dc382b passed all four smoke checks; an exact-HEAD candidate receipt for this checkpoint is generated under ignored `work/pr-images/` before publication.
+- Next step: Publish this ticket metadata checkpoint after the applicable approval, then run `review IMP-007O` in Claude Code. Fresh-context QA and a second Architecture review remain required before the owner's final review. Return any findings through this same claim; do not merge automatically.
+- Verify: `python3 scripts/tickets.py spec IMP-007O --base origin/main`; `python3 scripts/tickets.py pr-check --branch ticket/imp-007o-return-the-stored-member-context-bytes-f`; `python3 scripts/check_pr_image.py`. Existing source-test evidence is under ignored `work/imp-007o/`.
+- Gotchas: Status `done` records the completed implementation for the PR check; independent QA and Architecture are explicitly NOT RUN because Codex cannot start the configured reviewer. CI is queued at https://github.com/gh-slee/kurafolio/actions/runs/45052664580 for the published source head. Installed old function bodies and their ingestion backups fail current-source verification despite unchanged structure digests. The latest main change d94bd1d changes agent effort guidance only; no ticket or persistence drift was found.
+- Open questions: Nothing missing from the approved spec or Build plan. Required independent reviews and the owner's final review remain outstanding.
 
 ## Log
 
@@ -296,3 +296,5 @@ Revert the commit. There is no data migration and no table, column, index, grant
 - 2026-11-22 codex/gpt-6.1-sol: claimed from origin/main 9a10704 after cleanup and matching amended spec; no persistence changes since the plan base 96eadc2. Baseline hashes match the Build plan and the three pre-change reserve tests passed (3 tests, 0 skips, 4.916s) on disposable PostgreSQL. AC-IMP-007O-06: the owner answered "No, none has" on 2026-11-22 in the preceding planning Log line; `git tag --list` and `gh release list --repo gh-slee/kurafolio` are empty, the build-base Database profiles stop at 0003 and docs still state there is no operational 0004 profile.
 - 2026-11-22 codex/gpt-6.1-sol: implemented only the planned SQL insertion/comment, four gated tests plus static and existing-bind assertions, CI skip count and trusted-API docs. PostgreSQL acceptance PASS: 154 tests, 0 skips/failures/errors in 97.968s, including size/alphabet vectors, exact old-body result comparison, closed Handoff framing and installed-body rejection/recovery. Static suite PASS 18 tests; non-opt-in suite PASS 154 tests with 131 expected skips. Hash and protected-path checks, language and worktree/staged/reachable-history privacy guards PASS. Full Python suite remains running; candidate image, CI and independent reviews remain outstanding. No push or PR.
 - 2026-11-22 codex/gpt-6.1-sol: full Python suite PASS (1,433 tests in 757.560s, 261 opt-in skips); this was the single full run required by the Build plan. The separate real PostgreSQL suite passed with 0 skips. Prepared the canonical PR body locally with independent QA/Architecture and CI marked NOT RUN; the exact-HEAD source-only image check follows this clean checkpoint. Publication and the final PR/status outcome commit remain outstanding.
+- 2026-11-22 codex/gpt-6.1-sol: published the three implementation/checkpoint commits and opened PR https://github.com/gh-slee/kurafolio/pull/103 using the validated canonical body, with QA/Architecture marked NOT RUN. CI run https://github.com/gh-slee/kurafolio/actions/runs/45052664580 was queued at the last check. Recorded the PR and set implementation status done; this metadata checkpoint awaits its own publication approval.
+- 2026-11-22 codex/gpt-6.1-sol: outcome: implementing model codex/gpt-6.1-sol; reviewing model claude-code/opus-5.5 (NOT RUN, unavailable in Codex); review repair rounds 0; spec or Build plan omissions: nothing missing. Developer checks pass; independent QA and Architecture review remain outstanding, so the frontier ticket is not ready for the owner's final review.
