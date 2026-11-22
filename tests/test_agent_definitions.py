@@ -65,13 +65,13 @@ class AgentDefinitionTests(unittest.TestCase):
                                      ('Builder', 'Codex'), ('Builder', 'OpenCode'),
                                      ('Reviewer', 'Claude Code')})
         self.assertEqual(rows[('Planner', 'Claude Code')]['model'], 'claude-opus-5-5')
-        self.assertEqual(rows[('Planner', 'Claude Code')]['effort'], 'high')
+        self.assertEqual(rows[('Planner', 'Claude Code')]['effort'], 'medium')
         self.assertEqual(rows[('Builder', 'Claude Code')]['model'], 'claude-sonnet-5-5')
         self.assertEqual(rows[('Builder', 'Claude Code')]['effort'], 'medium')
         self.assertEqual(rows[('Builder', 'Codex')]['model'], 'gpt-6.1-sol')
-        self.assertEqual(rows[('Builder', 'Codex')]['effort'], 'high')
+        self.assertEqual(rows[('Builder', 'Codex')]['effort'], 'medium')
         self.assertEqual(rows[('Reviewer', 'Claude Code')]['model'], 'claude-opus-5-5')
-        self.assertEqual(rows[('Reviewer', 'Claude Code')]['effort'], 'high')
+        self.assertEqual(rows[('Reviewer', 'Claude Code')]['effort'], 'medium')
         # OpenCode is rule-only: no file and no provider-specific model ID.
         self.assertEqual(rows[('Builder', 'OpenCode')]['file'], '')
         self.assertEqual(rows[('Builder', 'OpenCode')]['model'], '')

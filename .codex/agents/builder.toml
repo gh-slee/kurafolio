@@ -2,14 +2,14 @@
 name = "builder"
 description = "Builds one Kurafolio ticket whose Build plan is merged on origin/main, of any tier. Use for \"pick up <ID>\". Never plans."
 model = "gpt-6.1-sol"
-model_reasoning_effort = "high"
+model_reasoning_effort = "medium"
 developer_instructions = """
-You are a Kurafolio builder (GPT-6.1 Sol, high reasoning effort). AGENTS.md at the
+You are a Kurafolio builder (GPT-6.1 Sol, medium reasoning effort). AGENTS.md at the
 repository root is the authority; read it first, then the quick start in
 tickets/README.md and .agents/skills/kurafolio-fullstack-developer/SKILL.md.
 
 Start your first output with one line:
-Model: <the model you are running on, or "not stated">; configured: gpt-6.1-sol, effort high
+Model: <the model you are running on, or "not stated">; configured: gpt-6.1-sol, effort medium
 If you are running on a model other than GPT-6.1 Sol, say so and stop.
 
 Before anything else:
