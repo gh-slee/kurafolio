@@ -37,7 +37,7 @@ The upload route (IMP-007U) must send the import worker one frame holding the ha
   - `Database` (`src/kurafolio/persistence/context.py:47`) maps only `foundation`, `identity` and `sources` to a revision, so no runtime profile can serve `0004`. IMP-007E adds it.
   - The repository has no tags or releases.
   - `docs/web-v2-imports.md` says there is no operational `0004` profile, and its "Explicit 0004 installation" section tells operators to use a synthetic instance.
-  - None of this proves that no operator ran the command, so Decisions needed item 2 asks the owner.
+  - None of this proves that no operator ran the command, so Decisions needed item 2 asked the owner. On 2026-11-22 the owner answered "No, none has" (option (a)).
 - The same applies to backups. `backup-ingestion` dumps the whole `0004` catalog, function bodies included, and `restore-ingestion` then runs `verify_inventory(..., quarantined=True)` (`src/kurafolio/persistence/ingestion_restore.py:710`, `:734`), which reaches `verify_functions`. A backup taken before this change would therefore be refused with `migration_target_invalid` after it. The backup manifest pins `EXPECTED_STRUCTURE_SHA256` (`ingestion_restore.py:35`), which does not change.
 - Shares `ingestion-schema-sql` with IMP-007Q, IMP-007R and IMP-007T, so these build one at a time. IMP-007N and IMP-007W, which also held it, are `done`; IMP-007W merged first (#96) and changed no structure digest. On 2026-11-22 IMP-007W's claim file was still recorded and held the lock, which is why `next` and `next --plan` did not list this ticket. `python3 scripts/tickets.py cleanup` releases that claim once its worktree is clean and merged.
 - No caller of `reserve_member_v1` exists outside the tests on `main`: the upload route is IMP-007U, which depends on this ticket. The existing gated tests are in `tests/test_postgres_migration.py`, class `IngestionAppendOnlyPostgresTests`: `reserve_seed`, `reserve_call`, `RESERVE_STATE` and the three tests from `test_reserve_then_bind_opens_one_bounded_attempt_and_hands_off_metadata` to `test_reserve_and_bind_refuse_without_keeping_a_slot`. `run_labelled` runs one psql script in `BEGIN ... ROLLBACK` and collects lines whose label is upper case and whose value starts with `{` or `[`.
@@ -71,7 +71,7 @@ The upload route (IMP-007U) must send the import worker one frame holding the ha
 
 ### Before you claim
 
-1. On `main`, `spec_approved` must hold the hash of the amended gated text (Gate A given 2026-11-22, Decisions needed item 1), and Decisions needed item 2, the `0004` confirmation the Requirements ask for, must be answered. If either is missing, do not claim; report that the ticket waits on the owner.
+1. On `main`, `spec_approved` must hold the hash of the amended gated text (Gate A given 2026-11-22, Decisions needed item 1). The `0004` confirmation the Requirements ask for is Decisions needed item 2, answered "No, none has" on 2026-11-22, so the in-place change goes ahead; cite that Log line as the AC-06 evidence. If `spec_approved` does not match, do not claim; report that the ticket waits on the owner.
 2. `git fetch origin`, then `python3 scripts/tickets.py cleanup`. IMP-007W's merged claim held `ingestion-schema-sql` on 2026-11-22. If `claim` still refuses the lock, run `python3 scripts/tickets.py list` and stop if a live claim holds it. Never release another agent's live claim.
 3. Run `python3 scripts/tickets.py spec IMP-007O`. It must report `MATCHES`, with `spec_approved` holding the hash of the amended text (sha256:53f3126f8a92fbaaf5bb874cdfaf90d5107dd1305a6f7efc5ef76b41f9faef06, approved 2026-11-22). If it reports `CHANGED`, the gated text moved after that approval; do not build.
 4. Check whether `src/kurafolio/persistence/ingestion_schema.py` or `ingestion_migration.py` changed on `origin/main` since `96eadc2` (`git log 96eadc2..origin/main -- src/kurafolio/persistence/`). If they did, recompute the pre-change values in "Baseline" from `origin/main` before you edit and use those. If the bind `RETURN` itself changed, stop and ask.
@@ -208,12 +208,12 @@ In `docs/web-v2-imports.md`, in the `reserve_member_v1` paragraph:
 
 Put it in the PR under "Behavior & Compatibility" and in one ticket Log line:
 
-- The owner's answer to Decisions needed item 2, quoted from the ticket Log on `main`.
+- The owner's answer to Decisions needed item 2 ("No, none has", 2026-11-22), quoted from the ticket Log on `main`.
 - `git tag --list` prints nothing, and `gh release list --repo gh-slee/kurafolio` lists nothing.
 - `src/kurafolio/persistence/context.py` on the build base still maps no runtime profile to `0004_ingestion`.
 - `docs/web-v2-imports.md` still says that there is no operational `0004` profile.
 
-If item 2 is answered "yes" or "unsure", do not build; the ticket goes back to the planner and the owner for a new revision.
+If you learn of a `0004` database or backup outside disposable tests despite that answer, stop and ask; the ticket would go back to the planner and the owner for a new revision.
 
 ### Verify
 
@@ -246,7 +246,7 @@ Revert the commit. There is no data migration and no table, column, index, grant
 
 ### Stop and ask if
 
-- The amended text has no recorded Gate A, item 2 is unanswered, or item 2 is not a clear "no".
+- `spec_approved` on `main` does not match the amended text, or you find evidence of a `0004` database or backup outside disposable tests, contrary to the owner's answer to Decisions needed item 2.
 - After the change, the live `_structure_digest` differs from `EXPECTED_STRUCTURE_SHA256` or the restored digest differs from `EXPECTED_RESTORED_STRUCTURE_SHA256`, or any inventory, oracle, DTO or r7 file would have to change.
 - The expression gives anything other than the expected strings on PostgreSQL 18 (another whitespace character, for example). Do not swap in a different encoding.
 - `pack_input(..., schema='Handoff')` refuses the bind value after the new key is removed. That would be an existing mismatch between the unchanged keys and `Handoff`, and AC-02 forbids changing them; report it for IMP-007U.
@@ -258,7 +258,7 @@ Revert the commit. There is no data migration and no table, column, index, grant
 
 - [x] Owner chooses how to reconcile the digest wording (Decisions needed item 1: option B, amend the spec).
 - [x] Owner gives Gate A on the amended text (2026-11-22, sha256:53f3126f8a92fbaaf5bb874cdfaf90d5107dd1305a6f7efc5ef76b41f9faef06).
-- [ ] Owner answers Decisions needed item 2 (before any claim).
+- [x] Owner answers Decisions needed item 2 (2026-11-22: "No, none has"; proceed in place).
 - [ ] Claim after `cleanup`; record the baseline hashes and the passing baseline run of the three reserve tests.
 - [ ] Insert the key into the bind `RETURN`; add the constants and the static test.
 - [ ] Add the four gated tests and the extra assertion; raise the `postgres-foundation` skip count to 132.
@@ -272,7 +272,7 @@ Revert the commit. There is no data migration and no table, column, index, grant
    - Options offered: (A) keep the gated text and confirm in the Log that the digests stay unchanged, with no new Gate A; (B) amend the Requirements bullet and AC-03 and give a new Gate A. Recommended: (B).
    - The owner chose "Option B: amend spec" (relayed to this planning session by the coordinating session). The Requirements bullet and AC-03 now carry the proposed wording, and `tickets.py spec` reports sha256:53f3126f8a92fbaaf5bb874cdfaf90d5107dd1305a6f7efc5ef76b41f9faef06.
    - Gate A on the amended text: asked "Do you give Gate A on IMP-007O hash sha256:53f3126f…faef06?" after being shown the amended Requirements bullet, the amended AC-03 and the hash, the owner replied "Approve Gate A" (relayed to this planning session by the coordinating session). `gate_approval` and `spec_approved` record it.
-2. **Has any database outside disposable tests run `operator migrate-ingestion` at `0004`, or has any such database been backed up with `backup-ingestion`?** The Requirements make this a stop point, and only the owner can answer it. Repository evidence (Context) shows no supported path to an operational `0004`, but it cannot prove that no operator ran the command.
+2. **Has any database outside disposable tests run `operator migrate-ingestion` at `0004`, or has any such database been backed up with `backup-ingestion`?** **Resolved 2026-11-22: (a) No; the in-place change goes ahead.** Asked "Has any database outside disposable tests run `operator migrate-ingestion` at `0004`, or been backed up with `backup-ingestion`: no, or yes/unsure?", the owner replied "No, none has" (relayed to this planning session by the coordinating session). The Requirements make this a stop point, and only the owner can answer it. Repository evidence (Context) shows no supported path to an operational `0004`, but it cannot prove that no operator ran the command.
    - (a) No. The in-place change goes ahead as planned. Recommended, if it is true.
    - (b) Yes, or unsure. Do not build. The function needs a new revision that replaces it on installed targets, which changes this ticket's Requirements and the revision numbers that APP-011I (`0005`) and APP-011E (`0006`) plan to use. The ticket goes back to the planner and the owner.
 
@@ -292,3 +292,4 @@ Revert the commit. There is no data migration and no table, column, index, grant
 - 2026-11-22 claude-code/opus-5.5: wrote the frontier Build plan from `main` at `96eadc2` in plan pull request https://github.com/gh-slee/kurafolio/pull/101. Corrected the Context: `_structure_digest` and `oracle.json` do not cover function bodies, so the structure digests cannot change. Added Decisions needed items 1 (reconcile the approved text that says the digests and oracle change, with proposed wording for a new Gate A) and 2 (the owner's `0004` install and backup confirmation). Both block the build, not this plan. Goal, Requirements and Acceptance criteria unchanged (sha256:664d5c3a0b844ef78057e53c216de1711001c867cff0a6165f97edf1ee4e1f60).
 - 2026-11-22 claude-code/opus-5.5: on Decisions needed item 1 the owner chose "Option B: amend spec", relayed to this planning session by the coordinating session. Replaced the Requirements bullet on the in-place `0004` change and AC-IMP-007O-03 with the wording proposed in item 1: the structure digests and `oracle.json` stay unchanged. New spec hash sha256:53f3126f8a92fbaaf5bb874cdfaf90d5107dd1305a6f7efc5ef76b41f9faef06. No Gate A on the amended text yet; `spec_approved` keeps sha256:664d5c3a0b844ef78057e53c216de1711001c867cff0a6165f97edf1ee4e1f60, so the ticket cannot be claimed until the owner approves the new hash. Item 2 stays open. Build plan checked against the amended text: unchanged apart from the claim preconditions. Plan pull request https://github.com/gh-slee/kurafolio/pull/101.
 - 2026-11-22 claude-code/opus-5.5: recorded Gate A on the amended text in plan pull request https://github.com/gh-slee/kurafolio/pull/101. Shown the amended Requirements bullet, the amended AC-IMP-007O-03 and the hash, and asked "Do you give Gate A on IMP-007O hash sha256:53f3126f…faef06?", the owner replied "Approve Gate A" (relayed to this planning session by the coordinating session). Before recording, `tickets.py spec` reported the current hash as sha256:53f3126f8a92fbaaf5bb874cdfaf90d5107dd1305a6f7efc5ef76b41f9faef06. `gate_approval` changed from "owner 2026-11-21, Gate A on the text as written on PR #95's branch (Q31)" to "owner 2026-11-22, Gate A on the amended text (hash 53f3126f…): Approve Gate A"; `spec_approved` changed from sha256:664d5c3a0b844ef78057e53c216de1711001c867cff0a6165f97edf1ee4e1f60 to sha256:53f3126f8a92fbaaf5bb874cdfaf90d5107dd1305a6f7efc5ef76b41f9faef06. Status stays ready. Decisions needed item 2 is still open and blocks the build.
+- 2026-11-22 claude-code/opus-5.5: recorded the owner's answer to Decisions needed item 2 in plan pull request https://github.com/gh-slee/kurafolio/pull/101. Asked "Has any database outside disposable tests run `operator migrate-ingestion` at `0004`, or been backed up with `backup-ingestion`: no, or yes/unsure?", the owner replied "No, none has" (relayed to this planning session by the coordinating session). That is option (a): the change is made in place at `0004_ingestion`, and this line is the owner's part of the AC-IMP-007O-06 evidence. Updated the Build plan's claim steps and stop points so a builder is no longer held on item 2. Gated sections unchanged; `tickets.py spec` reports MATCHES at sha256:53f3126f8a92fbaaf5bb874cdfaf90d5107dd1305a6f7efc5ef76b41f9faef06.
