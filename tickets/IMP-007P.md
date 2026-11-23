@@ -2,7 +2,7 @@
 id: IMP-007P
 title: Build the ReviewBundle that the worker's prepare step passes to prepare_preview_v1
 priority: P0
-status: ready
+status: in_progress
 type: feature
 parent: IMP-007
 depends_on: []
@@ -13,11 +13,11 @@ agent_tier: frontier
 gate: owner
 gate_approval: "owner 2026-11-21, Gate A on the text as written on PR #95's branch (Q31)"
 review: independent
-branch: 
+branch: ticket/imp-007p-build-the-reviewbundle-that-the-worker-s
 pr: 
 spec: docs/specs/imp-007-r7/spec.md
 spec_approved: sha256:ab4f0a665240bd37f278712f3dc78aa90db9a7ecb92f3fc7e0700f67a4bab766
-updated: 2026-11-21
+updated: 2026-11-22
 ---
 
 # IMP-007P: Build the ReviewBundle that the worker's prepare step passes to prepare_preview_v1
@@ -356,11 +356,11 @@ Items 2 to 4 came up while writing the Build plan (2026-11-22). They do not chan
 
 ## Handoff
 
-- State: Filed on 2026-11-20; backlog, waiting for the owner's Gate A and a Build plan.
-- Next step: The planner reads `reconciliation.md`, the merged `approval.py`, `mapping.py`, `reconciliation.py` and `prepare_preview_v1`, maps each oracle case to basis pages, and writes the Build plan, including the builder's exact signature for IMP-007V.
-- Verify: `PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -p 'test_ingestion_*.py' -v` and `KURAFOLIO_INGESTION_TEST=1 PYTHONPATH=src .venv/bin/python -m unittest tests.test_postgres_migration -v`
-- Gotchas: IMP-007V (the worker's prepare step) waits for this ticket, so no set reaches a preview through the worker until both land. IMP-007F and the activation ticket IMP-007S do not wait for it.
-- Open questions: Gate A.
+- State: Claimed by codex/gpt-6.1-sol from origin/main. The approved spec matches and the merged Build plan is present. No implementation changes yet.
+- Next step: Build the independent oracle_basis test helper and verify every planned oracle case is expressible as basis pages.
+- Verify: `python3 scripts/tickets.py spec IMP-007P --base origin/main`; focused review-bundle tests will be added with acceptance IDs.
+- Gotchas: Independent QA and Architect review require the configured reviewer model in Claude Code. Publication is pending the applicable owner approval.
+- Open questions: None.
 
 ## Log
 
@@ -369,3 +369,5 @@ Items 2 to 4 came up while writing the Build plan (2026-11-22). They do not chan
 - 2026-11-21 claude-code/opus-5.5: recorded Gate A in plan pull request #95. Asked "Gate A, tickets whose text is unchanged since filing (full text on PR #95's branch). Which do you approve exactly as written?" (Q31) with this ticket listed at sha256:ab4f0a665240bd37f278712f3dc78aa90db9a7ecb92f3fc7e0700f67a4bab766, the owner selected "IMP-007O,IMP-007P,IMP-007U,IMP-007S". `gate_approval` set to "owner 2026-11-21, Gate A on the text as written on PR #95's branch (Q31)"; `spec_approved` set to sha256:ab4f0a665240bd37f278712f3dc78aa90db9a7ecb92f3fc7e0700f67a4bab766, which `tickets.py spec` reports as the current hash; status backlog becomes ready. Decisions needed item resolved. No Build plan yet; the planner writes it in a later pull request.
 - 2026-11-22 claude-code/opus-5.5: wrote the frontier Build plan from `main` at `7d7acc1` in plan pull request https://github.com/gh-slee/kurafolio/pull/105. Updated the Context with the planning findings (caller-supplied IDs, verbatim decision arrays, no facts in initial reviews, refusals under Q25, the competing-stream gap, the CI job that runs gated tests), replaced the Plan steps and added Decisions needed items 2 to 4 for the owner, with the plan following each recommendation. Gate A (#95, Q31) and the gated sections are unchanged.
 - 2026-11-22 claude-code/opus-5.5: recorded the owner's answer to Decisions needed items 2 to 4 in plan pull request https://github.com/gh-slee/kurafolio/pull/105, relayed to this planning session by the coordinating session. Asked "Do you accept the planner's recommendations on decisions 2 to 4?", the owner answered "Accept all three": item 2 (a), refuse only an untrusted basis and show a CONFLICT review for r7 conflict outcomes; item 3 (a), build without the competing-stream check against accepted revisions of other connections; item 4 (a), CONFLICT `unsupported` for an incoming `mirror`. "Before you claim" no longer waits on them. Filed the follow-ups IMP-007X (extend the basis for that check) and IMP-007Y (mirror vectors and effect) as backlog tickets in the same pull request. No Gate A recorded; the gated sections are unchanged.
+
+- 2026-11-22 codex/gpt-6.1-sol: claimed the merged Build plan from origin/main; spec sha256:ab4f0a665240bd37f278712f3dc78aa90db9a7ecb92f3fc7e0700f67a4bab766 matches. Started the independent oracle basis helper before builder implementation.
