@@ -2,7 +2,7 @@
 id: IMP-007P
 title: Build the ReviewBundle that the worker's prepare step passes to prepare_preview_v1
 priority: P0
-status: in_progress
+status: done
 type: feature
 parent: IMP-007
 depends_on: []
@@ -14,10 +14,10 @@ gate: owner
 gate_approval: "owner 2026-11-21, Gate A on the text as written on PR #95's branch (Q31)"
 review: independent
 branch: ticket/imp-007p-build-the-reviewbundle-that-the-worker-s
-pr: 
+pr: https://github.com/gh-slee/kurafolio/pull/108
 spec: docs/specs/imp-007-r7/spec.md
 spec_approved: sha256:ab4f0a665240bd37f278712f3dc78aa90db9a7ecb92f3fc7e0700f67a4bab766
-updated: 2026-11-22
+updated: 2026-11-23
 ---
 
 # IMP-007P: Build the ReviewBundle that the worker's prepare step passes to prepare_preview_v1
@@ -356,11 +356,11 @@ Items 2 to 4 came up while writing the Build plan (2026-11-22). They do not chan
 
 ## Handoff
 
-- State: Local implementation, AC-09 docs and developer validation are complete. The default suite passes 1,440 tests with 267 opt-in skips; the final focused builder suite passes 14 tests, and the real PostgreSQL test accepts/replays all 12 required initial/READY subcases with no skips. No worker, schema, helper or frozen vector changed. The local evidence index is `work/imp-007p/final-handoff.json`.
-- Next step: Obtain the exact-HEAD candidate image receipt, record it in the local evidence index, then obtain the applicable owner approval for publication of this branch. Open the PR before the eventual done/pr outcome commit, and request the configured independent reviews.
-- Verify: `PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -p test_ingestion_review_bundle.py -v`; `KURAFOLIO_INGESTION_TEST=1 PYTHONPATH=src:tests .venv/bin/python -m unittest test_postgres_migration.IngestionAppendOnlyPostgresTests.test_review_bundle_builder_from_live_prepare_basis -v`; `python3 scripts/tickets.py spec IMP-007P --base origin/main`; `python3 scripts/check_pr_image.py` from a clean tracked tree.
-- Gotchas: Use an existing equivalent Python 3.12 Web-test environment. Independent QA and Architect reviews remain NOT RUN because the configured reviewer must be started in Claude Code. Run `review IMP-007P` there after PR creation; frontier owner review follows those reviews. No worker calls this module before IMP-007V.
-- Open questions: None about the approved behavior; publication and independent reviews are outstanding.
+- State: Builder implementation is complete. Draft PR https://github.com/gh-slee/kurafolio/pull/108 contains the four implementation/validation commits through ffbe53e. Local developer checks pass: full suite 1,440 tests with 267 opt-in skips; final builder suite 14 tests; live PostgreSQL 12 initial/READY subcases without skips. Independent QA and Architect reviews are NOT RUN. CI is running on ffbe53e; the done/pr/outcome metadata follows in this local commit.
+- Next step: Publish this metadata commit only after its required validation, exact-HEAD candidate image and applicable owner approval. Then run `review IMP-007P` in Claude Code for the configured fresh-context QA and Architect reviews. Frontier owner review follows those reviews.
+- Verify: `python3 scripts/tickets.py spec IMP-007P --base origin/main`; `python3 scripts/tickets.py pr-check --branch ticket/imp-007p-build-the-reviewbundle-that-the-worker-s`; `PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -p test_tickets.py -v`; `python3 scripts/check_pr_image.py` from a clean tracked tree. Detailed local receipts and CI snapshots are indexed by `work/imp-007p/final-handoff.json`.
+- Gotchas: Use an existing equivalent Python 3.12 Web-test environment. No worker calls this module before IMP-007V. The board's done/pr fields record builder completion; independent review and owner merge remain outstanding. A new commit needs its own candidate receipt and publication approval.
+- Open questions: None about the approved behavior. Required independent reviews are outstanding; no reviewer result is claimed.
 
 ## Log
 
@@ -377,3 +377,7 @@ Items 2 to 4 came up while writing the Build plan (2026-11-22). They do not chan
 - 2026-11-22 codex/gpt-6.1-sol: completed the planned core acceptance coverage (14 focused tests), AC-09 docs and one gated PostgreSQL test that accepts/replays 12 live-lease subcases in 9.085 s with no skips. The foundation skip guard increases from 128 to 129. Four valid 4,096,703-byte stages exceed the real bundle limit and are refused in 9.800 s; the separate 4 x 10,000-row probe is refused at the 4 MiB Minimal bound in 10.464 s. The default full suite is still running. Independent QA and Architect review are NOT RUN; no publication.
 
 - 2026-11-22 codex/gpt-6.1-sol: completed the default developer suite: 1,440 tests in 745.501 s, 267 opt-in skips, no failures or errors. The final focused builder suite separately passes 14 tests in 26.157 s; live PostgreSQL accepts/replays all 12 required subcases in 9.085 s without skips. Language, worktree publication, ticket consistency and approved-spec checks pass. Candidate image verification follows this clean local checkpoint. Independent QA and Architect review are NOT RUN; CI and publication are NOT RUN.
+
+- 2026-11-23 codex/gpt-6.1-sol: pushed the four approved commits through ffbe53e and opened draft PR https://github.com/gh-slee/kurafolio/pull/108 with the reviewed complete description. The PR contains exactly the six planned paths. Recorded done/pr metadata locally after PR creation; required validation and a new exact-HEAD candidate check precede its separate publication approval. Independent QA and Architect reviews remain NOT RUN.
+
+- 2026-11-23 codex/gpt-6.1-sol: outcome: implementing model codex/gpt-6.1-sol; reviewing model claude-code/opus-5.5, NOT RUN (fresh-context QA and Architect reviews must run in Claude Code); review repair rounds 0; nothing missing from the approved spec or Build plan. Developer implementation and self-tests are complete; independent acceptance and owner merge are outstanding.
