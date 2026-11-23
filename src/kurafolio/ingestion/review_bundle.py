@@ -416,7 +416,7 @@ def _across_facts(facts, inputs, context, decisions, revisions, links):
             first = same[0]
             for fact in same[1:]:
                 if first['action'] != 'duplicate':
-                    fact.update(action='duplicate', duplicate_of=first)
+                    fact.update(action='duplicate', duplicate_of=first, prior=None)
     activities = [f for f in facts.values() if f['collection'] == 'records' and f['row']['record_type'] == 'activity']
     def revision_token(f):
         if f['duplicate_of'] is not None:

@@ -485,6 +485,33 @@ class ReviewBundleSafetyTests(unittest.TestCase):
         candidate_indices = [i for i, r in enumerate(rows) if r['type'] == 'target_candidate']
         self.assertLess(max(source_indices), min(candidate_indices))
 
+    def test_cross_member_duplicate_has_no_parent(self):
+        """AC-IMP-007P-08: a later member's equal correction is a duplicate with a null parent and no head."""
+        case = 'branch-equal_value_explicit_correction'
+        pages = oracle_basis(case)[0]
+        first = next(p for p in pages if p['resource'] == 'inputs')['rows'][0]
+        second = deepcopy(first)
+        second['id'] = 'e0000000-0000-4000-8000-000000000001'
+        next(p for p in pages if p['resource'] == 'inputs')['rows'].append(second)
+        context = next(p for p in pages if p['resource'] == 'context')['rows'][0]
+        context['pinned_sources'].append({**context['pinned_sources'][0], 'member_id': second['id']})
+        for page in pages:
+            if page['resource'] in ('mappings', 'entities'):
+                name = 'mapping' if page['resource'] == 'mappings' else 'candidate'
+                page['rows'] += [{'kind': page['rows'][0]['kind'], name: {**deepcopy(r[name]), 'member_id': second['id']}}
+                                 for r in page['rows'] if r[name]['member_id'] == first['id']]
+        decisions = deepcopy(ORACLE[CASES[case][2]])
+        for name in ('mappings', 'parents', 'new_entities'):
+            decisions[name] += [{**deepcopy(v), 'member_id': second['id']} for v in decisions[name]]
+        bundle = self.build(store_decisions(pages, decisions), sequential_allocator())
+        self.assertEqual('READY', bundle['review']['state'])
+        effects = [f for f in bundle['plan']['facts'] if f['collection'] == 'records']
+        self.assertEqual(['correction', 'duplicate'], [f['action'] for f in effects])
+        self.assertEqual(effects[0]['accepted_revision_id'], effects[1]['accepted_revision_id'])
+        self.assertIsNotNone(effects[0]['parent_revision_id'])
+        self.assertIsNone(effects[1]['parent_revision_id'])
+        self.assertEqual(1, len([h for h in bundle['plan']['heads'] if h['kind'] == 'activity']))
+
     def test_incoming_stream_authority_and_half_open_boundaries(self):
         """AC-IMP-007P-05: mapped competing streams require choices only for overlapping scopes."""
         pages = oracle_basis('first-use')[0]
