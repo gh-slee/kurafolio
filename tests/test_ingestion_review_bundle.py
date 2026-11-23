@@ -279,6 +279,82 @@ class ReviewBundleSafetyTests(unittest.TestCase):
         next(p for p in pages if p['resource'] == 'heads')['rows'][0]['head']['next_revision_id'] = 'a5000000-0000-4000-8000-000000000001'
         self.refusal(pages, 'import_invalid', '$.basis.revisions')
 
+    def test_remaining_intake_refusals(self):
+        """AC-IMP-007P-05: terminal, schema, context, revision and decision integrity bounds."""
+        original = oracle_basis('first-use', page_size=1)[0]
+        for mutation in ('no_terminal', 'wrong_cursor_resource', 'bad_shape'):
+            pages = deepcopy(original)
+            resource_pages = [p for p in pages if p['resource'] == 'inputs']
+            page = resource_pages[0]
+            cursor = {k: page[k] for k in ('job_id', 'fence', 'set_revision', 'accepted_generation', 'mapping_generation', 'control_generation')}
+            cursor.update(resource='inputs', after_key='0', expires_at=ORACLE['review-parser2-initial.json']['expires_at'])
+            if mutation == 'no_terminal':
+                page['next_cursor'] = cursor
+            elif mutation == 'wrong_cursor_resource':
+                page['next_cursor'] = dict(cursor, resource='entities')
+            else:
+                page['unrecognized'] = True
+            self.refusal(pages, 'import_invalid', '$.basis.inputs')
+        pages = oracle_basis('first-use')[0]
+        context = next(p for p in pages if p['resource'] == 'context')['rows'][0]
+        context['pinned_sources'][0]['member_id'] = 'a7000000-0000-4000-8000-000000000001'
+        self.refusal(pages, 'import_invalid', '$.basis.context')
+        pages = oracle_basis('first-use')[0]
+        next(p for p in pages if p['resource'] == 'inputs')['rows'] = []
+        self.refusal(pages, 'import_invalid', '$.basis.context')
+        for mutation in ('unknown_fact', 'unknown_parent', 'unknown_proposal'):
+            pages = oracle_basis('branch-equal_value_explicit_correction')[0]
+            d = deepcopy(ORACLE['branch-equal_value_explicit_correction-decisions.json'])
+            if mutation == 'unknown_fact':
+                d['parents'][0]['local_id'] = '99'
+            elif mutation == 'unknown_parent':
+                d['parents'][0]['parent_revision_id'] = 'a7000000-0000-4000-8000-000000000001'
+            else:
+                d['new_entities'] = [{'kind': 'account', 'id': d['mappings'][0]['target']['id'],
+                                     'version': d['mappings'][0]['target']['version'],
+                                     'member_id': d['mappings'][0]['member_id'], 'local_id': '99'}]
+            self.refusal(store_decisions(pages, d), 'import_invalid', '$.decisions')
+        for mutation in ('two_groups', 'two_tips'):
+            pages = oracle_basis('branch-fresh_duplicate_only')[0]
+            revision_page = next(p for p in pages if p['resource'] == 'revisions')
+            baseline = next(r for r in revision_page['rows'] if r['revision']['collection'] == 'coverage')
+            extra = deepcopy(baseline)
+            extra['revision']['id'] = 'a8000000-0000-4000-8000-000000000001'
+            extra['revision']['source']['revision'] = 'other'
+            if mutation == 'two_groups':
+                extra['revision']['economic_group_id'] = 'a9000000-0000-4000-8000-000000000001'
+            revision_page['rows'].append(extra)
+            self.refusal(pages, 'import_invalid', '$.basis.revisions')
+        pages = oracle_basis('branch-fresh_duplicate_only')[0]
+        m = next(p for p in pages if p['resource'] == 'mappings')['rows'][0]
+        m['mapping']['local_id'] = '99'
+        self.refusal(pages, 'import_invalid', '$.basis.mappings')
+        pages = oracle_basis('authority-only')[0]
+        links = next(p for p in pages if p['resource'] == 'authorities')['rows']
+        extra = deepcopy(links[0])
+        extra['link_id'] = 'aa000000-0000-4000-8000-000000000001'
+        links.append(extra)
+        self.refusal(pages, 'import_conflict', '$.basis.authorities')
+
+    def test_whole_bundle_literals_and_cross_checks(self):
+        """AC-IMP-007P-01: whole bundles and independent head/link preimages remain pinned."""
+        self.assertEqual(encode(ORACLE['review-bundle-first-use.json']), encode(ReviewBundleTests().build_case('first-use')))
+        self.assertEqual(encode(ORACLE['review-bundle-initial.json']), encode(ReviewBundleTests().build_case('first-use', initial=True)))
+        preimage = {'version': 1, 'tenant_id': '30000000-0000-4000-8000-000000000001',
+                    'portfolio_id': '30000000-0000-4000-8000-000000000002',
+                    'economic_group_id': '80000000-0000-4000-8000-000000000001'}
+        self.assertEqual('ab5991be98d9085b8f4a48cc3d5433ea49c6f99a13a81eb40b8d96edeac6dbe7', digest(preimage))
+        snapshot = ORACLE['snapshot-history-effects.json']
+        self.assertEqual(snapshot['head_digest'], digest(snapshot['head_preimage']))
+        self.assertEqual(snapshot['head_digest'], ReviewBundleTests().build_case('snapshot-seed-t2')['plan']['heads'][0]['key_digest'])
+        authority = next(r for r in ReviewBundleTests().build_case('authority-only')['review']['content']['rows'] if r['type'] == 'authority')
+        pre = ORACLE['authority-only-prestate.json']
+        self.assertEqual((pre['prior_link_id'], pre['prior_link_revision']), (authority['prior_link_id'], authority['prior_link_revision']))
+        baseline = ORACLE['plan-first-use.json']['facts']
+        duplicates = ReviewBundleTests().build_case('branch-fresh_duplicate_only')['plan']['facts']
+        self.assertEqual([(f['accepted_revision_id'], f['financial_digest']) for f in baseline],
+                         [(f['accepted_revision_id'], f['financial_digest']) for f in duplicates])
+
     def test_page_and_delivery_determinism(self):
         """AC-IMP-007P-04: page sizes, delivery order and repeat builds cannot change bytes."""
         for case in CASES:
@@ -409,6 +485,59 @@ class ReviewBundleSafetyTests(unittest.TestCase):
         candidate_indices = [i for i, r in enumerate(rows) if r['type'] == 'target_candidate']
         self.assertLess(max(source_indices), min(candidate_indices))
 
+    def test_incoming_stream_authority_and_half_open_boundaries(self):
+        """AC-IMP-007P-05: mapped competing streams require choices only for overlapping scopes."""
+        pages = oracle_basis('first-use')[0]
+        first = pages[0]['rows'][0]
+        second = deepcopy(first)
+        second['id'] = 'e0000000-0000-4000-8000-000000000001'
+        pages[0]['rows'].append(second)
+        context = next(p for p in pages if p['resource'] == 'context')['rows'][0]
+        context['pinned_sources'].append({**context['pinned_sources'][0], 'member_id': second['id'],
+                                         'connection_id': 'e1000000-0000-4000-8000-000000000001'})
+        decisions = deepcopy(ORACLE['decisions-first-use.json'])
+        decisions['mappings'] += [{**m, 'member_id': second['id']} for m in deepcopy(decisions['mappings'])]
+        def no_ids(slot):
+            raise AssertionError('CONFLICT reserved an ID')
+        bundle = self.build(store_decisions(pages, decisions), no_ids)
+        records = [r for r in bundle['review']['content']['rows'] if r['type'] == 'fact' and r['collection'] == 'records']
+        self.assertEqual([('conflict', 'authority')] * 2, [(r['action'], r['required_decision']) for r in records])
+        decisions['authorities'] = [{'kind': 'independent', 'evidence_reference': 'Synthetic explicit stream choice',
+            'left': {'form': 'incoming', 'member_id': first['id'], 'collection': 'records', 'local_id': '0'},
+            'right': {'form': 'incoming', 'member_id': second['id'], 'collection': 'records', 'local_id': '0'}}]
+        self.assertEqual('READY', self.build(store_decisions(pages, decisions))['review']['state'])
+        decisions['authorities'] = []
+        left_time = first['minimal']['coverage'][0]['time']
+        right_time = second['minimal']['coverage'][0]['time']
+        right_time['start'] = deepcopy(left_time['end'])
+        left_time['start']['token'] = '2026-01-01T11:00:00+00:00'
+        first['minimal']['records'][0]['event_time']['token'] = '2026-01-01T11:59:00+00:00'
+        first['minimal']['records'][0]['lifecycle']['completed_at']['token'] = '2026-01-01T11:59:00+00:00'
+        second['digest'] = digest(second['minimal'])
+        left_time['end_inclusive'] = False
+        first['digest'] = digest(first['minimal'])
+        self.assertEqual('READY', self.build(store_decisions(pages, decisions))['review']['state'])
+        left_time['end_inclusive'] = True
+        first['digest'] = digest(first['minimal'])
+        bundle = self.build(store_decisions(pages, decisions), no_ids)
+        self.assertEqual('CONFLICT', bundle['review']['state'])
+
+    def test_claim_resolution_counts_distinct_revisions(self):
+        """AC-IMP-007P-05: incoming duplicate lineage and its accepted row are one claim target."""
+        pages = oracle_basis('branch-fresh_duplicate_only')[0]
+        minimal = deepcopy(next(r['minimal'] for p in pages if p['resource'] == 'inputs' for r in p['rows']))
+        claim = next(r['revision']['source'] for p in pages if p['resource'] == 'revisions' for r in p['rows'] if r['revision']['collection'] == 'records')
+        record = deepcopy(minimal['records'][0])
+        record['local_id'] = '1'
+        record['identity']['source_id'] = 'new-explicit-trade'
+        record['economic_references'] = [deepcopy(claim)]
+        minimal['records'].append(record)
+        replace_minimal(pages, minimal)
+        bundle = self.build(pages)
+        self.assertEqual('READY', bundle['review']['state'])
+        effects = [f for f in bundle['plan']['facts'] if f['collection'] == 'records']
+        self.assertEqual(['duplicate', 'append'], [f['action'] for f in effects])
+
     def test_builtin_examples(self):
         """AC-IMP-007P-03: public parser stages retain literal facts and unknown boundaries."""
         from decimal import Decimal
@@ -461,6 +590,51 @@ class ReviewBundleSafetyTests(unittest.TestCase):
                 wire = encode(bundle).replace(b'wallet_balance_unverified', b'').replace(b'wallet_fees_unknown', b'')
                 self.assertNotIn(b'contribution', wire)
                 self.assertNotIn(b'wallet_balance', wire)
+
+    def test_real_encoded_bundle_limit_and_maximum_valid_basis(self):
+        """AC-IMP-007P-05: four admitted near-4-MiB stages exceed the real 16-MiB bundle bound."""
+        import time
+        from kurafolio.ingestion.codec import decode
+        from kurafolio.ingestion.contracts import MAX_MINIMAL
+        minimal = deepcopy(ORACLE['large-basis-minimal.json'])
+        prototype = deepcopy(minimal['records'][0])
+        # Fill legal typed records rather than patching the limit or adding archive fields.
+        count = (MAX_MINIMAL - 20000) // (len(encode(prototype)) + 16)
+        minimal['records'] = []
+        for i in range(count):
+            row = deepcopy(prototype)
+            row['local_id'] = str(i)
+            row['identity']['source_id'] = 'maximum-' + str(i)
+            minimal['records'].append(row)
+        while len(encode(minimal)) > MAX_MINIMAL - 1000:
+            minimal['records'].pop()
+        self.assertGreater(len(encode(minimal)), MAX_MINIMAL * .95)
+        self.assertLess(len(minimal['records']), 10000)
+        decode(encode(minimal))
+        pages = oracle_basis('first-use', initial=True)[0]
+        replace_minimal(pages, minimal)
+        input_page = next(p for p in pages if p['resource'] == 'inputs')
+        context = next(p for p in pages if p['resource'] == 'context')['rows'][0]
+        original_pin = deepcopy(context['pinned_sources'][0])
+        original_row = deepcopy(input_page['rows'][0])
+        context['pinned_sources'] = []
+        pages = [p for p in pages if p['resource'] != 'inputs']
+        for i in range(4):
+            member = 'c0000000-0000-4000-8000-' + format(i + 1, '012x')
+            pin = {**original_pin, 'member_id': member,
+                   'connection_id': 'c1000000-0000-4000-8000-' + format(i + 1, '012x')}
+            context['pinned_sources'].append(pin)
+            page = {**deepcopy(input_page), 'rows': [{**deepcopy(original_row), 'id': member}]}
+            if i < 3:
+                page['next_cursor'] = {k: page[k] for k in ('job_id', 'fence', 'set_revision', 'accepted_generation', 'mapping_generation', 'control_generation')}
+                page['next_cursor'].update(resource='inputs', after_key=str(i), expires_at=context['set_expires_at'])
+            pages.append(page)
+        pages = proposed_ready(pages)
+        started = time.perf_counter()
+        self.refusal(pages, 'import_limit', '$')
+        elapsed = time.perf_counter() - started
+        print(f'maximum-valid basis members=4 records/member={len(minimal["records"])} stage_bytes={len(encode(minimal))} refusal={elapsed:.3f}s')
+        self.assertLess(elapsed, 30)
 
     def test_large_basis_performance(self):
         """AC-IMP-007P-07: both large-basis review states finish within 10 seconds."""

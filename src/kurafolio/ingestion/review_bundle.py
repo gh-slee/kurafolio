@@ -269,7 +269,7 @@ def _claim(key):
     return {**{k: v for k, v in key['source'].items() if k not in ('version', 'tenant_id', 'portfolio_id', 'connection_id', 'collection')}, 'revision': key['revision']}
 
 
-def _classify(inputs, context, decisions, revisions, chains, heads, tips):
+def _classify(inputs, context, decisions, revisions, chains, heads, tips, links):
     pins = {p['member_id']: p for p in context['pinned_sources']}
     parents = {(p['member_id'], p['collection'], p['local_id']): p['parent_revision_id'] for p in decisions['parents']}
     facts = {}
@@ -317,6 +317,8 @@ def _classify(inputs, context, decisions, revisions, chains, heads, tips):
                 if exc.code != 'import_conflict':
                     raise
                 fact['required'] = 'identity' if exact is not None and exact['financial_digest'] != material else 'parent'
+            if activity and chain and current is None:
+                fact['required'] = 'parent'
             if parent is not None:
                 if any(r['parent_revision_id'] == parent for r in revisions.values()):
                     fact['required'] = 'parent'
@@ -396,11 +398,11 @@ def _classify(inputs, context, decisions, revisions, chains, heads, tips):
                     child.update(action='historical', id=None, prior=None)
                 elif fact['action'] == 'duplicate' and child['action'] != 'duplicate':
                     child['required'] = 'identity'
-    _across_facts(facts, inputs, context, decisions, revisions)
+    _across_facts(facts, inputs, context, decisions, revisions, links)
     return facts
 
 
-def _across_facts(facts, inputs, context, decisions, revisions):
+def _across_facts(facts, inputs, context, decisions, revisions, links):
     by_key = defaultdict(list)
     for fact in facts.values():
         by_key[encode(fact['key'])].append(fact)
@@ -416,14 +418,18 @@ def _across_facts(facts, inputs, context, decisions, revisions):
                 if first['action'] != 'duplicate':
                     fact.update(action='duplicate', duplicate_of=first)
     activities = [f for f in facts.values() if f['collection'] == 'records' and f['row']['record_type'] == 'activity']
-    claims = [_claim(f['key']) for f in facts.values()] + [r['source'] for r in revisions.values()]
+    def revision_token(f):
+        if f['duplicate_of'] is not None:
+            return revision_token(f['duplicate_of'])
+        return ('accepted', f['id']) if f['id'] is not None else ('incoming', f['member_id'], f['collection'], f['local_id'])
+    claims = [(_claim(f['key']), revision_token(f)) for f in facts.values()] + [(r['source'], ('accepted', r['id'])) for r in revisions.values()]
     for fact in activities:
         row = fact['row']
         references = list(row['economic_references'])
         if row['cash_flow'] is not None:
             references.extend(row['cash_flow'][k] for k in ('counterpart', 'cash_leg_of') if row['cash_flow'][k] is not None)
         for claim in references:
-            if sum(all(v == c[k] for k, v in claim.items() if k != 'revision' or v is not None) for c in claims) != 1:
+            if len({token for c, token in claims if all(v == c[k] for k, v in claim.items() if k != 'revision' or v is not None)}) != 1:
                 fact['required'] = 'identity'
     for authority in decisions['authorities']:
         left = authority['left']
@@ -436,43 +442,78 @@ def _across_facts(facts, inputs, context, decisions, revisions):
     connections = {p['member_id']: p['connection_id'] for p in context['pinned_sources']}
     def side(f):
         return {'form': 'incoming', **{k: f[k] for k in ('member_id', 'collection', 'local_id')}}
+    overlap_cache = {}
     def overlaps(a, b):
+        am, bm = a['member_id'], b['member_id']
+        cache_key = (am, a['row']['source_account_local_id'], a['row']['source_kind'],
+                     bm, b['row']['source_account_local_id'], b['row']['source_kind'])
+        if cache_key in overlap_cache:
+            return overlap_cache[cache_key]
         def interval(time):
             return (time['at'], time['at']) if time['tag'] == 'point' else (time['start'], time['end'])
-        for ca in inputs[a['member_id']]['coverage']:
+        def disjoint(end, start, end_inclusive, start_inclusive):
+            try:
+                comparison = compare_time(end, start)
+            except IngestionError:
+                return False
+            return comparison < 0 or (comparison == 0 and not (end_inclusive and start_inclusive))
+        for ca in inputs[am]['coverage']:
             if ca['account_local_id'] != a['row']['source_account_local_id'] or ca['kind'] != a['row']['source_kind']:
                 continue
-            for cb in inputs[b['member_id']]['coverage']:
+            for cb in inputs[bm]['coverage']:
                 if cb['account_local_id'] != b['row']['source_account_local_id'] or cb['kind'] != b['row']['source_kind']:
                     continue
-                aa, az = interval(ca['time']); ba, bz = interval(cb['time'])
-                try:
-                    if compare_time(az, ba) >= 0 and compare_time(bz, aa) >= 0:
-                        return True
-                except IngestionError:
-                    return True
+                sa, sb = ca['instrument_scope'], cb['instrument_scope']
+                if sa['tag'] == sb['tag'] == 'category' and sa['category'] != sb['category']:
+                    continue
+                if sa['tag'] == sb['tag'] == 'instruments':
+                    ia = {indexes[am].target('instrument', x)['id'] for x in sa['asset_local_ids']}
+                    ib = {indexes[bm].target('instrument', x)['id'] for x in sb['asset_local_ids']}
+                    if ia.isdisjoint(ib):
+                        continue
+                ta, tb = ca['time'], cb['time']
+                aa, az = interval(ta); ba, bz = interval(tb)
+                if disjoint(az, ba, ta.get('end_inclusive', True), tb.get('start_inclusive', True)):
+                    continue
+                if disjoint(bz, aa, tb.get('end_inclusive', True), ta.get('start_inclusive', True)):
+                    continue
+                overlap_cache[cache_key] = True
+                return True
+        overlap_cache[cache_key] = False
         return False
     stream_groups = defaultdict(list)
     for f in activities:
         m = f['member_id']
         stream_groups[indexes[m].target('account', f['row']['source_account_local_id'])['id'], f['row']['kind']].append(f)
-    pairs = []
-    for group in stream_groups.values():
-        by_connection = defaultdict(list)
-        for f in group:
-            by_connection[connections[f['member_id']]].append(f)
-        groups = list(by_connection.values())
-        for i, left in enumerate(groups):
-            for right in groups[i + 1:]:
-                pairs.extend((a, b) for a in left for b in right)
-    for a, b in pairs:
-        am, bm = a['member_id'], b['member_id']
-        if connections[am] == connections[bm] or a['row']['kind'] != b['row']['kind']:
-            continue
-        if indexes[am].target('account', a['row']['source_account_local_id'])['id'] != indexes[bm].target('account', b['row']['source_account_local_id'])['id']:
-            continue
-        linked = any(auth['kind'] in ('mirror', 'independent', 'authority') and
-                     ((auth['left'] == side(a) and auth['right'] == side(b)) or (auth['left'] == side(b) and auth['right'] == side(a))) for auth in decisions['authorities'])
+    def stream_pairs():
+        for group in stream_groups.values():
+            by_connection = defaultdict(list)
+            for f in group:
+                by_connection[connections[f['member_id']]].append(f)
+            groups = list(by_connection.values())
+            for i, left in enumerate(groups):
+                for right in groups[i + 1:]:
+                    for a in left:
+                        for b in right:
+                            yield a, b
+    latest_links = {}
+    for link in links:
+        old = latest_links.get(link['link_id'])
+        if old is None or int(old['link_revision']) < int(link['link_revision']):
+            latest_links[link['link_id']] = link
+    def ref_token(ref):
+        if ref is None:
+            return None
+        if ref['form'] == 'accepted':
+            return 'accepted', ref['accepted_revision_id']
+        return revision_token(facts[ref['member_id'], ref['collection'], ref['local_id']])
+    for a, b in stream_pairs():
+        pair = {revision_token(a), revision_token(b)}
+        choices = [auth for auth in decisions['authorities'] if {ref_token(auth['left']), ref_token(auth['right'])} == pair]
+        if not choices:
+            choices = [link['authority'] for link in latest_links.values()
+                       if {ref_token(link['authority']['left']), ref_token(link['authority']['right'])} == pair]
+        linked = any(auth['kind'] in ('mirror', 'independent', 'authority') for auth in choices)
         if not linked and overlaps(a, b):
             a['required'] = b['required'] = 'authority'
 
@@ -521,7 +562,7 @@ def build_review_bundle(pages, *, preview_id, allocate_id):
     ids = _Ids(rows, preview_id, allocate_id)
     candidates = _candidates(rows, inputs, context, decisions)
     state = 'NEEDS_MAPPING' if candidates is None else 'READY'
-    facts = {} if state == 'NEEDS_MAPPING' else _classify(inputs, context, decisions, revisions, chains, heads, tips)
+    facts = {} if state == 'NEEDS_MAPPING' else _classify(inputs, context, decisions, revisions, chains, heads, tips, rows['authorities'])
     if any(f['required'] for f in facts.values()):
         state = 'CONFLICT'
     ready = state == 'READY'
@@ -628,5 +669,10 @@ def build_review_bundle(pages, *, preview_id, allocate_id):
     raw = encode(bundle)
     if len(raw) > MAX_SET:
         _fail('$', 'import_limit')
-    validate_review_bundle(raw, stages=stages)
+    try:
+        validate_review_bundle(raw, stages=stages)
+    except IngestionError as exc:
+        if exc.code == 'import_limit':
+            _fail('$', 'import_limit')
+        raise
     return bundle

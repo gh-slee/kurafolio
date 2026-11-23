@@ -403,6 +403,20 @@ for tracking and reports. Existing Web/CLI workspaces remain on SQLite.
   stores the immutable preview and returns the saved result on a
   valid retry. IMP-007F wires these private calls into the worker, and
   IMP-007D verifies the installed functions and grants.
+
+The pure builder in `src/kurafolio/ingestion/review_bundle.py` turns one prepare
+lease's basis pages into a `ReviewBundle`, using only admitted stages, stored
+decisions and accepted revisions, heads and links. It produces NEEDS_MAPPING with
+every eligible existing candidate and one proposed candidate per entity, CONFLICT
+with a `required_decision` for each blocked fact and no Plan, or READY with the
+complete Plan. It never chooses a mapping or authority for the user or generates
+IDs; the caller supplies IDs. Amounts are copied unchanged, and contributions,
+wallet balances and zero holdings are never inferred. Fixed error codes refuse an
+untrusted basis or a bundle over 16 MiB. The builder cannot check competing streams
+against accepted revisions of other connections, which the database still refuses
+(IMP-007X), and an incoming fact on the left of a `mirror` decision remains
+CONFLICT with `unsupported` (IMP-007Y). No worker calls the builder until IMP-007V.
+
 ## Explicit 0004 installation
 
 For API readiness on a `0004` target, `verify_runtime_inventory` checks the exact

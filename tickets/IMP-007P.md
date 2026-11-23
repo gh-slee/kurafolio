@@ -330,11 +330,11 @@ The module is pure and nothing calls it until IMP-007V merges. Reverting the pul
 ## Plan
 
 - [x] Test helper `oracle_basis` for every case in the Build plan's table; record any case that cannot be mapped and stop.
-- [ ] Intake and refusals (pages, pins, inputs, context, decisions) with the AC-05 refusal tests.
+- [x] Intake and refusals (pages, pins, inputs, context, decisions) with the AC-05 refusal tests.
 - [x] NEEDS_MAPPING reviews, matching the four initial vectors.
 - [x] Fact classification and the READY Plan: activities, then coverage and membership, then snapshots; AC-01 byte for byte.
-- [ ] CONFLICT reviews and their literals; AC-03, AC-04, AC-06 and AC-07.
-- [ ] Gated PostgreSQL acceptance (AC-02) through `read_plan_basis_v1` and `prepare_preview_v1`; the CI skip count.
+- [x] CONFLICT reviews and their literals; AC-03, AC-04, AC-06 and AC-07.
+- [x] Gated PostgreSQL acceptance (AC-02) through `read_plan_basis_v1` and `prepare_preview_v1`; the CI skip count.
 - [ ] Docs (AC-09); full suite; pull request with the independent QA and Architect reviews.
 
 ## Decisions needed
@@ -356,10 +356,10 @@ Items 2 to 4 came up while writing the Build plan (2026-11-22). They do not chan
 
 ## Handoff
 
-- State: The pure builder and independent oracle basis helper are implemented. All 11 READY oracle reviews and Plans and the initial vectors match canonical bytes. Focused tests also cover determinism, public builtins, CONFLICT literals, intake refusals and ambient-I/O traps. No worker integration or contract changes.
-- Next step: Complete the real over-limit and maximum-valid-basis checks, then add gated PostgreSQL acceptance using existing seed helpers.
-- Verify: `PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -p test_ingestion_review_bundle.py -v`; `python3 scripts/tickets.py spec IMP-007P --base origin/main`.
-- Gotchas: Docker requires local socket access. Independent QA and Architect review require the configured reviewer model in Claude Code. Publication remains pending the applicable owner approval.
+- State: The pure builder, all planned core tests, live PostgreSQL acceptance and AC-09 documentation are implemented. The final focused module suite passes 14 tests; the PostgreSQL test accepts and replays 12 initial/READY subcases with no skips. The required full default suite is running; candidate image and publication remain pending.
+- Next step: Read `work/imp-007p/full-suite.log`, record the completed result, then run the clean-commit candidate image check and prepare the publication approval request.
+- Verify: `PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -p test_ingestion_review_bundle.py -v`; `KURAFOLIO_INGESTION_TEST=1 PYTHONPATH=src:tests .venv/bin/python -m unittest test_postgres_migration.IngestionAppendOnlyPostgresTests.test_review_bundle_builder_from_live_prepare_basis -v`; `python3 scripts/tickets.py spec IMP-007P --base origin/main`.
+- Gotchas: Use an existing equivalent Python 3.12 Web-test environment. Independent QA and Architect reviews are NOT RUN because the configured reviewer must be started in Claude Code. Publication requires the applicable owner approval. No worker calls the new module before IMP-007V.
 - Open questions: None.
 
 ## Log
@@ -373,3 +373,5 @@ Items 2 to 4 came up while writing the Build plan (2026-11-22). They do not chan
 - 2026-11-22 codex/gpt-6.1-sol: claimed the merged Build plan from origin/main; spec sha256:ab4f0a665240bd37f278712f3dc78aa90db9a7ecb92f3fc7e0700f67a4bab766 matches. Started the independent oracle basis helper before builder implementation.
 
 - 2026-11-22 codex/gpt-6.1-sol: implemented the pure builder and independent literal basis helper. All planned oracle review and Plan bytes match; focused determinism, builtin, CONFLICT and ambient-I/O checks pass. The large-basis fixture builds in 0.013 s (NEEDS_MAPPING) and 0.031 s (READY) locally. Maximum-size and PostgreSQL acceptance remain outstanding.
+
+- 2026-11-22 codex/gpt-6.1-sol: completed the planned core acceptance coverage (14 focused tests), AC-09 docs and one gated PostgreSQL test that accepts/replays 12 live-lease subcases in 9.085 s with no skips. The foundation skip guard increases from 128 to 129. Four valid 4,096,703-byte stages exceed the real bundle limit and are refused in 9.800 s; the separate 4 x 10,000-row probe is refused at the 4 MiB Minimal bound in 10.464 s. The default full suite is still running. Independent QA and Architect review are NOT RUN; no publication.
