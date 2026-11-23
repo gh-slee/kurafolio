@@ -678,8 +678,8 @@ Answered earlier: on 2026-11-10 the owner answered yes: the first version may va
 
 ## Handoff
 
-- State: Not started. Gate A recorded 2026-11-10 and the decision is answered. Waits only on ANL-008.
-- Next step: After ANL-008 merges, write the three response models in `src/kurafolio/web_v2/schemas.py` and review them before any service code.
+- State: Not started. Gate A recorded 2026-11-10. ANL-008 is done. The Build plan and the owner's answers of 2026-11-22 merged in #106; the owner chose to wait on IMP-007E for the ingestion runtime profile.
+- Next step: After IMP-007E is done, claim the ticket and follow the Build plan on `main`.
 - Verify: `PYTHONPATH=src .venv/bin/python -m unittest tests.test_web_v2_api -v` with the opt-in identity environment from [web-v2-identity.md](../docs/web-v2-identity.md)
 - Gotchas: Real-PostgreSQL tests need the explicit isolated environment; a skipped test is not acceptance.
 - Open questions: None.
@@ -696,3 +696,4 @@ Answered earlier: on 2026-11-10 the owner answered yes: the first version may va
 - 2026-11-18 claude-code/opus-5.5: the owner confirmed the migrated text of this ticket in conversation with "Confirm all 29", the batch listed in ENG-113 decision 3; `spec_approved` records sha256:53db5ddc3a935a30bdbdefb6bc5d90d43426429e417c2ebb3db32784d205d4ee.
 - 2026-11-22 claude-code/opus-5.5: wrote the Build plan from `main` at `7d7acc1` in plan pull request #106 (https://github.com/gh-slee/kurafolio/pull/106). It adds Context findings, updates the Plan steps and opens Decisions needed items 1 to 3: the dependency on IMP-007E's `ingestion` profile with the `identity-api` resource, the value series in the first version, and per-purchase crypto data for ANL-012C. Gated sections and front matter are unchanged; the spec hash still matches. A build waits for the owner's answers.
 - 2026-11-22 claude-code/opus-5.5: the owner answered Decisions needed items 1 to 3 with "Accept all recommended", relayed verbatim by the coordinating session of this planning conversation: option (a) of each. The same words confirm the front-matter change of item 1 (a): `depends_on` gains IMP-007E and `resources` gains `identity-api`. Gated sections, `gate_approval` and `spec_approved` are unchanged; the spec hash still matches. ROADMAP.md "Step 1" still lists ANL-012A at step 2; planner rules keep that file out of this pull request.
+- 2026-11-22 claude-code/opus-5.5: at the owner's request ("Yes, separate PR"), refreshed the stale Handoff and moved this ticket to step 3 of the roadmap's Step 1, after IMP-007E. No gated section changed.
