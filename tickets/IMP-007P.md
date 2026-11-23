@@ -329,10 +329,10 @@ The module is pure and nothing calls it until IMP-007V merges. Reverting the pul
 
 ## Plan
 
-- [ ] Test helper `oracle_basis` for every case in the Build plan's table; record any case that cannot be mapped and stop.
+- [x] Test helper `oracle_basis` for every case in the Build plan's table; record any case that cannot be mapped and stop.
 - [ ] Intake and refusals (pages, pins, inputs, context, decisions) with the AC-05 refusal tests.
-- [ ] NEEDS_MAPPING reviews, matching the four initial vectors.
-- [ ] Fact classification and the READY Plan: activities, then coverage and membership, then snapshots; AC-01 byte for byte.
+- [x] NEEDS_MAPPING reviews, matching the four initial vectors.
+- [x] Fact classification and the READY Plan: activities, then coverage and membership, then snapshots; AC-01 byte for byte.
 - [ ] CONFLICT reviews and their literals; AC-03, AC-04, AC-06 and AC-07.
 - [ ] Gated PostgreSQL acceptance (AC-02) through `read_plan_basis_v1` and `prepare_preview_v1`; the CI skip count.
 - [ ] Docs (AC-09); full suite; pull request with the independent QA and Architect reviews.
@@ -356,10 +356,10 @@ Items 2 to 4 came up while writing the Build plan (2026-11-22). They do not chan
 
 ## Handoff
 
-- State: Claimed by codex/gpt-6.1-sol from origin/main. The approved spec matches and the merged Build plan is present. No implementation changes yet.
-- Next step: Build the independent oracle_basis test helper and verify every planned oracle case is expressible as basis pages.
-- Verify: `python3 scripts/tickets.py spec IMP-007P --base origin/main`; focused review-bundle tests will be added with acceptance IDs.
-- Gotchas: Independent QA and Architect review require the configured reviewer model in Claude Code. Publication is pending the applicable owner approval.
+- State: The pure builder and independent oracle basis helper are implemented. All 11 READY oracle reviews and Plans and the initial vectors match canonical bytes. Focused tests also cover determinism, public builtins, CONFLICT literals, intake refusals and ambient-I/O traps. No worker integration or contract changes.
+- Next step: Complete the real over-limit and maximum-valid-basis checks, then add gated PostgreSQL acceptance using existing seed helpers.
+- Verify: `PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -p test_ingestion_review_bundle.py -v`; `python3 scripts/tickets.py spec IMP-007P --base origin/main`.
+- Gotchas: Docker requires local socket access. Independent QA and Architect review require the configured reviewer model in Claude Code. Publication remains pending the applicable owner approval.
 - Open questions: None.
 
 ## Log
@@ -371,3 +371,5 @@ Items 2 to 4 came up while writing the Build plan (2026-11-22). They do not chan
 - 2026-11-22 claude-code/opus-5.5: recorded the owner's answer to Decisions needed items 2 to 4 in plan pull request https://github.com/gh-slee/kurafolio/pull/105, relayed to this planning session by the coordinating session. Asked "Do you accept the planner's recommendations on decisions 2 to 4?", the owner answered "Accept all three": item 2 (a), refuse only an untrusted basis and show a CONFLICT review for r7 conflict outcomes; item 3 (a), build without the competing-stream check against accepted revisions of other connections; item 4 (a), CONFLICT `unsupported` for an incoming `mirror`. "Before you claim" no longer waits on them. Filed the follow-ups IMP-007X (extend the basis for that check) and IMP-007Y (mirror vectors and effect) as backlog tickets in the same pull request. No Gate A recorded; the gated sections are unchanged.
 
 - 2026-11-22 codex/gpt-6.1-sol: claimed the merged Build plan from origin/main; spec sha256:ab4f0a665240bd37f278712f3dc78aa90db9a7ecb92f3fc7e0700f67a4bab766 matches. Started the independent oracle basis helper before builder implementation.
+
+- 2026-11-22 codex/gpt-6.1-sol: implemented the pure builder and independent literal basis helper. All planned oracle review and Plan bytes match; focused determinism, builtin, CONFLICT and ambient-I/O checks pass. The large-basis fixture builds in 0.013 s (NEEDS_MAPPING) and 0.031 s (READY) locally. Maximum-size and PostgreSQL acceptance remain outstanding.
