@@ -204,7 +204,7 @@ class LiveReferences:
   - One snapshot serves `snapshot_seconds`. Every request in that window gets the same snapshot, so the same `valuation_time`, and the same calculation identifier while the facts do not change.
   - Bitcoin is fetched again for each new snapshot. Each FX pair is reused for `fx_seconds`.
   - A failed source is retried after `retry_seconds`, not on every request.
-  - A lock lets one caller refresh while the others wait.
+  - A lock lets one caller refresh. While it refreshes, other callers get the previous snapshot at once and do not wait. Only the first request after start, when no snapshot exists yet, waits for the fetch. Waiting callers would otherwise hold the Boundary's eight in-flight slots for up to about 12 s, and every V2 route would answer 429 meanwhile.
 - Failures: a network error, an HTTP status other than 200, a parse error, a `ValueError` from the helpers, a stale candle or a timeout leaves that piece out. `btc` is `None`, or the pair is missing from `fx`. The calculator then reports `quote_unavailable` or `fx_unavailable`. A fetch never raises into the request and never becomes zero.
 - Boundaries:
   - It writes no file and sends no portfolio data.
@@ -569,7 +569,7 @@ Also in the default suite:
   - a candle up to five minutes old becomes a quote, and an older one gives `btc` `None`;
   - synthetic Bank of Canada JSON and CBC HTML give the rates, and a rate eleven days old is missing;
   - an `OSError`, a `TimeoutError`, bad JSON or HTTP 500 leaves out only that piece and raises nothing;
-  - within 60 s there is one fetch per source and the same `valuation_time`; at 61 s only Bitcoin is fetched again; a failed source waits `retry_seconds`;
+  - within 60 s there is one fetch per source and the same `valuation_time`; at 61 s only Bitcoin is fetched again; a failed source waits `retry_seconds`; while one caller is blocked inside a refresh, a second caller gets the previous snapshot at once;
   - only the three hosts are requested, each with timeout 4;
   - nothing is written to a temporary working directory, and no value appears in the captured logs;
   - `inputs()` maps to `FxTable('USD', …)`, with its oldest date as `as_of`, or to `None` when there is no rate.
@@ -665,6 +665,7 @@ Items 1 to 3 are open. Each needs the owner's answer before a build starts.
    - (b) One point per holdings import. Securities points use each accepted snapshot's own source values. Crypto points are `unavailable` without historical prices, and so are Total points whenever crypto exists. This needs a reader for superseded snapshot revisions beyond ANL-008, the size grows to L, and the plan returns to the planner.
    - (c) One point, the current calculation. It is cheap, but it is dated today while securities values come from their import date, so `observed` would overstate it. The shape would be `value_series: [{date, value, basis, estimated_from, reasons}]`, with `basis` in `observed`, `estimated` and `unavailable`, as MKT-009D describes.
    - Recommendation: (a). It is the smallest honest step and matches MKT-009D's Requirements. The Build plan is written for (a). For (c), add the `SeriesPoint` model and one point built from the scope's value Figure.
+   - For the owner, about gated text: (a) relies on the "MVP order" sentence of this ticket's Requirements, which moves the daily series to MKT-009D. If the owner treats the sentence "Each analysis response includes a daily value series" as binding for the first version, then (a) needs revised Requirements here and a new Gate A. The "chart plots import dates" wording of ANL-012B, 012C and 012D needs the same. This pull request edits no gated text.
 3. **Per-purchase crypto data for ANL-012C.** ANL-012C needs four things that `calculate` does not return: known acquisition spending with its coverage, a weighted purchase rate, a cumulative acquisitions chart and a monthly table. It sends contract changes back here.
    - (a) Include in `/crypto` the counted activity list, the `spending` Figure and the `purchase_rate`. Part B extracts the eligibility rule so that the list and the calculation share one rule. The page groups the list by month with `decimal.js`.
    - (b) Leave them out. ANL-012C then needs a new contract ticket before it can build those sections.
