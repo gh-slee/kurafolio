@@ -272,12 +272,17 @@ for tracking and reports. Existing Web/CLI workspaces remain on SQLite.
   fields, and an unbound 30-second offer lease is created that no worker can
   claim. `bind` accepts the SHA-256, length and handoff-token digest once, from the
   same session, before the deadline and offer expiry. It extends the offer by up
-  to 60 seconds within the raw deadline and returns handoff metadata only; the
-  trusted API adds its own plaintext token. Opt-in PostgreSQL tests cover
+  to 60 seconds within the raw deadline. It returns the handoff metadata and,
+  under `context_unpadded_base64`, the member's stored context bytes as unpadded
+  standard base64 without line breaks. Both are for the trusted API only and never
+  belong in a public response. The planned upload route (IMP-007U) adds its own
+  plaintext token, decodes the context for the worker frame and removes that key
+  before it validates `Handoff`. Opt-in PostgreSQL tests cover
   replay, a reused operation, quota exhaustion, each unavailable-source case, the
   native namespace, cancel-then-purge release, reservation rollback on every
-  refusal, missing or ambiguous workers and re-upload fencing. No upload route,
-  worker claim or raw transport calls them yet.
+  refusal, missing or ambiguous workers, re-upload fencing and the returned context
+  bytes at 1 byte and 1 MiB. No upload route, worker claim or raw transport calls
+  them yet.
   The worker functions `claim_member_v1` and `renew_member_v1` handle normalize
   leases; the prepare and cleanup kinds return `import_invalid` here. Both take no bytes and call `_guard_worker_v1` first.
   Scope comes only from the stored set row, and locks follow the reserve order.
