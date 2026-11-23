@@ -89,8 +89,8 @@ None open. Answered by the owner on 2026-11-10: yes, the first version may value
 
 ## Handoff
 
-- State: Not started. Gate A recorded 2026-11-10 and the decision is answered. Waits only on ANL-008.
-- Next step: After ANL-008 merges, write the three response models in `src/kurafolio/web_v2/schemas.py` and review them before any service code.
+- State: Not started. Gate A recorded 2026-11-10. ANL-008 is done. The Build plan and the owner's answers of 2026-11-22 are in the plan pull request #106; the owner chose to wait on IMP-007E for the ingestion runtime profile.
+- Next step: After #106 merges and IMP-007E is done, claim the ticket and follow the Build plan on `main`.
 - Verify: `PYTHONPATH=src .venv/bin/python -m unittest tests.test_web_v2_api -v` with the opt-in identity environment from [web-v2-identity.md](../docs/web-v2-identity.md)
 - Gotchas: Real-PostgreSQL tests need the explicit isolated environment; a skipped test is not acceptance.
 - Open questions: None.
@@ -105,3 +105,4 @@ None open. Answered by the owner on 2026-11-10: yes, the first version may value
 - 2026-11-13 planner: removed the answered decision and the stale gate wording; the ticket waits only on ANL-008.
 - 2026-11-18 claude-code/opus-5.5: ENG-113 migrated this ticket to the spec format without changing any wording: moved "Expected behaviour", "Scope", "Implementation notes" and "Owner decisions recorded 2026-11-10" from Context into Requirements and numbered the acceptance criteria AC-ANL-012A-01 to 05. Spec hash sha256:53db5ddc3a935a30bdbdefb6bc5d90d43426429e417c2ebb3db32784d205d4ee, awaiting the owner's confirmation.
 - 2026-11-18 claude-code/opus-5.5: the owner confirmed the migrated text of this ticket in conversation with "Confirm all 29", the batch listed in ENG-113 decision 3; `spec_approved` records sha256:53db5ddc3a935a30bdbdefb6bc5d90d43426429e417c2ebb3db32784d205d4ee.
+- 2026-11-22 claude-code/opus-5.5: at the owner's request ("Yes, separate PR"), refreshed the stale Handoff and moved this ticket to step 3 of the roadmap's Step 1, after IMP-007E. No gated section changed.
