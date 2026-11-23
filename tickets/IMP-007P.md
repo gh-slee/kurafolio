@@ -356,11 +356,11 @@ Items 2 to 4 came up while writing the Build plan (2026-11-22). They do not chan
 
 ## Handoff
 
-- State: The pure builder, all planned core tests, live PostgreSQL acceptance and AC-09 documentation are implemented. The final focused module suite passes 14 tests; the PostgreSQL test accepts and replays 12 initial/READY subcases with no skips. The required full default suite is running; candidate image and publication remain pending.
-- Next step: Read `work/imp-007p/full-suite.log`, record the completed result, then run the clean-commit candidate image check and prepare the publication approval request.
-- Verify: `PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -p test_ingestion_review_bundle.py -v`; `KURAFOLIO_INGESTION_TEST=1 PYTHONPATH=src:tests .venv/bin/python -m unittest test_postgres_migration.IngestionAppendOnlyPostgresTests.test_review_bundle_builder_from_live_prepare_basis -v`; `python3 scripts/tickets.py spec IMP-007P --base origin/main`.
-- Gotchas: Use an existing equivalent Python 3.12 Web-test environment. Independent QA and Architect reviews are NOT RUN because the configured reviewer must be started in Claude Code. Publication requires the applicable owner approval. No worker calls the new module before IMP-007V.
-- Open questions: None.
+- State: Local implementation, AC-09 docs and developer validation are complete. The default suite passes 1,440 tests with 267 opt-in skips; the final focused builder suite passes 14 tests, and the real PostgreSQL test accepts/replays all 12 required initial/READY subcases with no skips. No worker, schema, helper or frozen vector changed. The local evidence index is `work/imp-007p/final-handoff.json`.
+- Next step: Obtain the exact-HEAD candidate image receipt, record it in the local evidence index, then obtain the applicable owner approval for publication of this branch. Open the PR before the eventual done/pr outcome commit, and request the configured independent reviews.
+- Verify: `PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -p test_ingestion_review_bundle.py -v`; `KURAFOLIO_INGESTION_TEST=1 PYTHONPATH=src:tests .venv/bin/python -m unittest test_postgres_migration.IngestionAppendOnlyPostgresTests.test_review_bundle_builder_from_live_prepare_basis -v`; `python3 scripts/tickets.py spec IMP-007P --base origin/main`; `python3 scripts/check_pr_image.py` from a clean tracked tree.
+- Gotchas: Use an existing equivalent Python 3.12 Web-test environment. Independent QA and Architect reviews remain NOT RUN because the configured reviewer must be started in Claude Code. Run `review IMP-007P` there after PR creation; frontier owner review follows those reviews. No worker calls this module before IMP-007V.
+- Open questions: None about the approved behavior; publication and independent reviews are outstanding.
 
 ## Log
 
@@ -375,3 +375,5 @@ Items 2 to 4 came up while writing the Build plan (2026-11-22). They do not chan
 - 2026-11-22 codex/gpt-6.1-sol: implemented the pure builder and independent literal basis helper. All planned oracle review and Plan bytes match; focused determinism, builtin, CONFLICT and ambient-I/O checks pass. The large-basis fixture builds in 0.013 s (NEEDS_MAPPING) and 0.031 s (READY) locally. Maximum-size and PostgreSQL acceptance remain outstanding.
 
 - 2026-11-22 codex/gpt-6.1-sol: completed the planned core acceptance coverage (14 focused tests), AC-09 docs and one gated PostgreSQL test that accepts/replays 12 live-lease subcases in 9.085 s with no skips. The foundation skip guard increases from 128 to 129. Four valid 4,096,703-byte stages exceed the real bundle limit and are refused in 9.800 s; the separate 4 x 10,000-row probe is refused at the 4 MiB Minimal bound in 10.464 s. The default full suite is still running. Independent QA and Architect review are NOT RUN; no publication.
+
+- 2026-11-22 codex/gpt-6.1-sol: completed the default developer suite: 1,440 tests in 745.501 s, 267 opt-in skips, no failures or errors. The final focused builder suite separately passes 14 tests in 26.157 s; live PostgreSQL accepts/replays all 12 required subcases in 9.085 s without skips. Language, worktree publication, ticket consistency and approved-spec checks pass. Candidate image verification follows this clean local checkpoint. Independent QA and Architect review are NOT RUN; CI and publication are NOT RUN.
