@@ -2,7 +2,7 @@
 id: IMP-007E
 title: Add authenticated V2 import HTTP routes
 priority: P0
-status: ready
+status: in_progress
 type: feature
 parent: IMP-007
 depends_on: [IMP-007D, IMP-007J, IMP-007W]
@@ -13,11 +13,11 @@ agent_tier: frontier
 gate: owner
 gate_approval: "owner 2026-10-31, IMP-007 spec r7 (covers all child tickets); owner 2026-11-21, IMP-007E text after the upload split (Q13)"
 review: independent
-branch: 
+branch: ticket/imp-007e-add-authenticated-v2-import-http-routes
 pr: 
 spec: docs/specs/imp-007-r7/spec.md
 spec_approved: sha256:aba3bef4df145ca2355ad07c3fafb0954169d04ad8a05609502b23528a1c3d4c
-updated: 2026-11-21
+updated: 2026-11-23
 ---
 
 # IMP-007E: Add authenticated V2 import HTTP routes
@@ -371,7 +371,7 @@ Items 1 to 5 were answered by the owner on 2026-11-20 and items 6 and 7 on 2026-
 
 ## Handoff
 
-- State: Not started. Plan updated on 2026-11-20 for the owner's decisions; the owner approved the new gated text on 2026-11-21 (Decisions needed, item 6), recorded in plan pull request #87.
+- State: In progress from `9817e3a`. The approved spec matches `origin/main`; IMP-007W is done. The runtime and gateway readiness checks passed on an isolated synthetic PostgreSQL 18 target at `0004`; the target was cleaned up.
 - Next step: After Gate A is on `main`, read `wire-contracts.json` and `ingestion-api.md` in the r7 bundle, then `web_v2/api.py` lines 440 to 475 (how the source routes are registered per profile). Write the DTOs first and review them before any route code.
 - Verify: `KURAFOLIO_INGESTION_TEST=1 PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -p 'test_postgres_migration.py' -v` and `PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -p 'test_ingestion_*.py' -v`; environment setup in [postgres-foundation.md](../docs/postgres-foundation.md) and [web-v2-imports.md](../docs/web-v2-imports.md)
 - Gotchas: IMP-007E, IMP-007U, APP-011I and APP-011E all hold `identity-api` (APP-011E adds it in its plan pull request #84, owner answer Q21 of 2026-11-21), so only one of them builds at a time.
@@ -394,3 +394,5 @@ Items 1 to 5 were answered by the owner on 2026-11-20 and items 6 and 7 on 2026-
 - 2026-11-21 claude-code/opus-5.5: recorded Gate A for the new gated text. The owner was asked "Gate A for IMP-007E's new text (PR #87, hash aba3bef4…). Changes from the approved text: the Goal names the ingestion runtime profile and drops uploads ('upload route is IMP-007U'); Requirements add one paragraph adopting the r7 profile branch (activation is IMP-007S), say 'Eight routes' instead of nine with the upload row removed, and move the upload-order, upload-body and hand-off bullets to IMP-007U; AC-04, AC-06 and AC-08 move to IMP-007U, other AC IDs unchanged. Approve this exact text?" and chose "Approve". `spec_approved` changes from sha256:6db6a5ba54ea92a37456cd15bf51124498e73d86d19d24cb6da26d4dcbac652b to sha256:aba3bef4df145ca2355ad07c3fafb0954169d04ad8a05609502b23528a1c3d4c; `gate_approval` adds "owner 2026-11-21, IMP-007E text after the upload split (Q13)". Decisions needed item 6 resolved. The Build plan was checked against this text. Handoff now names IMP-007U and APP-011E as `identity-api` holders.
 - 2026-11-21 claude-code/opus-5.5: recorded the builder's finding. codex/gpt-6.1-sol claimed this ticket on 2026-11-21 from `cd68c5e` and stopped before Part A at the Stop-and-ask condition on `verify_inventory`. On an isolated synthetic PostgreSQL 18 target at `0004`, the operator verifier passed with 68 functions, the same call through the runtime login raised `migration_role_required`, and the gateway login could not read `wl_pg`. No code changed; the builder's commits stayed on its local branch, and its evidence is under the ignored `work/imp-007e/` of that worktree. The builder raised Decisions needed item 7.
 - 2026-11-21 claude-code/opus-5.5: the owner answered Decisions needed item 7 with "New prerequisite ticket", option (a): "add a prerequisite ticket providing an approved runtime-safe inventory check, then update this Build plan to use it". Filed IMP-007W in plan pull request https://github.com/gh-slee/kurafolio/pull/93 and added it to `depends_on`; the owner's answer confirms that change. Revised the readiness parts of the Build plan from `main` at `cd68c5e`: `Auth.ready()` on `ingestion` uses `verify_runtime_inventory` and no longer calls `role_inventory(gateway=False)`, which refuses the read-only runtime role at `0004`. Gated sections unchanged (sha256:aba3bef4df145ca2355ad07c3fafb0954169d04ad8a05609502b23528a1c3d4c).
+
+- 2026-11-23 codex/gpt-6.1-sol: claimed the ticket, fast-forwarded its clean worktree to `9817e3a`, verified the approved hash and IMP-007W, and passed both prerequisite readiness checks on isolated PostgreSQL 18. Starting DTOs and profile integration.
