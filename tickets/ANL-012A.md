@@ -5,8 +5,8 @@ priority: P0
 status: ready
 type: feature
 parent: ANL-012
-depends_on: [ANL-008]
-resources: [calculation-contract]
+depends_on: [ANL-008, IMP-007E]
+resources: [calculation-contract, identity-api]
 risk: high
 size: M
 agent_tier: frontier
@@ -17,7 +17,7 @@ branch:
 pr:
 spec:
 spec_approved: sha256:53db5ddc3a935a30bdbdefb6bc5d90d43426429e417c2ebb3db32784d205d4ee
-updated: 2026-11-18
+updated: 2026-11-22
 ---
 
 # ANL-012A: Define the V2 analysis read contract for securities, crypto and total
@@ -116,12 +116,11 @@ The three V2 analysis pages need one versioned read contract so they can be buil
 ## Build plan
 
 - Based on: `main` at `7d7acc1` ("Set OpenCode to high effort and add a per-request owner model override (#104)"). ANL-008 is merged (PR #94). IMP-007E, IMP-007U, APP-011I, APP-011E and MKT-009B are not.
-- Status: this plan follows the recommended option of items 1 to 3 under Decisions needed, which are open. A builder starts only when three things are on `main`:
-  - the owner's answers to items 1 to 3;
-  - the owner's confirmation, in this ticket's Log, of any `depends_on` or `resources` change;
-  - with item 1 (a), IMP-007E with status `done`.
+- Status: on 2026-11-22 the owner answered items 1 to 3 under Decisions needed with "Accept all recommended", so this plan implements option (a) of each item as a decided rule. The `depends_on` and `resources` changes of item 1 (a) are in the front matter, with the owner's confirmation in the Log. A builder starts only when two things are true:
+  - this plan pull request has merged to `main`;
+  - IMP-007E has status `done`, which `depends_on` now enforces.
 
-  Where the owner picks another option, the item says what changes. Anything else returns the ticket to the planner.
+  A question the plan does not answer returns the ticket to the planner.
 - Shape:
   - A reference module fetches the Bitcoin price and two FX pairs at request time. It writes nothing.
   - A service reads the accepted state once per request, calculates once for the requested currency and builds the response for one of three scopes from that calculation.
@@ -637,7 +636,8 @@ The opt-in PostgreSQL run uses the isolated environment of the claim (see `docs/
 ## Plan
 
 - [x] Owner Gate A on the contract (2026-11-10).
-- [ ] Owner answers Decisions needed items 1 to 3, and the plan pull request merges. With item 1 (a), IMP-007E is `done`.
+- [x] Owner answers Decisions needed items 1 to 3 (2026-11-22, "Accept all recommended": option (a) of each).
+- [ ] The plan pull request merges, and IMP-007E is `done`.
 - [ ] Part A: reference inputs and `tests/test_projection_references.py`.
 - [ ] Part B: calculator helpers; the ANL-008 tests pass unchanged.
 - [ ] Part C: DTOs and `build_document`, with the pure oracles for AC-01 to AC-03 and the cache test for AC-04.
@@ -647,13 +647,14 @@ The opt-in PostgreSQL run uses the isolated environment of the claim (see `docs/
 
 ## Decisions needed
 
-Items 1 to 3 are open. Each needs the owner's answer before a build starts.
+None open. On 2026-11-22 the owner answered items 1 to 3 with "Accept all recommended". Each item below keeps its question and options for the record and states the option taken; the Build plan implements each as a rule.
 
 1. **The routes need the `ingestion` runtime profile.** Accepted facts exist only in a `0004_ingestion` database, and no profile on `main` serves one (Context, "Findings"). IMP-007E Part A adds that profile, but this ticket's `depends_on` lists only ANL-008. The routes also edit `web_v2/api.py` and `schemas.py`, which IMP-007E, IMP-007U, APP-011I and APP-011E change under the `identity-api` resource.
    - (a) Add IMP-007E to `depends_on` and `identity-api` to `resources`. The ticket is built after IMP-007E merges, and it moves from step 2 to step 3 of ROADMAP.md "Step 1". ANL-012B builds against a mocked contract, so it does not wait. The gated "may start after ANL-008" refers to not waiting for MKT-009, and it does not change.
    - (b) Split the ticket. Parts A to C (pure, no route) are built now. A new child carries Parts D and E and AC-04 and AC-05 after IMP-007E. This changes gated acceptance criteria, so it needs a new Gate A.
    - (c) Build an ingestion profile here. That duplicates IMP-007E Part A on the same files and resource.
-   - Recommendation: (a). Changing `depends_on` and `resources` of an approved ticket needs the owner's confirmation in its Log, so this pull request does not edit the front matter.
+   - Recommendation: (a). Changing `depends_on` and `resources` of an approved ticket needs the owner's confirmation in its Log.
+   - Resolved 2026-11-22 ("Accept all recommended"): (a). The front matter now lists IMP-007E in `depends_on` and `identity-api` in `resources`. The owner's confirmation is in the Log.
 2. **The value series in the first version.**
    - The texts disagree:
      - The owner decision of 2026-11-10 says each response includes a daily series.
@@ -666,10 +667,12 @@ Items 1 to 3 are open. Each needs the owner's answer before a build starts.
    - (c) One point, the current calculation. It is cheap, but it is dated today while securities values come from their import date, so `observed` would overstate it. The shape would be `value_series: [{date, value, basis, estimated_from, reasons}]`, with `basis` in `observed`, `estimated` and `unavailable`, as MKT-009D describes.
    - Recommendation: (a). It is the smallest honest step and matches MKT-009D's Requirements. The Build plan is written for (a). For (c), add the `SeriesPoint` model and one point built from the scope's value Figure.
    - For the owner, about gated text: (a) relies on the "MVP order" sentence of this ticket's Requirements, which moves the daily series to MKT-009D. If the owner treats the sentence "Each analysis response includes a daily value series" as binding for the first version, then (a) needs revised Requirements here and a new Gate A. The "chart plots import dates" wording of ANL-012B, 012C and 012D needs the same. This pull request edits no gated text.
+   - Resolved 2026-11-22 ("Accept all recommended"): (a). This plan reads the owner's choice as accepting the "MVP order" sentence for the first version, so the daily series stays with MKT-009D and no gated text changes. The "chart plots import dates" line of ANL-012B, 012C and 012D then waits for MKT-009D; those tickets are not edited here.
 3. **Per-purchase crypto data for ANL-012C.** ANL-012C needs four things that `calculate` does not return: known acquisition spending with its coverage, a weighted purchase rate, a cumulative acquisitions chart and a monthly table. It sends contract changes back here.
    - (a) Include in `/crypto` the counted activity list, the `spending` Figure and the `purchase_rate`. Part B extracts the eligibility rule so that the list and the calculation share one rule. The page groups the list by month with `decimal.js`.
    - (b) Leave them out. ANL-012C then needs a new contract ticket before it can build those sections.
    - Recommendation: (a). Without it, `/crypto` carries no source date for exchange purchases either, and the Requirements ask for source dates.
+   - Resolved 2026-11-22 ("Accept all recommended"): (a). Part B's shared eligibility helper and the `/crypto` fields marked "item 3 (a)" are part of the build.
 
 Answered earlier: on 2026-11-10 the owner answered yes: the first version may value securities from the import's own market values, marked "as of the source file", or from a live quote where the MKT-009A adapter is enabled. This plan uses the source values. Stored quotes arrive with MKT-009B, whose Requirements already wire them into this contract.
 
@@ -692,3 +695,4 @@ Answered earlier: on 2026-11-10 the owner answered yes: the first version may va
 - 2026-11-18 claude-code/opus-5.5: ENG-113 migrated this ticket to the spec format without changing any wording: moved "Expected behaviour", "Scope", "Implementation notes" and "Owner decisions recorded 2026-11-10" from Context into Requirements and numbered the acceptance criteria AC-ANL-012A-01 to 05. Spec hash sha256:53db5ddc3a935a30bdbdefb6bc5d90d43426429e417c2ebb3db32784d205d4ee, awaiting the owner's confirmation.
 - 2026-11-18 claude-code/opus-5.5: the owner confirmed the migrated text of this ticket in conversation with "Confirm all 29", the batch listed in ENG-113 decision 3; `spec_approved` records sha256:53db5ddc3a935a30bdbdefb6bc5d90d43426429e417c2ebb3db32784d205d4ee.
 - 2026-11-22 claude-code/opus-5.5: wrote the Build plan from `main` at `7d7acc1` in plan pull request #106 (https://github.com/gh-slee/kurafolio/pull/106). It adds Context findings, updates the Plan steps and opens Decisions needed items 1 to 3: the dependency on IMP-007E's `ingestion` profile with the `identity-api` resource, the value series in the first version, and per-purchase crypto data for ANL-012C. Gated sections and front matter are unchanged; the spec hash still matches. A build waits for the owner's answers.
+- 2026-11-22 claude-code/opus-5.5: the owner answered Decisions needed items 1 to 3 with "Accept all recommended", relayed verbatim by the coordinating session of this planning conversation: option (a) of each. The same words confirm the front-matter change of item 1 (a): `depends_on` gains IMP-007E and `resources` gains `identity-api`. Gated sections, `gate_approval` and `spec_approved` are unchanged; the spec hash still matches. ROADMAP.md "Step 1" still lists ANL-012A at step 2; planner rules keep that file out of this pull request.
