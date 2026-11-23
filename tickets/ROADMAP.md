@@ -85,18 +85,19 @@ The owner's flow works end to end: register, enable plugins, import, see Stock/B
 | 2 | IMP-007O | The bind result also returns the member's stored context bytes | frontier | the owner's Gate A; IMP-007W first (same `ingestion-schema-sql` lock) |
 | 2 | IMP-007E | The ingestion runtime profile and the eight JSON import routes the browser calls | frontier | IMP-007W |
 | 2 | IMP-007V | The worker's prepare step, moved out of IMP-007F | frontier | IMP-007F, IMP-007P; the owner's Gate A |
-| 2 | ANL-012A | One analysis contract for securities, crypto and total | frontier | ANL-008 |
 | 3 | IMP-007U | The upload route, moved out of IMP-007E | frontier | IMP-007E, IMP-007O; the owner's Gate A |
 | 3 | IMP-007S | Operator command that activates an ingestion instance | frontier | IMP-007E, IMP-007F; the owner's Gate A |
-| 3 | ANL-012B | Stock/Bond page and the shared toolbar | standard | ANL-012A |
+| 3 | ANL-012A | One analysis contract for securities, crypto and total | frontier | ANL-008 (done), IMP-007E for the ingestion runtime profile (owner decision 2026-11-22, recorded in #106); shares `identity-api` with IMP-007U, so one at a time |
+| 4 | ANL-012B | Stock/Bond page and the shared toolbar | standard | ANL-012A |
 | 4 | APP-011D | Import Data page: upload, review, confirm, history | standard | IMP-007E, IMP-007U |
 | 4 | OPS-021 | One-command deployment; its pull request says "ready to use" | frontier | IMP-007E, IMP-007F, IMP-007S, IMP-007U, ANL-012A |
-| 4 | ANL-012C | Crypto page | standard | ANL-012B |
 | 4 | IMP-007G | Independent acceptance of imports (36 cases) | frontier | IMP-007E, IMP-007F, IMP-007U, IMP-007S, IMP-007V |
-| 5 | ANL-012D | Total page and Home | standard | ANL-012C |
+| 5 | ANL-012C | Crypto page | standard | ANL-012B |
+| 6 | ANL-012D | Total page and Home | standard | ANL-012C |
 
 The new import tickets and their dependencies are as the open plan pull requests record them (see "Import
-ticket split" above). Tickets with the same order number share no resource and can run at the same time. In the MVP,
+ticket split" above). Tickets with the same order number can run at the same time unless the Waits on
+column names a shared resource. In the MVP,
 securities are valued from the import's own market values or the optional unofficial adapter, Bitcoin
 from the live price, in CAD, USD and TWD.
 

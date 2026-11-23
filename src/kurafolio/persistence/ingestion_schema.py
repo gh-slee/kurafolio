@@ -2681,6 +2681,7 @@ _MEMBER_PIN_SQL = r"""
 
 # reserve opens one raw attempt; bind fixes its exact bytes once. Neither ever
 # receives raw content: only a hash, a length and the API's handoff-token digest.
+# bind also returns the stored context bytes (unpadded base64) for the trusted API's worker frame.
 RESERVE_DDL = r"""
 CREATE FUNCTION wl_ingestion.reserve_member_v1(p_digest text,p_user uuid,p_version bigint,p_realm jsonb,
  p_catalog_digest text,p_payload jsonb) RETURNS jsonb
@@ -2789,7 +2790,8 @@ MEMBER_PINS
   'job_id',pg_catalog.convert_from(mem.context_bytes,'UTF8')::jsonb->>'job_id','set_id',selected.id::text,
   'member_id',mem.id::text,'fence',mem.fence::text,'raw_sha256',p_payload->>'raw_sha256',
   'raw_bytes',(p_payload->>'raw_bytes')::bigint,'context_sha256',mem.context_digest,
-  'context_bytes',pg_catalog.octet_length(mem.context_bytes),'realm_digest',selected.realm_digest,
+  'context_bytes',pg_catalog.octet_length(mem.context_bytes),
+  'context_unpadded_base64',pg_catalog.translate(pg_catalog.encode(mem.context_bytes,'base64'),pg_catalog.chr(10)||'=',''),'realm_digest',selected.realm_digest,
   'expires_at',INSTANT_UNTIL,'raw_deadline',INSTANT_RAW));
 EXCEPTION WHEN SQLSTATE '22023' THEN
  -- Every reservation and change above rolls back with this block.
