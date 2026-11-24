@@ -33,6 +33,7 @@ class ImportWireTests(unittest.TestCase):
         self.assertEqual(str(caught.exception), 'internal_error')
 
     def test_valid_preview_with_next_last_and_empty_page(self):
+        """AC-IMP-007E-05."""
         from kurafolio.ingestion import cursors
         result = self.wire.preview_page({'page': self.page, 'next': self.cursor}, self.key)
         token = result.pop('next_cursor')
@@ -42,6 +43,7 @@ class ImportWireTests(unittest.TestCase):
                          dict(self.page, next_cursor=None))
 
     def test_closed_wrapper_page_and_cursor_failures(self):
+        """AC-IMP-007E-05."""
         base = {'page': self.page, 'next': self.cursor}
         cases = [[], None, {'page': self.page}, {'next': None}, dict(base, next_cursor=None), dict(base, ok=True)]
         cases += [{'page': x, 'next': None} for x in ([], '', None)]
@@ -60,11 +62,13 @@ class ImportWireTests(unittest.TestCase):
             with self.subTest(value=value): self.reject(copy.deepcopy(value))
 
     def test_signing_limit_is_a_server_error(self):
+        """AC-IMP-007E-05."""
         from kurafolio.ingestion.contracts import IngestionError
         with patch.object(self.wire.cursors, 'sign', side_effect=IngestionError('import_limit')):
             self.reject({'page': self.page, 'next': self.cursor})
 
     def test_set_list_valid_and_closed_failures(self):
+        """AC-IMP-007E-05."""
         from kurafolio.ingestion import cursors
         cursor = dict(self.cursor, resource_id=None, resource_revision=None, review_digest=None)
         self.assertEqual(self.wire.set_list({'items': [], 'next': None}, self.key), {'items': [], 'next_cursor': None})
@@ -75,6 +79,7 @@ class ImportWireTests(unittest.TestCase):
             self.reject(value, 'set_list')
 
     def test_pure_source(self):
+        """AC-IMP-007E-05."""
         source = Path(self.wire.__file__).read_text()
         for token in ('logging', 'print(', 'SELECT ', 'INSERT ', 'UPDATE ', 'DELETE '):
             self.assertNotIn(token, source)

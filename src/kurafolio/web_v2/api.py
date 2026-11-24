@@ -263,7 +263,7 @@ class Boundary:
             if not set(params) <= allowed:
                 raise RequestError('invalid_input',422)
             await asyncio.to_thread(self.auth.imports.admit, principal, 'control' if unsafe else 'read')
-        elif not source_list and path!='/api/v2/admin/invitations' or method!='GET' and not import_request:
+        elif (not source_list and path!='/api/v2/admin/invitations') or method!='GET':
             if params:
                 raise RequestError('invalid_input',422)
         scope.setdefault('state',{}).update(request_id=request_id,token=token,principal=principal,
@@ -534,7 +534,7 @@ def create_app(settings, *, frontend_root=None):
                 token = cursors.verify(auth.cursor_key, params['cursor']) if 'cursor' in params else None
             except IngestionError:
                 raise RequestError('import_invalid', 422) from None
-            result = {'cursor': token, 'limit': int(limit)}
+            result = {'cursor': token, 'limit': limit}
             if sets:
                 result['state'] = state
             return result

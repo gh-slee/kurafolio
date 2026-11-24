@@ -87,6 +87,7 @@ class ImportHttpTests(unittest.TestCase):
                               'X-CSRF-Token':'a'*64}, **kwargs)
 
     def test_ac_01_02_routes_success_only_gateway_functions_and_closed_payloads(self):
+        """AC-IMP-007E-01, AC-IMP-007E-02."""
         from kurafolio.persistence.ingestion_schema import GATEWAY
         client, auth, _ = self.client()
         for case in CASES:
@@ -102,6 +103,7 @@ class ImportHttpTests(unittest.TestCase):
             for word in ('INSERT ', 'UPDATE ', 'DELETE ', 'TRUNCATE '): self.assertNotIn(word, source)
 
     def test_ac_01_unregistered_profiles_upload_and_source_routes(self):
+        """AC-IMP-007E-01."""
         for profile in ('identity', 'sources', 'ingestion'):
             client, auth, _ = self.client(profile)
             if profile != 'ingestion':
@@ -117,6 +119,7 @@ class ImportHttpTests(unittest.TestCase):
                 self.assertEqual((response.status_code,response.json()['error']['code']), (409,'source_unavailable'))
 
     def test_ac_01_openapi_frozen_schema_equality(self):
+        """AC-IMP-007E-01."""
         client, _, _ = self.client()
         doc = client.get('/api/v2/openapi.json').json()
         root = Path(__file__).resolve().parents[1]/'docs/specs/imp-007-r7'
@@ -144,6 +147,7 @@ class ImportHttpTests(unittest.TestCase):
             if name in codec['$defs']: self.assertEqual(schema,rewrite(codec['$defs'][name]))
 
     def test_ac_03_auth_origin_csrf_query_and_stale_typed_refusals(self):
+        """AC-IMP-007E-03."""
         from kurafolio.web_v2.auth import RequestError
         client, auth, _ = self.client()
         client.cookies.clear()
@@ -161,6 +165,7 @@ class ImportHttpTests(unittest.TestCase):
         self.assertEqual(self.request(client,CASES[3]).status_code,409)
 
     def test_ac_05_error_codes_bad_server_values_and_invalid_bodies(self):
+        """AC-IMP-007E-05."""
         from kurafolio.ingestion.contracts import ERROR_STATUS
         from kurafolio.web_v2.auth import RequestError
         client, auth, _ = self.client()
@@ -180,6 +185,7 @@ class ImportHttpTests(unittest.TestCase):
         self.assertEqual(response.json()['error']['code'],'import_invalid')
 
     def test_ac_05_admission_and_404_never_read_body(self):
+        """AC-IMP-007E-05."""
         from kurafolio.web_v2.auth import RequestError
         _, auth, app = self.client()
         auth.admit_failure = RequestError('import_busy',429)
@@ -198,6 +204,7 @@ class ImportHttpTests(unittest.TestCase):
         self.assertEqual(asyncio.run(run('/api/v2/import-sets/'+ID+'/members/'+ID+'/raw')),404)
 
     def test_ac_09_contract_error_map_and_profile_revision(self):
+        """AC-IMP-007E-09."""
         from kurafolio.ingestion.contracts import ERROR_STATUS
         from kurafolio.persistence import ingestion_schema
         from kurafolio.persistence.context import Database
@@ -207,3 +214,51 @@ class ImportHttpTests(unittest.TestCase):
         database = Database(PostgresConfig('host=localhost port=5432 dbname=synthetic user=synthetic password=synthetic sslmode=disable'),schema_mode='ingestion')
         self.addCleanup(database.close)
         self.assertEqual(database.revision,ingestion_schema.REVISION)
+
+    def test_ac_09_public_docs_name_all_routes_and_error_codes(self):
+        """AC-IMP-007E-09."""
+        from kurafolio.ingestion.contracts import ERROR_STATUS, ROUTES
+        text=(Path(__file__).resolve().parents[1]/'docs/web-v2-imports.md').read_text()
+        for route in ROUTES:
+            if route['request'] != 'RAW_BINARY':self.assertIn(route['method']+' '+route['path'],text)
+        for code in ERROR_STATUS:self.assertIn('`'+code+'`',text)
+
+    def test_ac_02_sources_readiness_keeps_predecessor_check(self):
+        """AC-IMP-007E-02."""
+        from kurafolio.web_v2.auth import Auth
+        from kurafolio.persistence.context import REALM_SNAPSHOT
+        from unittest.mock import MagicMock
+        auth=Auth.__new__(Auth)
+        auth.settings=SimpleNamespace(schema_profile='sources')
+        auth.store=SimpleNamespace(database=object())
+        auth.financial=SimpleNamespace(engine=MagicMock(),revision='0003_source_lifecycle')
+        auth.sources=SimpleNamespace(catalog_digest='a'*64)
+        realm=dict(database='synthetic',database_oid=1,server_address='127.0.0.1',server_port=5432,
+                   incarnation=ID,epoch=0,revision='0003_source_lifecycle',ready=True)
+        auth.instance=lambda:realm
+        def execute(conn,sql):
+            if sql==REALM_SNAPSHOT:return SimpleNamespace(mappings=lambda:SimpleNamespace(one=lambda:realm))
+            return SimpleNamespace(scalar_one=lambda:'a'*64)
+        with patch('kurafolio.web_v2.auth.role_inventory',side_effect=['gateway','runtime']), \
+             patch('kurafolio.web_v2.auth.execute',side_effect=execute), \
+             patch('kurafolio.persistence.source_migration.verify_inventory') as verify:
+            self.assertTrue(auth.ready());verify.assert_called_once()
+
+    def test_ac_01_worker_role_configuration_and_cli(self):
+        """AC-IMP-007E-01."""
+        from kurafolio.web_v2.config import Settings
+        from kurafolio.persistence.config import PostgresConfig
+        from kurafolio.data_sources.contract_v1 import CatalogSnapshot
+        from kurafolio.web_v2.__main__ import parser
+        configs=[PostgresConfig('host=localhost port=5432 dbname=synthetic user='+role+' password=synthetic sslmode=disable')
+                 for role in ('gateway','runtime')]
+        empty=CatalogSnapshot(1,'0',(),(),())
+        common=(*configs,b'x'*32,'http://localhost')
+        for role in (None,'Invalid','bad-role','a'*64):
+            with self.assertRaises(ValueError):Settings(*common,schema_profile='ingestion',source_catalog=empty,worker_role=role)
+        with self.assertRaises(ValueError):Settings(*common,worker_role='worker')
+        self.assertEqual(Settings(*common,schema_profile='ingestion',source_catalog=empty,worker_role='worker').worker_role,'worker')
+        args=parser().parse_args(['serve','--identity-file','synthetic-identity','--financial-file','synthetic-runtime',
+            '--key-file','synthetic-key','--origin','http://localhost','--host','localhost','--port','56410',
+            '--schema-profile','ingestion','--worker-role','worker'])
+        self.assertEqual(args.worker_role,'worker')
