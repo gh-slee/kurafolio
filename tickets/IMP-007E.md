@@ -2,7 +2,7 @@
 id: IMP-007E
 title: Add authenticated V2 import HTTP routes
 priority: P0
-status: in_progress
+status: blocked
 type: feature
 parent: IMP-007
 depends_on: [IMP-007D, IMP-007J, IMP-007W]
@@ -350,7 +350,7 @@ CI and the skip guard:
 
 ## Decisions needed
 
-Items 1 to 5 were answered by the owner on 2026-11-20 and items 6 and 7 on 2026-11-21; all are kept here as the record. None is open.
+Items 1 to 5 were answered by the owner on 2026-11-20 and items 6 and 7 on 2026-11-21; all are kept here as the record. Item 8 is open.
 
 1. **Which ticket builds the ingestion runtime profile?** Answered 2026-11-20: "IMP-007E (Recommended)", option (a). This ticket builds the profile as Build plan Part A describes, with no gated change for it; `resources` adds `identity-api`; APP-011I and APP-011E add IMP-007E to their `depends_on` in their own plans.
 2. **Where does the API get the member's context bytes for the hand-off?** Answered 2026-11-20: "New SQL ticket (Recommended)", option (a). IMP-007O makes the bind result of `reserve_member_v1` also return the stored context bytes. Because the upload route then moved to IMP-007U (item 6), the dependency on IMP-007O belongs to IMP-007U, and this ticket's `depends_on` does not change.
@@ -369,13 +369,18 @@ Items 1 to 5 were answered by the owner on 2026-11-20 and items 6 and 7 on 2026-
    - `depends_on` adds IMP-007W, as the answer's "prerequisite" says.
    - Part A's `auth.py` and `config.py` bullets, two `/readyz` test rows and Stop and ask now use `verify_runtime_inventory`. The gated sections are unchanged (hash sha256:aba3bef4df145ca2355ad07c3fafb0954169d04ad8a05609502b23528a1c3d4c).
 
+8. **How should the preview SQL result become the frozen HTTP DTO?** Raised by codex/gpt-6.1-sol on 2026-11-23; unresolved. `read_preview_v1` (`ingestion_schema.py:4553`) returns `value = {page: {...}, next: ...}`. Frozen `PreviewPage` requires the page fields at its root and forbids `page`. Part D permits only `next` / `next_cursor` differences and Stop and ask explicitly covers extra keys. A synthetic codec check rejects the wrapped response after only renaming `next`; flattening the page and adding `next_cursor` validates.
+   - (a) Recommended: approve a planner amendment allowing only this API transformation: require the exact outer keys `page` and `next`, require `page` to be an object, construct `{**page, next_cursor: signed(next) or null}`, then validate the full result as `PreviewPage`. Do not silently discard any other outer or page keys; validate a page-supplied `next_cursor` as a response error rather than overwriting it. Preserve SQL and the frozen wire contract. Add unit and real-PostgreSQL HTTP coverage for this mapping, extra keys and cursor signing. Scope is the preview response adapter; the other seven routes remain as planned.
+   - (b) File and approve a separate SQL prerequisite that returns flat preview fields plus `next`, then update this ticket's dependency and plan. This retains Part D's current API rule but changes the frozen SQL provider, its inventory/upgrade evidence and PostgreSQL tests in separate work.
+   - The builder cannot amend the Build plan. The selected change must be written by the planner and merged to `main` before building resumes. No new wire field or route is proposed by option (a); if the planner changes gated meaning, obtain the applicable exact-spec Gate A.
+
 ## Handoff
 
-- State: In progress from `9817e3a`. The approved spec matches `origin/main`; IMP-007W is done. The runtime and gateway readiness checks passed on an isolated synthetic PostgreSQL 18 target at `0004`; the target was cleaned up.
-- Next step: After Gate A is on `main`, read `wire-contracts.json` and `ingestion-api.md` in the r7 bundle, then `web_v2/api.py` lines 440 to 475 (how the source routes are registered per profile). Write the DTOs first and review them before any route code.
-- Verify: `KURAFOLIO_INGESTION_TEST=1 PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -p 'test_postgres_migration.py' -v` and `PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -p 'test_ingestion_*.py' -v`; environment setup in [postgres-foundation.md](../docs/postgres-foundation.md) and [web-v2-imports.md](../docs/web-v2-imports.md)
-- Gotchas: IMP-007E, IMP-007U, APP-011I and APP-011E all hold `identity-api` (APP-011E adds it in its plan pull request #84, owner answer Q21 of 2026-11-21), so only one of them builds at a time.
-- Open questions: none.
+- State: Blocked before implementation. Base `9817e3a`; approved hash unchanged. IMP-007W is done. Runtime `verify_runtime_inventory` and gateway `role_inventory(gateway=True)` plus `source_role_inventory` passed on isolated synthetic PostgreSQL 18 at `0004` (68 functions). That target was cleaned up. No application code changed.
+- Next step: Resolve Decisions needed item 8 through the planner and merge the amended Build plan to `main`, then resume this claim. Do not unwrap the preview response before the plan permits it.
+- Verify: `python3 scripts/tickets.py spec IMP-007E --base origin/main`. Local prerequisite evidence: `work/imp-007e/profile-probe-20261123-result.json`; shape evidence: `work/imp-007e/preview-shape-blocker-20261123.json`. The latter checks the frozen codec with a synthetic fixture; it is not an HTTP or independent acceptance result.
+- Gotchas: `read_preview_v1` returns `{page, next}`; the frozen `PreviewPage` is flat. Part D permits only `next` to `next_cursor`, so its explicit stop condition applies. Other route behaviour has not been implemented or accepted. IMP-007E retains `v2-import-routes` and `identity-api` until this question is resolved.
+- Open questions: Decisions needed item 8. No push, PR, deployment or real financial operation was performed.
 
 ## Log
 
@@ -396,3 +401,5 @@ Items 1 to 5 were answered by the owner on 2026-11-20 and items 6 and 7 on 2026-
 - 2026-11-21 claude-code/opus-5.5: the owner answered Decisions needed item 7 with "New prerequisite ticket", option (a): "add a prerequisite ticket providing an approved runtime-safe inventory check, then update this Build plan to use it". Filed IMP-007W in plan pull request https://github.com/gh-slee/kurafolio/pull/93 and added it to `depends_on`; the owner's answer confirms that change. Revised the readiness parts of the Build plan from `main` at `cd68c5e`: `Auth.ready()` on `ingestion` uses `verify_runtime_inventory` and no longer calls `role_inventory(gateway=False)`, which refuses the read-only runtime role at `0004`. Gated sections unchanged (sha256:aba3bef4df145ca2355ad07c3fafb0954169d04ad8a05609502b23528a1c3d4c).
 
 - 2026-11-23 codex/gpt-6.1-sol: claimed the ticket, fast-forwarded its clean worktree to `9817e3a`, verified the approved hash and IMP-007W, and passed both prerequisite readiness checks on isolated PostgreSQL 18. Starting DTOs and profile integration.
+
+- 2026-11-23 codex/gpt-6.1-sol: stopped before application edits because `read_preview_v1` returns an extra `page` wrapper forbidden by Build plan Part D. Recorded Decisions needed item 8 and the isolated readiness and synthetic codec evidence. Status blocked; no push or PR.
