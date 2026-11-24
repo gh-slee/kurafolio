@@ -11,12 +11,12 @@ risk: high
 size: M
 agent_tier: frontier
 gate: owner
-gate_approval: "owner 2026-11-21, Gate A on the text as written on PR #95's branch (Q33)"
+gate_approval: "owner 2026-11-23, Gate A on the revised text as written on PR #109's branch"
 review: independent
 branch:
 pr:
 spec: docs/specs/imp-007-r7/spec.md
-spec_approved: sha256:66ca4f184ece07cda36d3d9228fb6d7479ea0abc36b888f325948e160d6b0f69
+spec_approved: sha256:5336e27bdea018fe651206adce64c240f248aae1986e8a0c24a2c737eb813a90
 updated: 2026-11-21
 ---
 
@@ -79,7 +79,7 @@ When a newer holdings file from a source no longer lists an account that an earl
 - [x] Owner answers Decisions 1 to 4 (2026-11-21: all four recommendations accepted).
 - [x] Owner Gate A.
 - [x] Owner answers Decisions needed items 6 to 8 (2026-11-23: "Accept 6a, 7a, 8a").
-- [ ] Owner Gate A on the revised Requirements and AC-03 (items 7 and 8).
+- [x] Owner Gate A on the revised Requirements and AC-03 (items 7 and 8), 2026-11-23.
 - [ ] Planning session writes the Build plan from merged code once IMP-007P and APP-011E (with APP-011I) are `done` on `main`, and files the new positions ticket (Decision 4). Not before: the builder and the revision pattern this ticket extends are not merged yet.
 - [ ] Contract amendment and SQL with PostgreSQL tests.
 - [ ] Preview question and decision codec; docs.
@@ -141,3 +141,4 @@ When a newer holdings file from a source no longer lists an account that an earl
 - 2026-11-21 claude-code/opus-5.5: recorded Gate A in plan pull request #95. Asked "Gate A, the other two. ... Which do you approve exactly as written?" (Q33) with this ticket listed at sha256:66ca4f184ece07cda36d3d9228fb6d7479ea0abc36b888f325948e160d6b0f69, the owner selected "IMP-007T,PLG-105". `gate_approval` set to "owner 2026-11-21, Gate A on the text as written on PR #95's branch (Q33)"; `spec_approved` set to sha256:66ca4f184ece07cda36d3d9228fb6d7479ea0abc36b888f325948e160d6b0f69, which `tickets.py spec` reports as the current hash; status backlog becomes ready. Decisions needed item 5 resolved. No Build plan yet; the planner writes it in a later pull request.
 - 2026-11-23 claude-code/opus-5.5: planning check in plan pull request #109; no Build plan written. IMP-007P (build in draft #108), APP-011I and APP-011E are not merged, so the review builder and the `0005`/`0006` revision pattern this ticket extends are not on `main`. Added the findings to Context and Decisions needed items 6 (`depends_on: [IMP-007P, APP-011E]`, owner confirmation needed), 7 (several holdings heads per account; options (a) and (b) change gated text and need a new Gate A) and 8 (the prepare basis carries no account, connection or label for a holdings head). Gated sections unchanged; `spec` still MATCHES sha256:66ca4f184ece07cda36d3d9228fb6d7479ea0abc36b888f325948e160d6b0f69. The new positions ticket (Decision 4) is filed with the Build plan, not now.
 - 2026-11-23 claude-code/opus-5.5: recorded the owner's answers in plan pull request #109, relayed by the routing session as the owner's verbatim reply "Accept 6a, 7a, 8a". 6a: `depends_on` set to `[IMP-007P, APP-011E]` with that confirmation. 7a: the "Mark closed" bullet names each current holdings head of the account with its snapshot revision, "Reopening" says "the heads it names", and AC-03 says "names each of Q's current holdings heads with its snapshot revision". 8a: the contract-change bullet now names the prepare-basis addition. Gated text changed: spec hash sha256:66ca4f184ece07cda36d3d9228fb6d7479ea0abc36b888f325948e160d6b0f69 becomes sha256:5336e27bdea018fe651206adce64c240f248aae1986e8a0c24a2c737eb813a90. `spec_approved` and `gate_approval` are left as they were; the ticket cannot be claimed until the owner gives Gate A on the new hash. Still no Build plan.
+- 2026-11-23 claude-code/opus-5.5: recorded Gate A in plan pull request #109. The owner was shown the four gated-text changes (the "Mark closed", "Reopening" and contract-change bullets of Requirements, and AC-03) with sha256:5336e27bdea018fe651206adce64c240f248aae1986e8a0c24a2c737eb813a90, and replied "Approve Gate A" (relayed by the routing session as the owner's verbatim reply). `gate_approval` was "owner 2026-11-21, Gate A on the text as written on PR #95's branch (Q33)" and is now "owner 2026-11-23, Gate A on the revised text as written on PR #109's branch"; `spec_approved` was sha256:66ca4f184ece07cda36d3d9228fb6d7479ea0abc36b888f325948e160d6b0f69 and is now sha256:5336e27bdea018fe651206adce64c240f248aae1986e8a0c24a2c737eb813a90, which `tickets.py spec` reports as the current hash. Gated text unchanged in this step; status stays ready; still no Build plan, and the ticket waits on IMP-007P and APP-011E.
