@@ -102,6 +102,17 @@ Since `cd68c5e`, nothing changed under `src/kurafolio/web_v2/`, `src/kurafolio/i
 - `docs/web-v2-imports.md` gained a sentence from IMP-007W, "IMP-007E is planned to call it from `/readyz`; no application calls it yet", which Part F replaces. It also gained the ANL-008 positions section, which this ticket does not touch.
 - The `postgres` CI job's `--expect-skipped` is now 132 (131 gated ingestion tests plus the runtime-image test).
 
+### The preview read's `{page, next}` shape (2026-11-23, `main` at `06c5eea`)
+
+- codex/gpt-6.1-sol claimed this ticket on 2026-11-23 from `9817e3a`. Before any application edit it stopped at the Stop-and-ask condition on extra SQL keys and raised Decisions needed item 8. Its record is on its local ticket branch only.
+- `read_preview_v1` (`persistence/ingestion_schema.py`, the `RETURN` at line 4553) answers `{'ok': true, 'value': {'page': {...}, 'next': <cursor payload or null>}}`.
+- The `page` object has exactly 13 keys: `id`, `set_id`, `set_revision`, `state`, `preview_digest`, `expires_at`, `rows`, `can_confirm`, `review_digest`, `content_digest`, `accepted_generation`, `mapping_generation` and `control_generation`. These are the `required` keys of `wire-contracts.json` `PreviewPage` minus `next_cursor`.
+- `PreviewPage` is flat, has `additionalProperties: false` and requires `next_cursor` (a string of at most 1,024 characters, or null). Renaming `next` alone leaves a `page` key that the DTO forbids, so Part D's "only `next` and `next_cursor` differ" rule stopped the build.
+- The preview cursor payload comes from `_cursor_next_sql('preview.id::text', 'preview.set_revision::text', 'preview.review_digest', 'NULL', ...)`. Its `resource_id`, `resource_revision` and `review_digest` equal the page's `id`, `set_revision` and `review_digest`, and its `filter` is null.
+- `read_sets_v1` answers `{'items': [...], 'next': ...}`, with no wrapper. `SetList` is `{items, next_cursor}`, so a rename is enough there.
+- Both read functions require `limit` as a JSON string (`jsonb_typeof(p_payload->'limit') = 'string'`, matching `^([1-9]|[1-4][0-9]|50)$`). An integer `limit` is `import_invalid` on every call.
+- `cursors.sign(key, payload)` checks the closed cursor shape and raises `IngestionError('import_invalid')` on a bad payload, or `IngestionError('import_limit')` for a token over the limit. `codec.validate(value, 'PreviewPage')` raises `IngestionError` on a schema failure.
+
 ## Requirements
 
 - Frozen r7 contract bundle, the contract approved as "IMP-007 spec r7": [docs/specs/imp-007-r7/](../docs/specs/imp-007-r7/README.md) (index sha256:75a859f65d7ee4564a20220b756b88ff44cf4449644167e2df2a87fd081e7fe7; the index lists the SHA-256 of each file), notably [spec.md](../docs/specs/imp-007-r7/spec.md), [sql-appendix.md](../docs/specs/imp-007-r7/sql-appendix.md), [sql-inventory.json](../docs/specs/imp-007-r7/sql-inventory.json), [contract-appendix.md](../docs/specs/imp-007-r7/contract-appendix.md) and [acceptance.md](../docs/specs/imp-007-r7/acceptance.md).
@@ -143,7 +154,7 @@ Rules that reviewers will check:
 
 ## Build plan
 
-- Based on: `main` at `a2f5f2b`; rechecked on 2026-11-20 against `main` at `d902717`, with no change under `src/`, `tests/`, `docs/` or `scripts/`. The readiness parts (Part A `config.py` and `auth.py`, the `/readyz` test rows and Stop and ask) were revised on 2026-11-21 from `main` at `cd68c5e` for the owner's answer to Decisions needed item 7. They use IMP-007W's interface as its plan names it. Rechecked on 2026-11-23 against `main` at `cd122a2`, after IMP-007W (#96) and IMP-007O (#103) merged; see Context, "Recheck after IMP-007W and IMP-007O". That recheck made the `Auth.ready()` source-check guard explicit, added the role-configuration `/readyz` rows and corrected the CI install note. All dependencies are `done`.
+- Based on: `main` at `a2f5f2b`; rechecked on 2026-11-20 against `main` at `d902717`, with no change under `src/`, `tests/`, `docs/` or `scripts/`. The readiness parts (Part A `config.py` and `auth.py`, the `/readyz` test rows and Stop and ask) were revised on 2026-11-21 from `main` at `cd68c5e` for the owner's answer to Decisions needed item 7. They use IMP-007W's interface as its plan names it. Rechecked on 2026-11-23 against `main` at `cd122a2`, after IMP-007W (#96) and IMP-007O (#103) merged; see Context, "Recheck after IMP-007W and IMP-007O". That recheck made the `Auth.ready()` source-check guard explicit, added the role-configuration `/readyz` rows and corrected the CI install note. All dependencies are `done`. Revised on 2026-11-23 from `main` at `06c5eea` for the owner's answer to Decisions needed item 8: Part D's "Read responses" adds the strict `{page, next}` conversion, and Tests add its unit and real-PostgreSQL HTTP cases. No SQL, route, DTO or error code changes.
 - The plan follows the owner's answers of 2026-11-20 under Decisions needed (items 1 to 5) and the new gated text (item 6). The owner approved the new gated text on 2026-11-21 (item 6), recorded in plan pull request #87. A builder starts only after that record is on `main`.
 - Build order:
   1. Part A (profile).
@@ -224,7 +235,7 @@ Every change is additive. The `identity` and `sources` profiles keep their exact
 - Validate request and response bodies with the frozen schemas already in `src/kurafolio/ingestion/contracts.py`, through `codec.validate(value, '<Name>')`. Write no Pydantic copy of any import DTO, because a copy could drift and APP-011D builds on these names.
   - Requests use `Create`, `Decide`, `Confirm` and `Cancel`. A schema failure is `import_invalid` (422).
   - Malformed JSON, duplicate keys and oversized bodies keep the Boundary's `invalid_input` (422) and `body_too_large` (413).
-  - Responses use `SetResult`, `SetList`, `PreviewPage` and `Receipt`. A response that fails its schema is `internal_error` (500) and is never sent.
+  - Responses use `SetResult`, `SetList`, `PreviewPage` and `Receipt`. A response that fails its schema is `internal_error` (500) and is never sent. `SetList` and `PreviewPage` are built from the SQL value by Part D's "Read responses" before this check.
 - OpenAPI: install a custom `app.openapi` that adds every `$defs` entry that the eight routes reach, directly or through references, to `components.schemas`, rewriting `codec-schema.json#/$defs/X` and `#/$defs/X` to `#/components/schemas/X`. Give each import route its request body and its success response through `openapi_extra`. The error responses use the existing `Error` model. Keep the function generic over a route list, so IMP-007U can add the upload route to it.
 - `src/kurafolio/web_v2/api.py`: `invalid_response` returns `internal_error` for import requests, as it does for source requests.
 
@@ -257,16 +268,41 @@ Every change is additive. The `identity` and `sources` profiles keep their exact
 | Route | SQL call and payload | Success |
 |---|---|---|
 | `POST /api/v2/import-sets` | `create_set_v1` with the validated `Create` body | 201 `SetResult`, also on replay |
-| `GET /api/v2/import-sets` | `read_sets_v1` with `{cursor: verified payload or null, limit, state or null}`; `limit` defaults to 50 and allows `1..50` | 200 `SetList`; replace `next` with `next_cursor = cursors.sign(key, next)`, or null |
+| `GET /api/v2/import-sets` | `read_sets_v1` with `{cursor: verified payload or null, limit, state or null}`; `limit` defaults to 50 and allows `1..50` and is sent as a JSON string | 200 `SetList`, built by `set_list` (Read responses) |
 | `GET /api/v2/import-sets/{set}` | `read_set_v1` with `{set_id}` | 200 `SetResult` |
 | `PUT /api/v2/import-sets/{set}/decisions` | `decide_set_v1` with the validated `Decide` body; `body.set_id` must equal `{set}`, otherwise 422 `import_invalid` | 202 `SetResult` |
-| `GET /api/v2/import-previews/{preview}` | `read_preview_v1` with `{cursor, limit, preview_id}` | 200 `PreviewPage`, with `next_cursor` as above |
+| `GET /api/v2/import-previews/{preview}` | `read_preview_v1` with `{cursor, limit, preview_id}`; `limit` as for the set list | 200 `PreviewPage`, built by `preview_page` (Read responses) |
 | `POST /api/v2/import-previews/{preview}/confirm` | `accept_preview_v1` with `Confirm` plus `preview_id` | 200 `Receipt` |
 | `POST /api/v2/import-sets/{set}/cancel` | `cancel_set_v1` with `Cancel` plus `set_id` | 200 `SetResult`; a lost race returns the set with its `receipt_id` |
 | `GET /api/v2/import-receipts/{receipt}` | `read_receipt_v1` with `{receipt_id}` | 200 `Receipt` |
 
 - Cursors: `cursors.verify(auth.cursor_key, token)` runs before any SQL read. A bad MAC or shape is 422 `import_invalid`.
-- The `next` key and the `next_cursor` key are the only differences allowed between the SQL value and the wire DTO. If the SQL value has any other key the DTO lacks, stop and ask; do not drop or rename keys.
+- Two differences between the SQL value and the wire DTO are allowed, and only in the two read responses below: `next` becomes `next_cursor`, and `read_preview_v1`'s `page` wrapper is unwrapped. The other six routes send the SQL value unchanged after their schema check. If a SQL value has any other key its DTO lacks, stop and ask; do not drop or rename keys.
+
+#### Read responses: the strict `{page, next}` conversion
+
+The owner approved this conversion on 2026-11-23 (Decisions needed, item 8). It changes no SQL and no public schema.
+
+- New module `src/kurafolio/web_v2/import_wire.py`. It is pure: no database, no I/O, no logging, and no FastAPI import. It imports only `cursors`, `codec` and `RequestError` from `web_v2/auth.py`. Do not put it in `web_v2/imports.py`, which is on the Do-not-touch list.
+- `preview_page(value, cursor_key) -> dict` turns the `value` of a successful `read_preview_v1` call into the `PreviewPage` body. In this order:
+  1. `value` must be a `dict` whose keys are exactly `{'page', 'next'}`. A missing key or any extra top-level key fails.
+  2. `page = value['page']` must be a `dict`.
+  3. `page` must not contain `next_cursor`. That fails whatever its value, also when it equals the signed `next` or is null. This check runs before the merge, because `next_cursor` is a valid `PreviewPage` property: a merge would overwrite it silently, and `additionalProperties: false` would never see it.
+  4. `nxt = value['next']` must be `None` or a `dict`; any other type fails. For a `dict`:
+     - it must agree with the page: `nxt['resource_id'] == page['id']`, `nxt['resource_revision'] == page['set_revision']`, `nxt['review_digest'] == page['review_digest']` and `nxt['filter'] is None`; read the keys with `.get` so a missing one fails as a mismatch, not as a `KeyError`. A mismatch is a conflicting field and fails;
+     - `token = cursors.sign(cursor_key, nxt)`.
+     For `None`, `token = None` (the last page, or an empty first page).
+  5. `out = dict(page)`, then `out['next_cursor'] = token`.
+  6. Return `codec.validate(out, 'PreviewPage')`, the admitted copy. This checks the complete DTO: all 14 required keys, no extra key (so a stray `page.next` or an unknown page key fails), the `rows` items as `PreviewRow` and at most 50 rows.
+- `set_list(value, cursor_key) -> dict` does the same for `read_sets_v1`, which has no wrapper:
+  1. `value` must be a `dict` whose keys are exactly `{'items', 'next'}`.
+  2. `next` must be `None` or a `dict`; a `dict` is signed with `cursors.sign`.
+  3. Return `codec.validate({'items': value['items'], 'next_cursor': token}, 'SetList')`.
+- Failures. Every failure in either function, including an `IngestionError` from `cursors.sign` or `codec.validate`, raises `RequestError('internal_error', 500)` with `from None`. The SQL value is server output, so a fault in it is never `import_invalid` (422) or `import_limit` (413) toward the client. The existing `RequestError` handler in `create_app` sends the generic `Error` body. No value, key name or token is put in the exception, the response or a log line.
+- The two read routes call these functions on the value `IngestionStore.call` returns. They return the result as the 200 body.
+- What does not change:
+  - SQL: `read_preview_v1`, `read_sets_v1` and every other function in `ingestion_schema.py` stay byte-identical. No migration and no provider change.
+  - Public schema: `wire-contracts.json`, `codec-schema.json`, `contracts.py`, the `PreviewPage` and `SetList` definitions in `/api/v2/openapi.json` (still equal to `wire-contracts.json` after `$ref` rewriting, as the AC-01 row checks) and so any client type that APP-011D derives from them. No `page` or `next` key ever reaches a response or the OpenAPI document.
 
 ### Part F: documentation
 
@@ -289,7 +325,7 @@ Real-PostgreSQL tests go in `tests/test_postgres_import_routes.py` (new), gated 
 2. `migrate-identity`, then `migrate-sources`, then `migrate-ingestion`.
 3. Activate the synthetic instance through the owner connection, in a test-only helper that is never shipped: a wrapper catalog for the synthetic source fixture, a runtime profile digest, the `instance_budgets` rows, an enabled `workers` row for the worker role and `ready = true`. Seed them the way `tests/test_postgres_migration.py` does today. If IMP-007F's plan moves those helpers into `tests/ingestion_pg_support.py`, reuse that file. Keep using this helper after IMP-007S lands; its operator command is that ticket's to test.
 4. Serve `create_app` on `ingestion`. No route here hands bytes to a worker, so no worker or fake worker is needed.
-5. For the preview, confirm and receipt routes, seed a READY set with a stored preview from the oracle vectors through the owner connection, the way the existing `accept_seed` helper does. No worker prepares a preview yet (IMP-007F's D2).
+5. For the preview, confirm and receipt routes, seed a READY set with a stored preview from the oracle vectors through the owner connection, the way the existing `accept_seed` helper does. No worker prepares a preview yet (IMP-007F's D2). The paging rows need a stored review document with at least 3 rows; if the oracle preview has fewer, build one from oracle rows with the same helper. If that needs a SQL change or a new database function, stop and ask.
 
 Every test names its AC ID.
 
@@ -316,6 +352,37 @@ Every test names its AC ID.
 | 07 | Real PG: create, decide, confirm, cancel each sent twice with the same `operation_id` and body | Second answer byte-equal to the first; set `revision` and receipt list unchanged |
 | 07 | Same `operation_id`, different body, for each of the four | 409 `import_operation_conflict` |
 | 09 | Docs test | `docs/web-v2-imports.md` names all 8 method/paths and every `error_status` code |
+| 05 | Fake store: `GET /api/v2/import-previews/{preview}` where `read_preview_v1` returns each malformed value from the `preview_page` unit list below | 500 `internal_error`; the body is the generic `Error` and contains no key name, value or token; never 422 or 413 |
+| 05 | Fake store: `GET /api/v2/import-sets` returning `{items, next, extra}` | 500 `internal_error`, as above |
+| 05 | Real PG: page through a seeded preview with at least 3 rows using `limit=1` | Each 200 body validates as `PreviewPage` and has no `page` or `next` key; every page but the last carries a string `next_cursor` that the next request accepts; the last page has `next_cursor` null; the rows of all pages, in order, equal the stored review rows |
+| 05 | Real PG: the same preview with `limit=50` | One page, `next_cursor` null |
+| 05 | Real PG: a page-1 `next_cursor` of preview A sent to `GET /api/v2/import-previews/{B}` for a second seeded preview B of the same user | 409 `import_stale` (from SQL: the cursor's `resource_id` names A) |
+| 05 | Real PG: a page-1 `next_cursor` with one character changed | 422 `import_invalid` (the MAC check runs before SQL) |
+| 05 | Real PG: `GET /api/v2/import-sets?limit=1` with 2 sets, then with the returned cursor | `SetList` bodies with no `next` key; the second page's `next_cursor` is null |
+
+Unit tests of `import_wire.py` go in `tests/test_web_v2_imports.py` (or a new `tests/test_web_v2_import_wire.py` with the same optional-dependency handling). They need no database. Build the valid input from the 13 page keys of a real `PreviewPage` example in the oracle vectors (or one built from `wire-contracts.json`), and the cursor payload with the same fields `_cursor_next_sql` writes. Each failing case asserts `RequestError` with code `internal_error` and status 500, and that `str(exc)` holds no input value.
+
+`preview_page`:
+
+- Valid page with `next`: the result equals `page` plus `next_cursor`; `cursors.verify(key, result['next_cursor'])` returns the original payload; the result has no `page` or `next` key.
+- Last page (`next` null): `next_cursor` is null.
+- Empty first page (`rows: []`, `next` null): valid.
+- Missing `page`; missing `next`; one extra top-level key (for example `next_cursor` or `ok` beside `page` and `next`); `value` a list or null.
+- `page` a list, a string or null.
+- `page` carrying `next_cursor`: equal to the signed token, different from it, and null. All three fail.
+- `page` missing one required key (try each of the 13); `page` with one extra key; `page` carrying `next`.
+- `next` a string, an integer or a list.
+- `next` whose `resource_id`, `resource_revision` or `review_digest` differs from the page, or whose `filter` is not null.
+- `next` with a missing or extra cursor field (`cursors.sign` raises `import_invalid`): 500, not 422.
+- `cursors.sign` raising `import_limit` (patch it, because a payload of the closed shape may not reach 1,024 characters): 500, not 413.
+- A `rows` list of 51 items: 500.
+
+`set_list`:
+
+- Valid with `next`, and with `next` null.
+- Missing `items` or `next`; an extra top-level key; `next` of a wrong type; an item that fails `SetResult`.
+
+Also add a source-text test that `import_wire.py` contains no `logging`, `print` or SQL text.
 
 Independent expected values, from `ingestion-api.md` and `wire-contracts.json`, not from the code under test:
 
@@ -363,7 +430,7 @@ CI and the skip guard:
 - The Gate A record of 2026-11-21 (Decisions needed, item 6) is not on `main`, or `python3 scripts/tickets.py spec IMP-007E` reports a changed spec.
 - `verify_runtime_inventory` on `main` has another name, signature or result than Part A uses. It matched at `cd122a2`.
 - `verify_runtime_inventory` through the runtime login, or `role_inventory(gateway=True)` (with `source_role_inventory`) through the gateway login, refuses a correctly migrated `0004` database. Do not grant a role more rights, call the operator verifier or skip a check to get past it.
-- A SQL function returns keys that its wire DTO does not have, other than `next`, or a code outside `error_status`, `lifecycle_v1.STATUS` and `identity.STATUS`.
+- A SQL function returns keys that its wire DTO does not have, other than `next` and `read_preview_v1`'s `page` wrapper, or `read_preview_v1`'s `page` has keys other than the 13 that Context lists, or a code outside `error_status`, `lifecycle_v1.STATUS` and `identity.STATUS`.
 - A requirement seems to need a SQL change, a new route, a new error code or a new DTO field.
 - A real-PostgreSQL test cannot run in the isolated environment. A skipped test is not acceptance.
 
@@ -372,13 +439,13 @@ CI and the skip guard:
 - [ ] Part A: the `ingestion` runtime profile (context, identity, source store, config, CLI, Auth, Boundary).
 - [ ] Part B: `IngestionStore` gateway caller and `admit` for `admit_rate_v1`.
 - [ ] Part C: error codes, DTO validation from the frozen schemas, OpenAPI components.
-- [ ] Part D: Boundary order and the eight JSON routes.
+- [ ] Part D: Boundary order, the eight JSON routes and the strict `{page, next}` read-response conversion (`web_v2/import_wire.py`).
 - [ ] Part F: docs.
 - [ ] Unit and real-PostgreSQL HTTP tests; CI job and skip counts.
 
 ## Decisions needed
 
-Items 1 to 5 were answered by the owner on 2026-11-20 and items 6 and 7 on 2026-11-21; all are kept here as the record. None is open. The recheck of 2026-11-23 found nothing that needs an owner decision.
+Items 1 to 5 were answered by the owner on 2026-11-20, items 6 and 7 on 2026-11-21 and item 8 on 2026-11-23; all are kept here as the record. None is open.
 
 1. **Which ticket builds the ingestion runtime profile?** Answered 2026-11-20: "IMP-007E (Recommended)", option (a). This ticket builds the profile as Build plan Part A describes, with no gated change for it; `resources` adds `identity-api`; APP-011I and APP-011E add IMP-007E to their `depends_on` in their own plans.
 2. **Where does the API get the member's context bytes for the hand-off?** Answered 2026-11-20: "New SQL ticket (Recommended)", option (a). IMP-007O makes the bind result of `reserve_member_v1` also return the stored context bytes. Because the upload route then moved to IMP-007U (item 6), the dependency on IMP-007O belongs to IMP-007U, and this ticket's `depends_on` does not change.
@@ -396,6 +463,11 @@ Items 1 to 5 were answered by the owner on 2026-11-20 and items 6 and 7 on 2026-
    - IMP-007W is that ticket, filed in plan pull request #93. The owner gave it Gate A on 2026-11-21 in the same pull request.
    - `depends_on` adds IMP-007W, as the answer's "prerequisite" says.
    - Part A's `auth.py` and `config.py` bullets, two `/readyz` test rows and Stop and ask now use `verify_runtime_inventory`. The gated sections are unchanged (hash sha256:aba3bef4df145ca2355ad07c3fafb0954169d04ad8a05609502b23528a1c3d4c).
+8. **How should the preview SQL result become the frozen HTTP DTO?** Raised by codex/gpt-6.1-sol on 2026-11-23 (Context, "The preview read's `{page, next}` shape"). `read_preview_v1` answers `{page, next}`, while `PreviewPage` is flat and forbids `page`, and Part D allowed only `next` to differ. Options were (a) the API unwraps the strict `{page, next}` value, signs `next` as `next_cursor`, validates the complete `PreviewPage` and refuses extra or conflicting keys, with SQL and the public schema unchanged; or (b) a separate SQL prerequisite ticket that returns the flat fields, which would change the frozen `0004` provider. Answered 2026-11-23: option (a).
+   - The builder recorded the owner's answer, "agree", on its local ticket branch; that record was not pushed.
+   - On 2026-11-23 the owner then asked the planner, in a request relayed to the planning session (translated from the original): "Revise the IMP-007E Build plan: adopt the owner-approved strict {page,next} conversion, unwrap page, produce next_cursor, validate the complete PreviewPage and reject extra/conflicting fields; add unit and PostgreSQL HTTP tests. Keep the SQL and the public schema. Open the plan PR."
+   - Part D's "Read responses" and the new Tests rows carry it. Part D's difference rule and Stop and ask now allow the `page` wrapper for `read_preview_v1` only.
+   - This is a Build plan decision, not a gated change: the hash stays sha256:aba3bef4df145ca2355ad07c3fafb0954169d04ad8a05609502b23528a1c3d4c, and `gate_approval` and `spec_approved` do not change. `depends_on` does not change.
 
 ## Handoff
 
@@ -423,3 +495,4 @@ Items 1 to 5 were answered by the owner on 2026-11-20 and items 6 and 7 on 2026-
 - 2026-11-21 claude-code/opus-5.5: recorded the builder's finding. codex/gpt-6.1-sol claimed this ticket on 2026-11-21 from `cd68c5e` and stopped before Part A at the Stop-and-ask condition on `verify_inventory`. On an isolated synthetic PostgreSQL 18 target at `0004`, the operator verifier passed with 68 functions, the same call through the runtime login raised `migration_role_required`, and the gateway login could not read `wl_pg`. No code changed; the builder's commits stayed on its local branch, and its evidence is under the ignored `work/imp-007e/` of that worktree. The builder raised Decisions needed item 7.
 - 2026-11-21 claude-code/opus-5.5: the owner answered Decisions needed item 7 with "New prerequisite ticket", option (a): "add a prerequisite ticket providing an approved runtime-safe inventory check, then update this Build plan to use it". Filed IMP-007W in plan pull request https://github.com/gh-slee/kurafolio/pull/93 and added it to `depends_on`; the owner's answer confirms that change. Revised the readiness parts of the Build plan from `main` at `cd68c5e`: `Auth.ready()` on `ingestion` uses `verify_runtime_inventory` and no longer calls `role_inventory(gateway=False)`, which refuses the read-only runtime role at `0004`. Gated sections unchanged (sha256:aba3bef4df145ca2355ad07c3fafb0954169d04ad8a05609502b23528a1c3d4c).
 - 2026-11-23 claude-code/opus-5.5: rechecked the Build plan against `main` at `cd122a2`, after IMP-007W (#96) and IMP-007O (#103) merged, in plan pull request https://github.com/gh-slee/kurafolio/pull/110. `verify_runtime_inventory` matches Part A. Part A now changes `Auth.ready()`'s source-check guard to `schema_profile == 'sources'`, because `source_migration.verify_inventory` refuses `0004`. The Tests table adds `/readyz` rows for IMP-007W's N3 role misconfigurations. The CI note no longer asks for a second lock install, and the skip baseline is 132. No new owner decision. Gated sections unchanged (sha256:aba3bef4df145ca2355ad07c3fafb0954169d04ad8a05609502b23528a1c3d4c).
+- 2026-11-23 claude-code/opus-5.5: revised the Build plan from `main` at `06c5eea` for Decisions needed item 8, in plan pull request PR_URL. The owner answered "agree" to option (a) when codex/gpt-6.1-sol asked, and then asked the planner (translated from the original): "Revise the IMP-007E Build plan: adopt the owner-approved strict {page,next} conversion, unwrap page, produce next_cursor, validate the complete PreviewPage and reject extra/conflicting fields; add unit and PostgreSQL HTTP tests. Keep the SQL and the public schema. Open the plan PR." Part D adds `web_v2/import_wire.py` (`preview_page`, `set_list`) with exact-key, no-`next_cursor`-in-page and cursor-agreement checks, full DTO validation and `internal_error` (500) on any fault. Tests add unit cases and real-PostgreSQL paging rows. No SQL, DTO, route or error-code change. Gated sections unchanged (sha256:aba3bef4df145ca2355ad07c3fafb0954169d04ad8a05609502b23528a1c3d4c).
