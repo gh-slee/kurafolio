@@ -485,8 +485,57 @@ class ReviewBundleSafetyTests(unittest.TestCase):
         candidate_indices = [i for i, r in enumerate(rows) if r['type'] == 'target_candidate']
         self.assertLess(max(source_indices), min(candidate_indices))
 
-    def test_cross_member_duplicate_has_no_parent(self):
-        """AC-IMP-007P-08: a later member's equal correction is a duplicate with a null parent and no head."""
+    def test_accepted_historical_authority_conflicts(self):
+        """AC-IMP-007P-05 (i): accepted historical_only marks all duplicate facts unsupported."""
+        pages = oracle_basis('authority-only')[0]
+        decisions = deepcopy(ORACLE['authority-only-decisions.json'])
+        decisions['authorities'][0].update(kind='historical_only', right=None)
+        def no_ids(slot):
+            raise AssertionError('CONFLICT reserved an ID')
+        bundle = self.build(store_decisions(pages, decisions), no_ids)
+        self.assertEqual('CONFLICT', bundle['review']['state'])
+        self.assertIsNone(bundle['plan'])
+        facts = [r for r in bundle['review']['content']['rows'] if r['type'] == 'fact']
+        member = next(p for p in pages if p['resource'] == 'inputs')['rows'][0]['id']
+        self.assertEqual(3, len(facts))
+        self.assertEqual([(member, 'conflict', 'unsupported', None)] * 3,
+            [(r['member_id'], r['action'], r['required_decision'], r['accepted_revision_id']) for r in facts])
+
+    def test_accepted_historical_authority_without_facts_conflicts(self):
+        """AC-IMP-007P-05 (ii): an unsupported authority blocks even a member with no facts."""
+        pages = oracle_basis('authority-only')[0]
+        row = next(p for p in pages if p['resource'] == 'inputs')['rows'][0]
+        row['minimal'].update(records=[], coverage=[], snapshots=[], membership=None)
+        row['digest'] = digest(row['minimal'])
+        decisions = deepcopy(ORACLE['authority-only-decisions.json'])
+        decisions['authorities'][0].update(kind='historical_only', right=None)
+        def no_ids(slot):
+            raise AssertionError('CONFLICT reserved an ID')
+        bundle = self.build(store_decisions(pages, decisions), no_ids)
+        self.assertEqual('CONFLICT', bundle['review']['state'])
+        self.assertIsNone(bundle['plan'])
+        rows = bundle['review']['content']['rows']
+        self.assertFalse(any(r['type'] == 'fact' for r in rows))
+        self.assertEqual(decisions['authorities'], [r['authority'] for r in rows if r['type'] == 'authority'])
+
+    def test_historical_snapshot_with_right_conflicts_with_children(self):
+        """AC-IMP-007P-05 (iii): a historical snapshot with a right side blocks its children."""
+        pages = oracle_basis('snapshot-historical-t1')[0]
+        decisions = deepcopy(ORACLE['snapshot-historical-t1-decisions.json'])
+        revision = next(p for p in pages if p['resource'] == 'revisions')['rows'][0]['revision']['id']
+        decisions['authorities'][0]['right'] = {'form': 'accepted', 'accepted_revision_id': revision}
+        def no_ids(slot):
+            raise AssertionError('CONFLICT reserved an ID')
+        bundle = self.build(store_decisions(pages, decisions), no_ids)
+        self.assertEqual('CONFLICT', bundle['review']['state'])
+        self.assertIsNone(bundle['plan'])
+        facts = [r for r in bundle['review']['content']['rows'] if r['type'] == 'fact']
+        self.assertEqual(4, len(facts))
+        self.assertEqual({'records', 'coverage', 'snapshots'}, {r['collection'] for r in facts})
+        for r in facts:
+            self.assertEqual(('conflict', 'unsupported', None), (r['action'], r['required_decision'], r['accepted_revision_id']))
+
+    def cross_member_correction_basis(self):
         case = 'branch-equal_value_explicit_correction'
         pages = oracle_basis(case)[0]
         first = next(p for p in pages if p['resource'] == 'inputs')['rows'][0]
@@ -503,6 +552,28 @@ class ReviewBundleSafetyTests(unittest.TestCase):
         decisions = deepcopy(ORACLE[CASES[case][2]])
         for name in ('mappings', 'parents', 'new_entities'):
             decisions[name] += [{**deepcopy(v), 'member_id': second['id']} for v in decisions[name]]
+        return pages, decisions, first['id'], second['id']
+
+    def test_cross_member_parent_decision_conflicts(self):
+        """AC-IMP-007P-05 (iv): only the later fact with its own parent decision conflicts."""
+        pages, decisions, first, second = self.cross_member_correction_basis()
+        def no_ids(slot):
+            raise AssertionError('CONFLICT reserved an ID')
+        bundle = self.build(store_decisions(pages, decisions), no_ids)
+        self.assertEqual('CONFLICT', bundle['review']['state'])
+        self.assertIsNone(bundle['plan'])
+        facts = [r for r in bundle['review']['content']['rows'] if r['type'] == 'fact']
+        records = [r for r in facts if r['collection'] == 'records']
+        self.assertEqual([(first, 'correction', None, None), (second, 'conflict', 'parent', None)],
+            [(r['member_id'], r['action'], r['required_decision'], r['accepted_revision_id']) for r in records])
+        baseline = {f['collection']: f['accepted_revision_id'] for f in ORACLE['plan-first-use.json']['facts']}
+        self.assertEqual([(c, 'duplicate', None, baseline[c]) for _ in range(2) for c in ('coverage', 'membership')],
+            [(r['collection'], r['action'], r['required_decision'], r['accepted_revision_id']) for r in facts if r['collection'] != 'records'])
+
+    def test_cross_member_duplicate_without_parent_stays_ready(self):
+        """AC-IMP-007P-05 (v): the later duplicate without a parent keeps no parent or head."""
+        pages, decisions, first, second = self.cross_member_correction_basis()
+        decisions['parents'] = [p for p in decisions['parents'] if p['member_id'] == first]
         bundle = self.build(store_decisions(pages, decisions), sequential_allocator())
         self.assertEqual('READY', bundle['review']['state'])
         effects = [f for f in bundle['plan']['facts'] if f['collection'] == 'records']

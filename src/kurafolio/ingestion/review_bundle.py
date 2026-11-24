@@ -417,6 +417,10 @@ def _across_facts(facts, inputs, context, decisions, revisions, links):
             for fact in same[1:]:
                 if first['action'] != 'duplicate':
                     fact.update(action='duplicate', duplicate_of=first, prior=None)
+    parents = {(p['member_id'], p['collection'], p['local_id']): p['parent_revision_id'] for p in decisions['parents']}
+    for key, fact in facts.items():
+        if key in parents and not fact['required'] and (fact['action'] not in ('correction', 'void') or fact['prior'] != parents[key]):
+            fact['required'] = 'parent'
     activities = [f for f in facts.values() if f['collection'] == 'records' and f['row']['record_type'] == 'activity']
     def revision_token(f):
         if f['duplicate_of'] is not None:
@@ -432,11 +436,22 @@ def _across_facts(facts, inputs, context, decisions, revisions, links):
             if len({token for c, token in claims if all(v == c[k] for k, v in claim.items() if k != 'revision' or v is not None)}) != 1:
                 fact['required'] = 'identity'
     for authority in decisions['authorities']:
+        if not _unsupported_authority(authority):
+            continue
         left = authority['left']
-        if left['form'] == 'incoming':
+        if left['form'] == 'accepted':
+            member = _authority_member(authority, next(iter(inputs)))
+            for fact in facts.values():
+                if fact['member_id'] == member:
+                    fact['required'] = 'unsupported'
+        else:
             key = left['member_id'], left['collection'], left['local_id']
-            if authority['kind'] == 'mirror' or (authority['kind'] == 'historical_only' and left['collection'] != 'snapshots'):
-                facts[key]['required'] = 'unsupported'
+            facts[key]['required'] = 'unsupported'
+            if authority['kind'] == 'historical_only' and left['collection'] == 'snapshots':
+                row = facts[key]['row']
+                for collection, local_ids in (('records', row['position_local_ids']), ('coverage', row['coverage_local_ids'])):
+                    for local in local_ids:
+                        facts[left['member_id'], collection, local]['required'] = 'unsupported'
     # Competing streams within this set. Unknown time comparisons count as overlap.
     indexes = {m: MappingIndex(decisions['mappings'], m) for m in inputs}
     connections = {p['member_id']: p['connection_id'] for p in context['pinned_sources']}
@@ -518,6 +533,13 @@ def _across_facts(facts, inputs, context, decisions, revisions, links):
             a['required'] = b['required'] = 'authority'
 
 
+def _unsupported_authority(authority):
+    left = authority['left']
+    return ((authority['kind'] == 'mirror' and left['form'] == 'incoming') or
+            (authority['kind'] == 'historical_only' and
+             (left['form'] != 'incoming' or left['collection'] != 'snapshots' or authority['right'] is not None)))
+
+
 def _authority_member(authority, first):
     for side in (authority['left'], authority['right']):
         if side is not None and side['form'] == 'incoming':
@@ -563,7 +585,7 @@ def build_review_bundle(pages, *, preview_id, allocate_id):
     candidates = _candidates(rows, inputs, context, decisions)
     state = 'NEEDS_MAPPING' if candidates is None else 'READY'
     facts = {} if state == 'NEEDS_MAPPING' else _classify(inputs, context, decisions, revisions, chains, heads, tips, rows['authorities'])
-    if any(f['required'] for f in facts.values()):
+    if any(f['required'] for f in facts.values()) or (state != 'NEEDS_MAPPING' and any(_unsupported_authority(a) for a in decisions['authorities'])):
         state = 'CONFLICT'
     ready = state == 'READY'
     if state == 'NEEDS_MAPPING':

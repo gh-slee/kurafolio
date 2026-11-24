@@ -2,7 +2,7 @@
 id: IMP-007P
 title: Build the ReviewBundle that the worker's prepare step passes to prepare_preview_v1
 priority: P0
-status: blocked
+status: done
 type: feature
 parent: IMP-007
 depends_on: []
@@ -17,7 +17,7 @@ branch: ticket/imp-007p-build-the-reviewbundle-that-the-worker-s
 pr: https://github.com/gh-slee/kurafolio/pull/108
 spec: docs/specs/imp-007-r7/spec.md
 spec_approved: sha256:ab4f0a665240bd37f278712f3dc78aa90db9a7ecb92f3fc7e0700f67a4bab766
-updated: 2026-11-23
+updated: 2026-11-24
 ---
 
 # IMP-007P: Build the ReviewBundle that the worker's prepare step passes to prepare_preview_v1
@@ -374,11 +374,11 @@ The review's finding N1 (a later member's fact with its own parent decision that
 
 ## Handoff
 
-- State: Draft PR https://github.com/gh-slee/kurafolio/pull/108 is blocked. Independent QA and Architect re-review of af2fcdd (https://github.com/gh-slee/kurafolio/pull/108#issuecomment-7119971609) requests changes: the main merge, CI skip count and F2 code fix are correct, but F1 remains open and N1 identifies a READY Plan with a parent decision on a cross-member duplicate that the SQL refuses. No implementation changed in this follow-up.
-- Next step: The owner answers Decisions needed item 5 after the planner recommends a complete rule, including all-duplicate members. The owner and planner also settle N1: which facts become CONFLICT/parent when a cross-member duplicate has its own parent decision and the child is in the same set. The builder then follows the approved, merged plan; no default is selected here.
-- Verify: `python3 scripts/tickets.py spec IMP-007P --base origin/main`; `python3 scripts/tickets.py check`; `python3 scripts/check_language.py`; `python3 scripts/check_publication.py --worktree`; `python3 scripts/check_pr_image.py` from a clean tracked tree. CI run 45250443225 is being checked after rerunning only its failed postgres-ingestion job 137958422201.
-- Gotchas: The PR's own-ticket check is expected to fail while status is blocked. The first PR-event postgres-ingestion job lost its database connection during the existing 16,777,217-byte raw-bound test; its log does not establish the cause. The re-review's local AC-02 acceptance does not resolve N1, which was read from SQL rather than confirmed live. Local metadata follow-up requires fresh publication approval before any push.
-- Open questions: F1 (Decisions needed item 5) and N1 await owner decisions and planner clarification. F4 and F5 remain informational. Independent acceptance is not complete.
+- State: Repair round 2 follows the supplemental Build plan merged in PR #113 (590be9a), merged here with origin/main at 0e97ee6. F1 follows the owner's item 5 option (b): unsupported historical-only authorities produce CONFLICT, including a carrier member with no facts, and snapshot children carry the unsupported code when the authority has a right side. N1 checks parent decisions after cross-member deduplication; only the later fact with its own invalid parent decision conflicts. The five specified AC-05 regression cases pass. Build plan and Decisions needed match main exactly; gated sections are unchanged.
+- Next step: Obtain exact-scope owner publication approval after the clean-HEAD candidate check, push the approved commits to PR #108, and request `review IMP-007P` in Claude Code. Fresh independent QA and Architect re-review of this repair is NOT RUN; the configured reviewer cannot be started here. Frontier owner review follows independent acceptance.
+- Verify: `python3 scripts/tickets.py spec IMP-007P --base origin/main`; `PYTHONPATH=src python -m unittest discover -s tests -p 'test_ingestion_*.py'` (122 tests, 26.171 seconds, no skips); `KURAFOLIO_INGESTION_TEST=1 PYTHONPATH=src python -m unittest discover -s tests -p test_postgres_migration.py -k test_review_bundle_builder_from_live_prepare_basis` (1 test, 12 live initial/READY subcases, 9.341 seconds, no skips); language, board and publication guards; `python3 scripts/check_pr_image.py` from the final clean tracked tree. Local repair evidence is under `work/imp-007p/supplement-*`.
+- Gotchas: No worker calls this builder until IMP-007V. Developer tests do not establish independent acceptance. This repair changes no SQL, DTO, oracle, existing PostgreSQL test or other helper. The earlier c965c14 CI passed all tests but failed the blocked own-ticket check; it is not CI evidence for this repair. No deployment or runtime migration is part of this repair.
+- Open questions: None in the approved repair scope. Only the owner answers Decisions needed items; the planner recommends. F4 and F5 remain informational and unchanged. Independent re-review and owner merge remain outstanding.
 
 ## Log
 
@@ -398,3 +398,7 @@ The review's finding N1 (a later member's fact with its own parent decision that
 
 - 2026-11-23 codex/gpt-6.1-sol: recorded the independent QA and Architect re-review by claude-code/opus-5.5 of af2fcdd (https://github.com/gh-slee/kurafolio/pull/108#issuecomment-7119971609): changes requested. AC-01 to AC-07 and AC-09 pass; AC-08 traceability passes with F1 and N1 open. The merge, skip count and F2 code fix are correct. F1 needs the owner's answer to item 5 and planner clarification for all-duplicate members. N1 needs a rule for an explicit parent on a cross-member duplicate within the same set; no implementation or Build plan change was made. Reviewed failed PR-event postgres-ingestion logs and requested only job 137958422201 in run 45250443225 again; terminal result follows in the local handoff evidence. Status stays blocked; no publication.
 - 2026-11-23 claude-code/opus-5.5: supplemented the merged Build plan in plan pull request https://github.com/gh-slee/kurafolio/pull/113 for review findings F1 and N1 on PR #108; no replan. Recorded Decisions needed item 5, copied from PR #108's branch, as resolved: asked "IMP-007P F1 (Decisions needed item 5): when a `historical_only` authority's left side is an accepted revision rather than an incoming snapshot, how should the builder handle it?", the owner chose "(b) CONFLICT (Recommended)", relayed to this planning session by the coordinating session. Added the item 5 carrier, review-state and precedence rules (all facts of the attributed member; CONFLICT even when that member has no facts) and the N1 rule (a parent decision on a fact whose final action is not `correction` or `void` is CONFLICT `parent`, later member only), with the test changes for PR #108. Gate A and the gated sections are unchanged.
+
+- 2026-11-24 codex/gpt-6.1-sol: review repair round 2 follows owner-approved item 5 (b) and the N1 supplement merged in PR #113. Merged origin/main at 0e97ee6, preserving main's Build plan and Decisions needed verbatim and both Log histories. Added unsupported authority state/carrier handling and the post-deduplication parent check, with the five specified AC-05 cases. Renamed the former READY duplicate-with-parent test to assert CONFLICT; the no-parent variant remains READY. Developer ingestion tests: 122 OK, no skips, 26.171 seconds. Existing live PostgreSQL AC-02: 1 test, 12 subcases, no skips, 9.341 seconds. No SQL, contract, oracle or existing PostgreSQL test change.
+
+- 2026-11-24 codex/gpt-6.1-sol: outcome: implementing model codex/gpt-6.1-sol; reviewing model claude-code/opus-5.5, fresh repair re-review NOT RUN; review repair rounds 2. The item 5 and N1 planning gaps were resolved by the supplement on main; nothing remains missing in this bounded repair. Status done records builder completion only; exact-HEAD candidate verification, publication approval and fresh independent QA/Architect acceptance remain required before the owner's frontier review.
