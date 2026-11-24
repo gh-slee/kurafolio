@@ -60,9 +60,15 @@ class Auth:
         self.store = IdentityStore(settings.identity,schema_mode=getattr(settings,"schema_profile","identity"))
         self.financial = Database(settings.financial, schema_mode=getattr(settings,'schema_profile','identity'))
         self.sources = None
-        if getattr(settings,'schema_profile','identity')=='sources':
+        self.imports = None
+        if getattr(settings,'schema_profile','identity') in {'sources','ingestion'}:
             from kurafolio.persistence.source_store import SourceStore
-            self.sources = SourceStore(settings.identity,settings.source_catalog)
+            self.sources = SourceStore(settings.identity,settings.source_catalog,schema_mode=settings.schema_profile)
+        if getattr(settings,'schema_profile','identity') == 'ingestion':
+            from kurafolio.persistence.ingestion_store import IngestionStore
+            from kurafolio.ingestion import cursors
+            self.imports = IngestionStore(settings.identity,settings.source_catalog)
+            self.cursor_key = cursors.derive_key(settings.key)
         self.passwords = Passwords()
         try:
             self.ready()
@@ -76,6 +82,9 @@ class Auth:
         if self.sources is not None:
             self.sources.close()
 
+        if self.imports is not None:
+            self.imports.close()
+
     def instance(self):
         state = self.store.status()
         if not hmac.compare_digest(state['key_digest'], hashlib.sha256(self.settings.key).hexdigest()):
@@ -86,6 +95,20 @@ class Auth:
         try:
             left = self.instance()
             gateway_role=role_inventory(self.store.database,gateway=True)
+            if self.settings.schema_profile == 'ingestion':
+                from kurafolio.persistence.ingestion_migration import verify_runtime_inventory
+                with self.financial.engine.begin() as conn:
+                    runtime_role = execute(conn, 'SELECT current_user').scalar_one()
+                    verify_runtime_inventory(conn, runtime_role=runtime_role, gateway_role=gateway_role,
+                                             worker_role=self.settings.worker_role)
+                    right = execute(conn, REALM_SNAPSHOT).mappings().one()
+                    if (any(left[k] != right[k] for k in REALM_KEYS) or right['revision'] != self.financial.revision
+                            or right['ready'] is not True):
+                        raise IdentityError()
+                    saved = execute(conn, 'SELECT digest FROM wl_sources.catalog_state WHERE id=1').scalar_one()
+                    if saved != self.sources.catalog_digest:
+                        raise IdentityError()
+                return True
             runtime_role=role_inventory(self.financial,gateway=False)
             if gateway_role == runtime_role:
                 raise IdentityError()
@@ -94,7 +117,7 @@ class Auth:
             if (any(left[k] != right[k] for k in REALM_KEYS) or right['revision'] != self.financial.revision
                     or right['ready'] is not True):
                 raise IdentityError()
-            if self.sources is not None:
+            if self.settings.schema_profile == 'sources':
                 from kurafolio.persistence.source_migration import verify_inventory
                 with self.financial.engine.begin() as conn:
                     verify_inventory(conn,runtime_role=runtime_role,gateway_role=gateway_role)

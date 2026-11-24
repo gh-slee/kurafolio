@@ -148,7 +148,8 @@ ERROR_CODES = ('invalid_headers','invalid_host','invalid_length','not_found','me
  'setup_rejected','setup_closed','setup_required','admin_required','invite_already_issued','invite_not_active',
  'source_catalog_unavailable','source_unavailable','source_capability_unavailable','source_context_incompatible',
  'source_connection_conflict','source_revision_conflict','source_idempotency_conflict','source_repreview_required',
- 'source_capacity_reached','source_counter_exhausted','source_commit_uncertain')
+ 'source_capacity_reached','source_counter_exhausted','source_commit_uncertain',
+ 'import_busy','import_cleanup_pending','import_commit_uncertain','import_conflict','import_evidence_unsupported','import_expired','import_invalid','import_limit','import_mapping_required','import_operation_conflict','import_reupload_required','import_runner_unavailable','import_stale','length_required')
 
 
 class ErrorDetail(Closed):
@@ -314,3 +315,60 @@ class SourceEnableMutation(SourceMutation):
 
 class SourceConnectionMutation(SourceMutation):
     resource: SourceConnection
+
+
+def import_openapi_extra(route):
+    """Reference code-owned frozen DTOs without a second model definition."""
+    result = {'responses': {str(route['success_status']): {
+        'description': 'Successful response', 'content': {'application/json': {
+            'schema': {'$ref': '#/components/schemas/' + route['response']}}}}}}
+    if route['request'] in {'Create', 'Decide', 'Confirm', 'Cancel'}:
+        result['requestBody'] = {'required': True, 'content': {'application/json': {
+            'schema': {'$ref': '#/components/schemas/' + route['request']}}}}
+    return result
+
+
+def install_import_openapi(app, routes):
+    """Install only the frozen definitions reachable from the supplied routes."""
+    from kurafolio.ingestion.contracts import definition, CORE_NAMES
+    original = app.openapi
+
+    def openapi():
+        if app.openapi_schema is not None:
+            return app.openapi_schema
+        document = original()
+        definitions = document.setdefault('components', {}).setdefault('schemas', {})
+        visited = set()
+
+        def add(name, namespace):
+            key = (name, namespace)
+            if key in visited:
+                return
+            visited.add(key)
+            definitions[name] = rewrite(definition(name, namespace), namespace)
+
+        def rewrite(value, namespace):
+            if type(value) is list:
+                return [rewrite(x, namespace) for x in value]
+            if type(value) is not dict:
+                return value
+            result = {}
+            for key, item in value.items():
+                if key == '$ref':
+                    prefix, name = item.split('#/$defs/', 1)
+                    target = {'codec-schema.json': 'core', 'wire-contracts.json': 'wire',
+                              'frozen-shapes.json': 'frozen'}.get(prefix, namespace)
+                    add(name, target)
+                    result[key] = '#/components/schemas/' + name
+                else:
+                    result[key] = rewrite(item, namespace)
+            return result
+
+        for route in routes:
+            for name in (route['request'], route['response']):
+                if name and not name.startswith(('QUERY_', 'RAW_')):
+                    add(name, 'core' if name in CORE_NAMES else 'wire')
+        app.openapi_schema = document
+        return document
+
+    app.openapi = openapi

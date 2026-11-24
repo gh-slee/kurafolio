@@ -18,8 +18,9 @@ def parser():
     serve.add_argument('--port',required=True,type=int)
     serve.add_argument('--tls-cert-file',type=Path)
     serve.add_argument('--tls-key-file',type=Path)
-    serve.add_argument('--schema-profile',choices=['identity','sources'],default='identity')
+    serve.add_argument('--schema-profile',choices=['identity','sources','ingestion'],default='identity')
     serve.add_argument('--source-catalog-file',type=Path)
+    serve.add_argument('--worker-role')
     for action,operations in [('operator',['migrate-identity','migrate-sources','migrate-ingestion','backup-ingestion','restore-ingestion']),('identity',['status','finalize-restore']),
                                ('sources',['status','catalog-apply','finalize-restore']),
                                ('setup',['arm','revoke']),('invite',['issue','revoke']),
@@ -33,7 +34,7 @@ def parser():
                 item.add_argument('--identity-role',required=True)
                 item.add_argument('--key-file',required=True,type=Path)
             if action in {'setup','invite','account'} or action=='identity' and operation=='status':
-                item.add_argument('--schema-profile',choices=['identity','sources'],default='identity')
+                item.add_argument('--schema-profile',choices=['identity','sources','ingestion'],default='identity')
             if operation in {'migrate-ingestion','backup-ingestion','restore-ingestion'}:
                 item.add_argument('--worker-role',required=True)
             if operation in {'backup-ingestion','restore-ingestion'}:
@@ -65,7 +66,7 @@ def main(argv=None):
             from .config import Settings
             from .api import create_app
             import uvicorn
-            settings=Settings.from_files(args.identity_file,args.financial_file,args.key_file,args.origin,schema_profile=args.schema_profile,source_catalog_file=args.source_catalog_file)
+            settings=Settings.from_files(args.identity_file,args.financial_file,args.key_file,args.origin,schema_profile=args.schema_profile,source_catalog_file=args.source_catalog_file,worker_role=args.worker_role)
             import ipaddress
             import ssl
             bind='127.0.0.1' if args.host=='localhost' else args.host

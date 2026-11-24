@@ -17,7 +17,7 @@ branch: ticket/imp-007e-add-authenticated-v2-import-http-routes
 pr: 
 spec: docs/specs/imp-007-r7/spec.md
 spec_approved: sha256:aba3bef4df145ca2355ad07c3fafb0954169d04ad8a05609502b23528a1c3d4c
-updated: 2026-11-23
+updated: 2026-11-24
 ---
 
 # IMP-007E: Add authenticated V2 import HTTP routes
@@ -472,7 +472,7 @@ Items 1 to 5 were answered by the owner on 2026-11-20, items 6 and 7 on 2026-11-
 ## Handoff
 
 - State: In progress. Resumed after the owner-approved strict preview conversion plan merged in PR #111 (`2647ea8`). The approved spec hash is unchanged. Local checkpoints and the owner's item 8 decision are retained in the Log; the merged Build plan is authoritative.
-- Next step: Write and verify the frozen-schema DTO and strict response helpers before route code, then complete Parts A to F and the required unit and real-PostgreSQL HTTP tests.
+- Next step: Finish isolated migrated PostgreSQL HTTP acceptance, store fault tests, documentation and CI wiring. Profile/store/Boundary/eight routes and frozen OpenAPI are implemented locally; 12 database-free helper/HTTP tests passed in 1.355 s. No real-PostgreSQL HTTP acceptance or full-suite/candidate evidence yet.
 - Verify: `python3 scripts/tickets.py spec IMP-007E --base origin/main`; `KURAFOLIO_INGESTION_TEST=1 PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -p 'test_postgres_migration.py' -v`; `PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -p 'test_ingestion_*.py' -v`. Prerequisite real-PostgreSQL probe evidence is under `work/imp-007e/profile-probe-20261123-result.json`; the owned synthetic target was cleaned up.
 - Gotchas: Use isolation `wl-imp-007e-5f66` and ports 56400 to 56499. `identity-api` and `v2-import-routes` remain exclusively claimed. Implement only the explicit read-response conversions; SQL and wire schemas stay unchanged.
 - Open questions: None. Local work only; no push or PR without approval of the exact publication scope.
@@ -502,3 +502,5 @@ Items 1 to 5 were answered by the owner on 2026-11-20, items 6 and 7 on 2026-11-
 - 2026-11-23 codex/gpt-6.1-sol: recorded the owner's "agree" to item 8 option (a): the API flattens the strict `page` / `next` wrapper, signs `next` as `next_cursor`, validates `PreviewPage` and refuses unexpected or conflicting keys. SQL and the public schema remain unchanged; scope is the preview response adapter and its tests. Build plan and gated sections are unchanged. Still blocked until the Claude Code planner amendment merges to `main`; local record only, no push or PR.
 
 - 2026-11-23 codex/gpt-6.1-sol: resumed after PR #111 merged at `2647ea8`. Resolved the ticket-record merge by preserving the exact merged Build plan, the approved spec, and local checkpoint Log lines. Starting the approved implementation; no push or PR.
+
+- 2026-11-24 codex/gpt-6.1-sol: saved the partial profile, gateway store, eight JSON routes, strict read conversions and frozen OpenAPI implementation. Twelve database-free helper/HTTP tests passed in 1.355 s. Real-PostgreSQL HTTP tests, docs, CI and full/candidate checks remain; not ready for review or publication.
