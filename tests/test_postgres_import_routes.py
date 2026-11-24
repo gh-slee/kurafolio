@@ -141,6 +141,13 @@ class ImportRoutesPostgresTests(unittest.TestCase):
     def scalar(self,statement):
         with self.owner.engine.begin() as conn: return self.execute(conn,statement).scalar_one()
 
+    def state(self):
+        return self.scalar("""SELECT jsonb_build_object('sets',
+            (SELECT jsonb_object_agg(id::text,revision::text) FROM wl_ingestion.sets),
+            'receipts',(SELECT count(*) FROM wl_ingestion.receipts),
+            'generations',(SELECT jsonb_agg(jsonb_build_array(accepted_generation,mapping_generation,control_generation))
+                           FROM wl_ingestion.roots))""")
+
     def create_set(self):
         response = self.client.post('/api/v2/import-sets',json=self.create_body,headers=self.headers)
         self.assertEqual(response.status_code,201,response.text)
@@ -185,8 +192,8 @@ class ImportRoutesPostgresTests(unittest.TestCase):
         with psycopg.connect(**self.admin_target) as conn:
             conn.execute('SET LOCAL session_replication_role=replica')
             conn.execute(seed,prepare=False)
-            conn.execute('UPDATE wl_ingestion.previews SET review_bytes=%s,review_digest=%s',
-                         (codec.encode(document),codec.digest(document)))
+            conn.execute('UPDATE wl_ingestion.previews SET review_bytes=%s,review_digest=%s WHERE id=%s',
+                         (codec.encode(document),codec.digest(document),plan['preview_id']))
         return plan,document
 
     def test_ac_01_02_ready_and_no_operator_verifiers(self):
@@ -217,7 +224,8 @@ class ImportRoutesPostgresTests(unittest.TestCase):
 
     def test_ac_03_07_create_cancel_replay_conflict_and_stale(self):
         """AC-IMP-007E-03, AC-IMP-007E-07."""
-        first=self.create_set();again=self.create_set();self.assertEqual(first.content,again.content)
+        first=self.create_set();before=self.state();again=self.create_set()
+        self.assertEqual(first.content,again.content);self.assertEqual(before,self.state())
         changed=copy.deepcopy(self.create_body);changed['members'][0]['declared_bytes']=1
         response=self.client.post('/api/v2/import-sets',json=changed,headers=self.headers)
         self.assertEqual(response.json()['error']['code'],'import_operation_conflict')
@@ -228,7 +236,9 @@ class ImportRoutesPostgresTests(unittest.TestCase):
         body['expected_set_revision']='1'
         cancelled=self.client.post(path+'/cancel',json=body,headers=self.headers)
         self.assertEqual(cancelled.status_code,200,cancelled.text)
+        before=self.state()
         self.assertEqual(cancelled.content,self.client.post(path+'/cancel',json=body,headers=self.headers).content)
+        self.assertEqual(before,self.state())
         body['expected_set_revision']='2'
         self.assertEqual(self.client.post(path+'/cancel',json=body,headers=self.headers).json()['error']['code'],'import_operation_conflict')
         self.assertIsNone(cancelled.json()['receipt_id'])  # sql-appendix: null before COMMITTED.
@@ -264,7 +274,9 @@ class ImportRoutesPostgresTests(unittest.TestCase):
         body=dict(operation_id=str(uuid.uuid4()),preview_digest=codec.digest(plan))
         response=self.client.post(path,json=body,headers=self.headers)
         self.assertEqual(response.status_code,200,response.text)
+        before=self.state()
         self.assertEqual(response.content,self.client.post(path,json=body,headers=self.headers).content)
+        self.assertEqual(before,self.state())
         receipt=self.client.get('/api/v2/import-receipts/'+response.json()['id'])
         self.assertEqual(receipt.content,response.content)
         body['preview_digest']='0'*64
@@ -285,7 +297,9 @@ class ImportRoutesPostgresTests(unittest.TestCase):
         body['decisions']['expected_set_revision']=str(revision)
         first=self.client.put(path+'/decisions',json=body,headers=self.headers)
         self.assertEqual(first.status_code,202,first.text)
+        replay_state=self.state()
         self.assertEqual(first.content,self.client.put(path+'/decisions',json=body,headers=self.headers).content)
+        self.assertEqual(replay_state,self.state())
         before=self.scalar('SELECT count(*) FROM wl_ingestion.receipts')
         body['decisions']['expected_set_revision']=str(revision+1)
         response=self.client.put(path+'/decisions',json=body,headers=self.headers)
@@ -296,6 +310,11 @@ class ImportRoutesPostgresTests(unittest.TestCase):
         """AC-IMP-007E-03."""
         from fastapi.testclient import TestClient
         plan,_=self.seed_preview()
+        from kurafolio.ingestion import codec
+        receipt=self.client.post('/api/v2/import-previews/'+plan['preview_id']+'/confirm',
+            json=dict(operation_id=str(uuid.uuid4()),preview_digest=codec.digest(plan)),headers=self.headers)
+        self.assertEqual(receipt.status_code,200,receipt.text)
+        owner_state=self.state()
         user,portfolio=str(uuid.uuid4()),str(uuid.uuid4())
         with self.owner.engine.begin() as conn:
             self.execute(conn,'INSERT INTO wl_pg.tenant_roots VALUES(:t,:p)',t=user,p=portfolio)
@@ -306,6 +325,7 @@ class ImportRoutesPostgresTests(unittest.TestCase):
         with TestClient(self.app,base_url='http://localhost') as other:
             self.login_client(other,'syntheticother')
             paths=[('GET','/api/v2/import-sets/'+plan['set_id'],None),
+                   ('GET','/api/v2/import-receipts/'+receipt.json()['id'],None),
                    ('GET','/api/v2/import-previews/'+plan['preview_id'],None),
                    ('POST','/api/v2/import-previews/'+plan['preview_id']+'/confirm',
                     dict(operation_id=str(uuid.uuid4()),preview_digest='a'*64)),
@@ -317,7 +337,7 @@ class ImportRoutesPostgresTests(unittest.TestCase):
             for method,path,body in paths:
                 response=other.request(method,path,json=body,headers=self.headers)
                 self.assertEqual((response.status_code,response.json()['error']['code']),(404,'not_found'))
-            self.assertEqual(str(self.scalar('SELECT revision FROM wl_ingestion.sets')),plan['expected_set_revision'])
+            self.assertEqual(owner_state,self.state())
             with self.owner.engine.begin() as conn:
                 self.execute(conn,'UPDATE wl_identity.users SET credential_version=credential_version+1 WHERE id=:t',t=user)
             source=other.get('/api/v2/sources');imports=other.get('/api/v2/import-sets')

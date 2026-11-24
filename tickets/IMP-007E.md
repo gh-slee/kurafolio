@@ -145,12 +145,12 @@ Rules that reviewers will check:
 
 ## Acceptance criteria
 
-- [ ] AC-IMP-007E-01: Each of the eight routes above exists on the ingestion profile, appears in `/api/v2/openapi.json` with its DTOs, and is absent on the `identity` and `sources` profiles.
-- [ ] AC-IMP-007E-02: Routes call only the r7 SQL functions; no route writes tables directly.
-- [ ] AC-IMP-007E-03: Unauthenticated, cross-tenant and stale-version requests are refused.
-- [ ] AC-IMP-007E-05: HTTP tests cover each route and refusal.
-- [ ] AC-IMP-007E-07: Replaying create, decisions, confirm or cancel with the same `operation_id` and payload returns the first answer and changes nothing; the same `operation_id` with a different payload is `import_operation_conflict`.
-- [ ] AC-IMP-007E-09: `docs/web-v2-imports.md` lists the routes and their error codes, so APP-011D can be built from the public document.
+- [x] AC-IMP-007E-01: Each of the eight routes above exists on the ingestion profile, appears in `/api/v2/openapi.json` with its DTOs, and is absent on the `identity` and `sources` profiles.
+- [x] AC-IMP-007E-02: Routes call only the r7 SQL functions; no route writes tables directly.
+- [x] AC-IMP-007E-03: Unauthenticated, cross-tenant and stale-version requests are refused.
+- [x] AC-IMP-007E-05: HTTP tests cover each route and refusal.
+- [x] AC-IMP-007E-07: Replaying create, decisions, confirm or cancel with the same `operation_id` and payload returns the first answer and changes nothing; the same `operation_id` with a different payload is `import_operation_conflict`.
+- [x] AC-IMP-007E-09: `docs/web-v2-imports.md` lists the routes and their error codes, so APP-011D can be built from the public document.
 
 ## Build plan
 
@@ -436,12 +436,12 @@ CI and the skip guard:
 
 ## Plan
 
-- [ ] Part A: the `ingestion` runtime profile (context, identity, source store, config, CLI, Auth, Boundary).
-- [ ] Part B: `IngestionStore` gateway caller and `admit` for `admit_rate_v1`.
-- [ ] Part C: error codes, DTO validation from the frozen schemas, OpenAPI components.
-- [ ] Part D: Boundary order, the eight JSON routes and the strict `{page, next}` read-response conversion (`web_v2/import_wire.py`).
-- [ ] Part F: docs.
-- [ ] Unit and real-PostgreSQL HTTP tests; CI job and skip counts.
+- [x] Part A: the `ingestion` runtime profile (context, identity, source store, config, CLI, Auth, Boundary).
+- [x] Part B: `IngestionStore` gateway caller and `admit` for `admit_rate_v1`.
+- [x] Part C: error codes, DTO validation from the frozen schemas, OpenAPI components.
+- [x] Part D: Boundary order, the eight JSON routes and the strict `{page, next}` read-response conversion (`web_v2/import_wire.py`).
+- [x] Part F: docs.
+- [x] Unit and real-PostgreSQL HTTP tests; CI job and skip counts.
 
 ## Decisions needed
 
@@ -471,11 +471,12 @@ Items 1 to 5 were answered by the owner on 2026-11-20, items 6 and 7 on 2026-11-
 
 ## Handoff
 
-- State: In progress. Resumed after the owner-approved strict preview conversion plan merged in PR #111 (`2647ea8`). The approved spec hash is unchanged. Local checkpoints and the owner's item 8 decision are retained in the Log; the merged Build plan is authoritative.
-- Next step: Run required migration, ingestion and full unit checks, review the final diff, then commit and run the candidate-image gate. Profile/store/Boundary/eight routes, docs and CI are implemented. Ten migrated PostgreSQL HTTP tests passed with zero skips; 4 store fault tests and 15 helper/HTTP/config/docs tests passed. Full-suite, candidate and independent-QA evidence remain open.
-- Verify: `python3 scripts/tickets.py spec IMP-007E --base origin/main`; `KURAFOLIO_INGESTION_TEST=1 PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -p 'test_postgres_migration.py' -v`; `PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -p 'test_ingestion_*.py' -v`. Prerequisite real-PostgreSQL probe evidence is under `work/imp-007e/profile-probe-20261123-result.json`; the owned synthetic target was cleaned up.
-- Gotchas: Use isolation `wl-imp-007e-5f66` and ports 56400 to 56499. `identity-api` and `v2-import-routes` remain exclusively claimed. Implement only the explicit read-response conversions; SQL and wire schemas stay unchanged.
-- Open questions: None. Local work only; no push or PR without approval of the exact publication scope.
+- State: Local implementation and developer verification complete; status stays `in_progress` because publication, CI and the required independent review have not run. Base `2647ea8` contains the owner-approved strict preview conversion plan. The gated spec and Build plan are unchanged.
+- Next step: Check the candidate receipt under `work/pr-images/` for this exact HEAD, prepare the PR with the canonical template, then arrange the required Claude Code reviewer. The Codex builder cannot run that reviewer model. Do not treat developer tests as independent QA or a complete CSV import service.
+- Verify: `KURAFOLIO_INGESTION_TEST=1 PYTHONPATH=src .venv/bin/python scripts/run_gated_tests.py --expect-skipped 0 -- discover -s tests -p test_postgres_import_routes.py` passed 10 tests with zero skips in 14.832 s. `test_postgres_migration.py` passed 154 tests with zero skips in 87.347 s. The focused `test_ingestion_*.py` suite passed 107 tests in 0.825 s. The full default suite passed 1,463 tests in 797.212 s (1,191 passed, 272 explicit skips). Runtime source is unchanged since that run; later test-only fixture narrowing and replay/foreign-receipt assertions passed targeted tests (1 and 4 tests, zero skips). Helper/HTTP/config/docs tests passed 15 tests in 0.785 s.
+- Evidence: logs under `work/imp-007e/`, including `full-unit.log`, `postgres-migration.log`, `postgres-http-accepted.log`, `preview-fixture-scope-retest.log` and `replay-scope-retest.log`. The optional host frontend source check could not run because the worktree lacks TypeScript dependencies and the host Node is below the documented version; no frontend source changed. Candidate image validation is a separate exact-HEAD gate.
+- Gotchas: Use isolation `wl-imp-007e-5f66` and ports 56400 to 56499. Source/runtime inventory and all SQL/provider files remain unchanged. Upload, activation and the worker remain IMP-007U, IMP-007S and IMP-007F. No real portfolio or existing service was used for these tests.
+- Open questions: None. Required independent QA/Architecture review and remote CI are NOT RUN. No push or PR has been made.
 
 ## Log
 
@@ -506,3 +507,5 @@ Items 1 to 5 were answered by the owner on 2026-11-20, items 6 and 7 on 2026-11-
 - 2026-11-24 codex/gpt-6.1-sol: saved the partial profile, gateway store, eight JSON routes, strict read conversions and frozen OpenAPI implementation. Twelve database-free helper/HTTP tests passed in 1.355 s. Real-PostgreSQL HTTP tests, docs, CI and full/candidate checks remain; not ready for review or publication.
 
 - 2026-11-24 codex/gpt-6.1-sol: added real migrated PostgreSQL HTTP fixtures without changing SQL, grants or constraints. Ten HTTP tests passed with zero skips, including replay, cross-tenant scope, positive stale revisions, signed paging, readiness drift, inactive activation and shared quotas. Corrected test assumptions using frozen sql-appendix receipt semantics and pre-existing storage/cursor expectations; failed logs are retained locally. Added 4 passing store fault tests and 15 passing helper/HTTP/config/docs tests. Docs and zero-skip CI wiring added. Full-suite and candidate gates remain pending.
+
+- 2026-11-24 codex/gpt-6.1-sol: completed local developer verification. Existing PostgreSQL migration acceptance passed 154/154 with zero skips; ingestion-focused tests passed 107; full default suite passed 1,463 tests with 272 explicit skips in 797.212 s. The 10-test HTTP acceptance passed with zero skips; test-only exact-preview and replay/foreign-receipt strengthening then passed targeted 1-test and 4-test retests. Runtime source is unchanged. Developer source review, language/privacy/spec/ticket checks passed. Independent review, CI and publication remain NOT RUN; final candidate evidence belongs to its exact-HEAD receipt.
