@@ -11,13 +11,13 @@ risk: high
 size: M
 agent_tier: frontier
 gate: owner
-gate_approval: "owner 2026-11-21, Gate A on the text as written on PR #95's branch (Q32)"
+gate_approval: "owner 2026-11-23, Gate A on the amended text (hash 5eebf8c6…): Approve Gate A"
 review: independent
 branch: 
 pr: 
 spec: docs/specs/imp-007-r7/spec.md
-spec_approved: sha256:8b2ab2f1293f7e513e1415f7c6531ae33fe4d3503a03a8aa3018a748e7af2952
-updated: 2026-11-21
+spec_approved: sha256:5eebf8c637dd7d798e6d72bda1280f64e4cab3507c733fa4ae3fcc441bedc724
+updated: 2026-11-23
 ---
 
 # IMP-007R: Sweep a lapsed normalize attempt into reupload_required
@@ -367,7 +367,7 @@ Revert the commit. There is no data migration and no table, column, index, grant
 - [x] Owner gives Gate A (2026-11-21, Q32).
 - [x] Planner writes the Build plan from `main` at `cd122a2`, after IMP-007O and IMP-007W merged (plan pull request recorded in the Log).
 - [x] Owner answers Decisions needed item 5 (2026-11-23: (a), amend); amended wording applied.
-- [ ] Owner gives Gate A on the amended text (sha256:5eebf8c637dd7d798e6d72bda1280f64e4cab3507c733fa4ae3fcc441bedc724).
+- [x] Owner gives Gate A on the amended text (2026-11-23, sha256:5eebf8c637dd7d798e6d72bda1280f64e4cab3507c733fa4ae3fcc441bedc724).
 - [ ] Owner answers Decisions needed item 6.
 - [ ] Sweep in `claim_plan_v1` and the stage-delete exception in `_transition_v1`, as insertions; both structure digests and `oracle.json` unchanged (Build plan).
 - [ ] Real-PostgreSQL tests for each acceptance ID; `0004` evidence; docs.
@@ -389,6 +389,7 @@ Only the owner answers. The planner recommends an option for each.
    (b) Keep the approved text and accept the Build plan's reading: the digests and the oracle "change with the function text" only as far as the function text reaches them, which is not at all. The reviewer then judges AC-07 by that reading.
    The planner recommends (a): the text a builder and reviewer check against should state what the code does. Either answer blocks the build until it is on `main`; (a) also needs the new `spec_approved`.
    **Option chosen 2026-11-23: (a); Gate A on the amended text still open.** Asked "For item 5, should the spec wording be amended with a new Gate A (a)?", with (a) described as "Amend the text and give a new Gate A. The exact replacement wording is in the ticket.", the owner replied "Yes, amend (a)" (relayed to this planning session by the coordinating session). The Requirements bullet and AC-07 now carry the proposed wording, and the gated text hashes to sha256:5eebf8c637dd7d798e6d72bda1280f64e4cab3507c733fa4ae3fcc441bedc724. The owner has not yet approved that exact text and hash, so `gate_approval` and `spec_approved` still record the 2026-11-21 Gate A and `tickets.py spec` reports `CHANGED`. Next: the owner gives Gate A on sha256:5eebf8c6…edc724, or asks for changes.
+   **Resolved 2026-11-23: Gate A given on the amended text.** Asked "Do you give Gate A on IMP-007R at this hash, or do you want the wording changed first?" after being shown the amended Requirements sentence, the amended AC-IMP-007R-07 and sha256:5eebf8c637dd7d798e6d72bda1280f64e4cab3507c733fa4ae3fcc441bedc724, the owner replied "Approve Gate A" (relayed to this planning session by the coordinating session). `gate_approval` and `spec_approved` record it.
 6. **Has any database outside disposable tests run `operator migrate-ingestion` at `0004`, or been backed up with `backup-ingestion`?** The Requirements make this a stop point, and only the owner can answer it. The owner answered "No, none has" for IMP-007O on 2026-11-22; that answer was for IMP-007O's change. Repository evidence at `cd122a2` is unchanged: no runtime profile serves `0004`, there are no tags or releases, and the migrations stop at `0004`. (a) No: the in-place change goes ahead, and the PR cites the answer as AC-08 evidence. (b) Yes or unsure: the ticket returns to the planner and the owner to choose a new revision, which changes the Requirements. The planner recommends asking the owner and recording the answer before the build is claimed.
 
 ## Handoff
@@ -406,3 +407,4 @@ Only the owner answers. The planner recommends an option for each.
 - 2026-11-21 claude-code/opus-5.5: recorded Gate A in plan pull request #95. Asked "Gate A, tickets rewritten with your decisions. Which do you approve exactly as written?" (Q32) with this ticket listed at sha256:8b2ab2f1293f7e513e1415f7c6531ae33fe4d3503a03a8aa3018a748e7af2952, the owner selected "IMP-007Q,IMP-007R,IMP-007V". `gate_approval` set to "owner 2026-11-21, Gate A on the text as written on PR #95's branch (Q32)"; `spec_approved` set to sha256:8b2ab2f1293f7e513e1415f7c6531ae33fe4d3503a03a8aa3018a748e7af2952, which `tickets.py spec` reports as the current hash; status backlog becomes ready. Decisions needed item 4 resolved. No Build plan yet; the planner writes it in a later pull request.
 - 2026-11-23 claude-code/opus-5.5: wrote the frontier Build plan from `main` at `cd122a2` in plan pull request https://github.com/gh-slee/kurafolio/pull/112 and refreshed the Context. Added Decisions needed items 5 (proposed change to gated sections for the owner: the Requirements and AC-07 say the oracle vectors and both structure digests change with the function text, but neither covers function bodies; proposed wording needs a new Gate A) and 6 (the owner's `0004` install and backup confirmation for this ticket). Both block the build, not this plan. Goal, Requirements and Acceptance criteria unchanged (sha256:8b2ab2f1293f7e513e1415f7c6531ae33fe4d3503a03a8aa3018a748e7af2952).
 - 2026-11-23 claude-code/opus-5.5: recorded the owner's choice on Decisions needed item 5 in plan pull request https://github.com/gh-slee/kurafolio/pull/112. Asked "For item 5, should the spec wording be amended with a new Gate A (a)?", with (a) described as "Amend the text and give a new Gate A. The exact replacement wording is in the ticket.", the owner replied "Yes, amend (a)". Gated change: the last sentence of the Requirements bullet on DTOs and inventory now says the frozen r7 inventory, `oracle.json` and both expected structure digests stay as they are because neither covers function bodies, and AC-07 says the same and passes against a real `0004` install. Spec hash sha256:8b2ab2f1293f7e513e1415f7c6531ae33fe4d3503a03a8aa3018a748e7af2952 becomes sha256:5eebf8c637dd7d798e6d72bda1280f64e4cab3507c733fa4ae3fcc441bedc724. Gate A on the amended text not recorded: the owner chose to amend but has not approved this exact text and hash. `gate_approval` and `spec_approved` unchanged; item 6 still open.
+- 2026-11-23 claude-code/opus-5.5: recorded Gate A on the amended text in plan pull request https://github.com/gh-slee/kurafolio/pull/112. Asked "Do you give Gate A on IMP-007R at this hash, or do you want the wording changed first?" after being shown the amended Requirements sentence, the amended AC-IMP-007R-07 and sha256:5eebf8c637dd7d798e6d72bda1280f64e4cab3507c733fa4ae3fcc441bedc724, the owner replied "Approve Gate A". `tickets.py spec` computed exactly that hash before recording. `gate_approval` set to "owner 2026-11-23, Gate A on the amended text (hash 5eebf8c6…): Approve Gate A"; `spec_approved` set to sha256:5eebf8c637dd7d798e6d72bda1280f64e4cab3507c733fa4ae3fcc441bedc724; status stays ready. Decisions needed item 6 (the `0004` confirmation) is still open and blocks the build.
