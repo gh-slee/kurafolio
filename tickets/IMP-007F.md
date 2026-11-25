@@ -2,7 +2,7 @@
 id: IMP-007F
 title: Add the dedicated import worker and trusted launcher
 priority: P0
-status: ready
+status: in_progress
 type: feature
 parent: IMP-007
 depends_on: [IMP-007B, IMP-007D, IMP-007L]
@@ -13,11 +13,11 @@ agent_tier: frontier
 gate: owner
 gate_approval: "owner 2026-10-31, IMP-007 spec r7 (covers all child tickets); owner 2026-11-20, Requirements item 1 lease wording (D5); owner 2026-11-21, IMP-007F text after the prepare split (Q16)"
 review: independent
-branch: 
+branch: ticket/imp-007f-add-the-dedicated-import-worker-and-trus
 pr: 
 spec: docs/specs/imp-007-r7/spec.md
 spec_approved: sha256:7a48a991a883a22addf0aafbeb6d6503bc13833e2ee0c0ef426c1523442bd032
-updated: 2026-11-21
+updated: 2026-11-24
 ---
 
 # IMP-007F: Add the dedicated import worker and trusted launcher
@@ -273,8 +273,8 @@ Raised by the planner on 2026-11-20 from the merged code. The owner answered D1 
 
 ## Handoff
 
-- State: Not started. The Build plan and the owner's Gate A of 2026-11-21 for the new gated text (D11) are in plan PR #86 and apply once it merges. The ticket is the worker and the launcher, in one pull request built in two stages (D10, confirmed by the owner). The prepare step is IMP-007V's.
-- Next step: Check that `python3 scripts/tickets.py spec IMP-007F` on `origin/main` reports MATCHES; if it reports CHANGED, stop. Then read `runner.md` and `protocol-appendix.md` in the r7 bundle, `src/kurafolio/ingestion/runner_client.py` and the worker function tests in `tests/test_postgres_migration.py` (`test_claim_*`, `test_finish_*`, `test_cleanup_*`), and build stage 1: the worker against the SQL functions with a fake launcher and the worker journal.
+- State: Stage 1 in progress. The spec matches the approved hash. The worker, configuration, handoff endpoint, journal and SQL caller are being built against a fake launcher first.
+- Next step: Finish stage 1 unit and real-PostgreSQL tests, commit and push, then start stage 2 (launcher, child entry point, compose fragment, containment tests and docs).
 - Verify: `KURAFOLIO_INGESTION_TEST=1 PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -p 'test_postgres_migration.py' -v` and `PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -p 'test_ingestion_*.py' -v`; environment setup in [postgres-foundation.md](../docs/postgres-foundation.md) and [web-v2-imports.md](../docs/web-v2-imports.md)
 - Gotchas: The worker sends `claim_plan_v1` only with `work_kind: "cleanup"` and never calls `read_plan_basis_v1` or `prepare_preview_v1`; normalized sets wait in `NORMALIZING` until cancel or expiry. Do not open a worker-only pull request from the ticket branch: `pr-check` fails it. Keep the worker journal volume: cleanup needs its handles.
 - Open questions: none.
@@ -303,3 +303,4 @@ Raised by the planner on 2026-11-20 from the merged code. The owner answered D1 
 - 2026-11-20 claude-code/opus-5.5: Build plan rewritten for the split: no PR 3; the worker keeps six functions in `CALLS`, refuses any `claim_plan_v1` other than `work_kind: "cleanup"` before connecting, and does no prepare work, so normalized sets wait in `NORMALIZING` until cancel or expiry; new AC-01 rows check this. Delivery is one pull request built in two stages, because `pr-check` would fail a worker-only first pull request (D10, planner's choice). Plan PR #86.
 - 2026-11-21 claude-code/opus-5.5: recorded Gate A for the new gated text (D11). The owner was asked "Gate A for IMP-007F's new text (PR #86, hash 7a48a991…). Two changes only: Requirements item 1 now reads 'The kinds of work are normalize (run the parser on received bytes) and cleanup (remove what a finished, cancelled or expired set left behind). The prepare step (build the preview after decisions) is not in this ticket; IMP-007V adds it.' and AC-IMP-007F-04 is removed. Your D5 lease sentence is kept. Approve this exact text?" and chose "Approve". `spec_approved` changes from sha256:420701995681ee6dd26ba120052fac05e4da2bf554a7c6717d9794549f953850 to sha256:7a48a991a883a22addf0aafbeb6d6503bc13833e2ee0c0ef426c1523442bd032; `gate_approval` adds "owner 2026-11-21, IMP-007F text after the prepare split (Q16)". The Build plan was checked against this text. Plan PR #86.
 - 2026-11-21 claude-code/opus-5.5: D10 resolved. The owner was asked "IMP-007F delivery: pr-check fails any PR from the ticket branch unless the ticket is done, so the planner made it one PR built in two pushed stages (worker, then launcher) with the review in two passes, instead of two PRs. OK?" and chose "One PR, two stages (Recommended)". The Delivery bullet is unchanged. Plan PR #86.
+- 2026-11-24 opencode/deepseek-flash: claimed with worktree; spec MATCHES. Started stage 1.
