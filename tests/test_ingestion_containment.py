@@ -110,6 +110,8 @@ def docker(*args, timeout=60):
 
 @unittest.skipUnless(ENABLED, 'Explicit real launcher containment required')
 class LauncherContainmentTests(unittest.TestCase):
+    """AC-IMP-007F-02, AC-IMP-007F-03 and AC-IMP-007F-06 on a real engine."""
+
     @classmethod
     def setUpClass(cls):
         cls.base = os.environ.get('KURAFOLIO_LAUNCHER_BASE_IMAGE')

@@ -354,6 +354,7 @@ class LauncherTests(unittest.TestCase):
         self.assertEqual((409, {'code': 'import_conflict'}), (status, json.loads(body)))
 
     def test_ac_08_module_entry_points_call_main(self):
+        """AC-IMP-007F-08: both services reach their own CLI entry point."""
         from kurafolio.ingestion import launcher as launcher_module
         from kurafolio.ingestion import worker as worker_module
         with self.assertRaises(SystemExit) as launcher_exit:
