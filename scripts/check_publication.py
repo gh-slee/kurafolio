@@ -21,7 +21,7 @@ PUBLIC_ROOT_FILES = {
     'pyproject.toml', 'build_backend.py', 'MANIFEST.in', 'requirements-build.lock', 'requirements.txt', 'requirements.lock', '.env.example',
     'requirements-web.txt', 'requirements-web.lock', 'requirements-web-test.lock',
     'requirements-pg.lock', 'requirements-pg-test.lock', 'compose.pg-foundation.yaml',
-    'Dockerfile', '.dockerignore', 'compose.yaml', 'compose.ingestion.yaml',
+    'Dockerfile', 'Dockerfile.ingestion', '.dockerignore', 'compose.yaml', 'compose.ingestion.yaml',
 }
 PUBLIC_DOCS = {
     'core-api.md', 'user-manual.md', 'workbook.md', 'report-spec.md', 'ui-design-workflow.md',

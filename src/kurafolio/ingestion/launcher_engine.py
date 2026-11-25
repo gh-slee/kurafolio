@@ -82,8 +82,13 @@ class DockerEngine:
         if result.returncode:
             raise EngineError('import_runner_unavailable')
         try:
-            values = json.loads(result.stdout)
-            return values[0]['Id']
+            value = json.loads(result.stdout)[0]
+            if '@' in reference:
+                for repo_digest in value.get('RepoDigests') or ():
+                    if repo_digest == reference:
+                        return reference.rsplit('@sha256:', 1)[1]
+                raise EngineError('import_runner_unavailable')
+            return value['Id'].removeprefix('sha256:')
         except (ValueError, KeyError, IndexError, TypeError):
             raise EngineError('import_runner_unavailable') from None
 
@@ -216,6 +221,17 @@ class DockerEngine:
             values = json.loads(result.stdout)
             return values[0]['State']
         except (ValueError, KeyError, IndexError, TypeError):
+            raise EngineError('import_runner_unavailable') from None
+
+    def configuration(self, engine_id):
+        if _ENGINE.fullmatch(engine_id) is None:
+            raise EngineError('import_invalid')
+        result = self._run(['inspect', engine_id], timeout=SETUP_TIMEOUT)
+        if result.returncode:
+            raise EngineError('import_runner_unavailable')
+        try:
+            return json.loads(result.stdout)[0]
+        except (ValueError, IndexError, TypeError):
             raise EngineError('import_runner_unavailable') from None
 
     def kill(self, engine_id):

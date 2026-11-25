@@ -296,7 +296,9 @@ class Launcher:
                                                  state='result_ready', outcome='ok')
             deadline = datetime.fromisoformat(attempt.record.deadline['token'])
             delay = max(0, (deadline - datetime.now(timezone.utc)).total_seconds())
-            threading.Timer(delay, self._drop_result, args=(attempt,)).start()
+            timer = threading.Timer(delay, self._drop_result, args=(attempt,))
+            timer.daemon = True
+            timer.start()
 
     def _drop_result(self, attempt):
         with self._lock:
@@ -420,6 +422,7 @@ class LauncherServer:
         server.peer_tls = self._peer_tls
         server.launcher = self._launcher
         server.daemon_threads = True
+        server.handshake_slots = threading.BoundedSemaphore(16)
         self._httpd = server
         self._thread = threading.Thread(target=server.serve_forever, name='launcher', daemon=True)
         self._thread.start()
@@ -439,6 +442,13 @@ class _Server(ThreadingHTTPServer):
     daemon_threads = True
 
     def process_request(self, request, client_address):
+        if not self.handshake_slots.acquire(blocking=False):
+            try:
+                request.close()
+            except OSError:
+                pass
+            return
+
         def handshake():
             try:
                 request.settimeout(5)
@@ -454,6 +464,7 @@ class _Server(ThreadingHTTPServer):
                 self.finish_request(tls, client_address)
             finally:
                 self.shutdown_request(tls)
+                self.handshake_slots.release()
         threading.Thread(target=handshake, daemon=True).start()
 
 
@@ -565,12 +576,35 @@ def main(argv=None):
     parser.add_argument('command', choices=('serve', 'check'))
     parser.add_argument('--config', required=True)
     options = parser.parse_args(argv)
-    config = load_config(options.config)
-    launcher = Launcher(config)
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(name)s %(message)s')
+    try:
+        config = load_config(options.config)
+        launcher = Launcher(config)
+    except (ConfigError, JournalError, RuntimeError) as error:
+        LOG.error('launcher_refused code=%s', getattr(error, 'code', 'invalid_config'))
+        return 2
     if options.command == 'check':
         for digest, reference in sorted(launcher._reference.items()):
+            image_id = launcher.engine.image(reference)
+            engine_id = launcher.engine.create(
+                reference=reference,
+                labels=(('kurafolio.launcher.instance', config.instance_id),
+                        ('kurafolio.launcher.nonce', sha256(secrets.token_hex(32).encode())),
+                        ('kurafolio.launcher.fence', '1')),
+                entry=('/bin/true',))
+            try:
+                value = launcher.engine.configuration(engine_id)
+            finally:
+                launcher.engine.remove(engine_id)
+            host = value['HostConfig']
             print(json.dumps({'image_digest': digest, 'reference': reference,
-                              'image_id': launcher.engine.image(reference)}))
+                              'image_id': image_id,
+                              'network': host['NetworkMode'], 'readonly': host['ReadonlyRootfs'],
+                              'user': value['Config'].get('User'),
+                              'cap_drop': host.get('CapDrop'), 'security_opt': host.get('SecurityOpt'),
+                              'ipc': host.get('IpcMode'), 'pids': host.get('PidsLimit'),
+                              'memory': host.get('Memory'), 'memory_swap': host.get('MemorySwap'),
+                              'nano_cpus': host.get('NanoCpus'), 'tmpfs': host.get('Tmpfs')}))
         return 0
     address = launcher.start_server()
 

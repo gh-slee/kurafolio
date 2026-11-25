@@ -46,12 +46,16 @@ services:
         target: /run/config/worker.json
         read_only: true
       - type: bind
+        source: ${KURAFOLIO_WORKER_DSN:?worker DSN secret required}
+        target: /run/config/dsn.txt
+        read_only: true
+      - type: bind
         source: ${KURAFOLIO_WORKER_TLS:?worker TLS directory required}
         target: /run/tls
         read_only: true
       - type: bind
         source: ${KURAFOLIO_WORKER_CATALOG:?source descriptors required}
-        target: /run/catalog.json
+        target: /run/config/catalog.json
         read_only: true
       - type: bind
         source: ${KURAFOLIO_WORKER_PROFILES:?wrapper profiles required}

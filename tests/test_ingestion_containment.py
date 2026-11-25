@@ -254,7 +254,8 @@ class DocumentationTests(unittest.TestCase):
         for row in ('Network', 'Read-only root', 'PIDs limit 16', 'Output limits',
                     'Docker socket absent'):
             self.assertIn('| ' + row + ' |', text)
-        self.assertIn('test_ac_06_network_and_filesystem_denials', text)
+        self.assertIn('launcher check', text)
+        self.assertIn('test_ac_06_resource_and_output_limits', text)
         self.assertIn('not tested', text)
 
 

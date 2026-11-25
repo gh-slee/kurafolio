@@ -18,6 +18,13 @@ docker compose -f compose.ingestion.yaml up -d import-launcher import-worker
 docker compose -f compose.ingestion.yaml stop import-launcher import-worker
 ```
 
+The reviewed image is built from `Dockerfile.ingestion` on an exact source
+image; it adds the pinned Docker CLI and creates both journal directories owned
+by UID 10001. On 2026-11-25, `docker compose -f compose.ingestion.yaml up -d`
+started `import-launcher` and `import-worker` with synthetic configuration and
+`stop` completed in 1 s; the worker logged its expected synthetic database
+errors because no database was mounted.
+
 The commands inside the containers are fixed:
 
 ```bash
@@ -26,9 +33,9 @@ python -m kurafolio.ingestion.launcher check --config /run/config/launcher.json
 python -m kurafolio.ingestion.worker serve --config /run/config/worker.json
 ```
 
-`check` prints the exact image reference and its local image ID for each reviewed
-profile digest. It never pulls an image. A missing or mismatched image fails
-readiness.
+`check` prints the exact image reference, its local image ID and the created
+container's effective HostConfig for each reviewed profile digest. It never
+pulls an image. A missing or mismatched image fails readiness.
 
 ## Secrets and configuration
 
@@ -48,9 +55,10 @@ before any database or Docker connection.
   the operator's Docker socket group through `KURAFOLIO_DOCKER_GID`. The socket
   is not readable by UID 10001 by default; provisioning the group is an operator
   step. A launcher image without the CLI refuses before starting.
-- The two journal volumes must be pre-created with owner `10001:10001` and mode
-  `0700`; a fresh named volume is root-owned and the service refuses to start.
-  The compose fragment does not create or chown them.
+- The launcher image creates `/var/lib/kurafolio-launcher` and
+  `/var/lib/kurafolio-worker` with owner `10001:10001` and mode `0700`, so fresh
+  named volumes inherit the right owner and need no manual setup. A different
+  image must do the same or the service refuses to start.
 - Secret key files are never group- or world-readable. No secret value is
   passed through an environment variable, command line or image layer.
 - The launcher mounts the Docker socket and its own journal volume. The worker
@@ -101,25 +109,25 @@ engine arguments.
 
 | Control | Docker Desktop, Apple Silicon | Native Linux CI |
 |---|---|---|
-| Network | verified (2026-11-24, engine 29.6.1, `test_ac_06_network_and_filesystem_denials`) | not tested |
-| Read-only root | verified (2026-11-24, engine 29.6.1, `test_ac_06_network_and_filesystem_denials`) | not tested |
-| User 10001:10001 | verified (2026-11-24, engine 29.6.1, `test_ac_02_effective_profile_and_environment`) | not tested |
-| Capabilities dropped | verified (2026-11-25, engine 29.6.1, `test_ac_02_effective_profile_and_environment`: `CapEff` 0) | not tested |
-| No-new-privileges | verified (2026-11-25, engine 29.6.1, `test_ac_02_effective_profile_and_environment`: `NoNewPrivs` 1) | not tested |
-| IPC none | not tested (HostConfig only; no effective namespace probe) | not tested |
-| PIDs limit 16 | verified (2026-11-25, engine 29.6.1, `test_ac_02_effective_profile_and_environment`; `test_ac_06_pids_limit_stops_a_fork_bomb`) | not tested |
-| Memory and swap 256 MiB | verified (2026-11-24, engine 29.6.1, `test_ac_02_effective_profile_and_environment`; `test_ac_06_resource_and_output_limits`) | not tested |
-| CPU 1 quota | not tested (HostConfig only; RLIMIT_CPU is separate) | not tested |
+| Network | verified (2026-11-25, engine 29.6.1, `launcher check` against postgres@sha256:0115267a…) | not tested |
+| Read-only root | verified (2026-11-25, engine 29.6.1, `launcher check` against postgres@sha256:0115267a…) | not tested |
+| User 10001:10001 | verified (2026-11-25, engine 29.6.1, `launcher check` against postgres@sha256:0115267a…) | not tested |
+| Capabilities dropped | verified (2026-11-25, engine 29.6.1, `launcher check` against postgres@sha256:0115267a…) | not tested |
+| No-new-privileges | verified (2026-11-25, engine 29.6.1, `launcher check` against postgres@sha256:0115267a…) | not tested |
+| IPC none | verified (2026-11-25, engine 29.6.1, `launcher check` against postgres@sha256:0115267a…) | not tested |
+| PIDs limit 16 | verified (2026-11-25, engine 29.6.1, `launcher check` against postgres@sha256:0115267a…) | not tested |
+| Memory and swap 256 MiB | verified (2026-11-25, engine 29.6.1, `launcher check` against postgres@sha256:0115267a…) | not tested |
+| CPU 1 quota | verified (2026-11-25, engine 29.6.1, `launcher check` against postgres@sha256:0115267a…) | not tested |
 | RLIMIT_CPU 2 s | verified (2026-11-24, engine 29.6.1, `test_ac_02_effective_profile_and_environment`) | not tested |
 | nofile 64 | verified (2026-11-24, engine 29.6.1, `test_ac_02_effective_profile_and_environment`) | not tested |
 | core 0 | verified (2026-11-24, engine 29.6.1, `test_ac_02_effective_profile_and_environment`) | not tested |
-| tmpfs flags | verified (2026-11-24, engine 29.6.1, `test_ac_02_effective_profile_and_environment`) | not tested |
+| tmpfs flags | verified (2026-11-25, engine 29.6.1, `launcher check` against postgres@sha256:0115267a…) | not tested |
 | Environment (eight variables) | verified (2026-11-24, engine 29.6.1, `test_ac_02_effective_profile_and_environment`) | not tested |
 | Docker socket absent | verified (2026-11-24, engine 29.6.1, `test_ac_02_effective_profile_and_environment`) | not tested |
 | Output limits | verified (2026-11-24, engine 29.6.1, `test_ac_06_resource_and_output_limits`) | not tested |
 | Wall clock 10 s | verified (2026-11-24, engine 29.6.1, `test_ac_06_resource_and_output_limits`) | not tested |
 
-Native Linux CI has not run this matrix in this session. Docker Desktop runs the
+The `launcher check` rows were taken from a real container inspection at image `postgres@sha256:0115267ab5a509022df9319c77be365cef335adb71556c75f60f5360ee247e71`. Runtime denial and limit rows remain from the probes. Native Linux CI has not run this matrix in this session. Docker Desktop runs the
 containers in a Linux VM; this evidence is not host-root or native-macOS sandbox
 proof. The launcher remains trusted host-level authority.
 

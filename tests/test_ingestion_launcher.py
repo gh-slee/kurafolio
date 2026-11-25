@@ -388,6 +388,57 @@ class LauncherTests(unittest.TestCase):
             worker_module.main(['--help'])
         self.assertEqual(0, worker_exit.exception.code)
 
+    def test_ac_02_child_dispatches_a_native_registration_by_provider(self):
+        """AC-IMP-007F-02: native context selects its fixed provider adapter."""
+        from types import SimpleNamespace
+        from unittest import mock
+        from kurafolio.ingestion.runner_child import run as child_run
+        from kurafolio.ingestion.runner_client import pack_input, unpack_result
+
+        class Adapter:
+            info = SimpleNamespace(export_versions=('native-v1',))
+
+            def normalize_native(self, raw, *, context):
+                self.seen = (raw, context['provider_id'])
+                return b'{}'
+
+        adapter = Adapter()
+        registration = SimpleNamespace(provider=SimpleNamespace(provider_id='synthetic.native'),
+                                       adapter=adapter)
+        value = validate({'version': 1, 'job_id': str(uuid.uuid4()),
+                          'member_id': str(uuid.uuid4()), 'fence': '1',
+                          'installation_id': INSTALL, 'wrapper_profile_digest': PROFILE_DIGEST,
+                          'format_version': FORMAT, 'image_digest': IMAGE,
+                          'payload_kind': 'native_discovery_v1',
+                          'provider_id': 'synthetic.native',
+                          'namespace': {'tenant_id': str(uuid.uuid4()),
+                                        'portfolio_id': str(uuid.uuid4()),
+                                        'connection_id': str(uuid.uuid4())},
+                          'evidence_reference': str(uuid.uuid4()),
+                          'evidence_at': {'tag': 'instant', 'token': '2026-02-02T13:00:00+00:00',
+                                          'zone': None, 'fractional_digits': 0}},
+                         'NativeChildContext')
+        context_bytes = encode(value)
+        raw = b'synthetic,raw\n'
+        meta = validate({'version': 1, 'operation': 'start', 'job_id': value['job_id'],
+                         'member_id': value['member_id'], 'fence': '1',
+                         'instance_id': INSTANCE, 'realm_digest': REALM, 'credential_epoch': '1',
+                         'installation_id': INSTALL, 'image_digest': IMAGE,
+                         'wrapper_profile_digest': PROFILE_DIGEST, 'format_version': FORMAT,
+                         'context_sha256': sha256(context_bytes), 'context_bytes': len(context_bytes),
+                         'raw_sha256': sha256(raw), 'raw_bytes': len(raw),
+                         'deadline': {'tag': 'instant', 'token': '2099-01-01T00:00:00+00:00',
+                                      'zone': None, 'fractional_digits': 0},
+                         'nonce': secrets.token_hex(32)}, 'LaunchStart')
+        with mock.patch('kurafolio.source_builtin.registrations', return_value=(registration,)):
+            frame = child_run(pack_input(meta, context_bytes, raw, schema='LaunchStart'))
+        header, payload = unpack_result(frame, {'job_id': value['job_id'],
+            'member_id': value['member_id'], 'fence': '1', 'installation_id': INSTALL,
+            'image_digest': IMAGE, 'wrapper_profile_digest': PROFILE_DIGEST,
+            'raw_sha256': sha256(raw), 'context_sha256': sha256(context_bytes),
+            'payload_kind': 'native_discovery_v1'}, child=True)
+        self.assertEqual((b'{}', 'synthetic.native'), (payload, adapter.seen[1]))
+
     def test_ac_02_child_refuses_unreviewed_frames(self):
         from kurafolio.ingestion.runner_child import run as child_run
         from kurafolio.ingestion.runner_client import pack_input

@@ -1,0 +1,12 @@
+ARG SOURCE_BASE
+FROM docker:29.6.1-cli AS dockercli
+FROM ${SOURCE_BASE}
+USER root
+COPY --from=dockercli /usr/local/bin/docker /usr/local/bin/docker
+COPY src /app/src
+COPY requirements-pg.lock /tmp/requirements-pg.lock
+RUN pip install --no-cache-dir --disable-pip-version-check -r /tmp/requirements-pg.lock
+RUN mkdir -p /var/lib/kurafolio-launcher /var/lib/kurafolio-worker \
+    && chown 10001:10001 /var/lib/kurafolio-launcher /var/lib/kurafolio-worker \
+    && chmod 0700 /var/lib/kurafolio-launcher /var/lib/kurafolio-worker
+USER 10001:10001

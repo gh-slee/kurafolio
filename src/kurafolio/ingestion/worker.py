@@ -165,6 +165,7 @@ class ImportWorker:
         self._attempts = {}
         self._lock = threading.Lock()
         self._handoff_lock = threading.Lock()
+        self._handoff_keys = {}
         self._slots = threading.Semaphore(MAX_ACTIVE)
         self._stop = threading.Event()
         self._executor = None
@@ -228,7 +229,10 @@ class ImportWorker:
     # handoff ----------------------------------------------------------------
 
     def handoff(self, metadata, context, raw):
+        key = (metadata.get('job_id'), metadata.get('fence'))
         with self._handoff_lock:
+            lock = self._handoff_keys.setdefault(key, threading.Lock())
+        with lock:
             return self._handoff(metadata, context, raw)
 
     def _handoff(self, metadata, context, raw):

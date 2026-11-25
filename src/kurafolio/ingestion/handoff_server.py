@@ -38,6 +38,7 @@ class HandoffServer:
         server.peer_tls = self._peer_tls
         server.handoff = self._handler
         server.daemon_threads = True
+        server.handshake_slots = threading.BoundedSemaphore(16)
         self._httpd = server
         self._thread = threading.Thread(target=server.serve_forever, name='handoff-server', daemon=True)
         self._thread.start()
@@ -57,6 +58,13 @@ class _Server(ThreadingHTTPServer):
     daemon_threads = True
 
     def process_request(self, request, client_address):
+        if not self.handshake_slots.acquire(blocking=False):
+            try:
+                request.close()
+            except OSError:
+                pass
+            return
+
         def handshake():
             try:
                 request.settimeout(5)
@@ -72,6 +80,7 @@ class _Server(ThreadingHTTPServer):
                 self.finish_request(tls, client_address)
             finally:
                 self.shutdown_request(tls)
+                self.handshake_slots.release()
         threading.Thread(target=handshake, daemon=True).start()
 
 

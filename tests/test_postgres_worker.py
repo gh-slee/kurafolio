@@ -23,6 +23,7 @@ from unittest import mock
 from kurafolio.ingestion import worker as worker_module
 from kurafolio.ingestion.codec import encode, sha256, validate
 from kurafolio.ingestion.worker import ImportWorker
+from kurafolio.ingestion.worker_journal import WorkerJournal
 from kurafolio.ingestion.worker_sql import WorkerCallError, WorkerSQL
 from tests.test_ingestion_worker import FakeLauncher
 from tests import test_postgres_migration as pg
@@ -163,8 +164,28 @@ class WorkerPostgresTests(pg.IngestionAppendOnlyPostgresTests):
                         'wl_ingestion._immutable_v1();')
         cls.sql('CREATE TRIGGER outbox_guard BEFORE INSERT OR UPDATE OR DELETE ON '
                 'wl_ingestion.outbox FOR EACH ROW EXECUTE FUNCTION wl_ingestion._outbox_guard_v1();')
+        cls.role = 'wl007f_worker'
+        cls.role_secret = 'example-worker-only'
+        cls.sql("DO $role$ BEGIN IF NOT EXISTS(SELECT 1 FROM pg_catalog.pg_roles WHERE rolname='"
+                + cls.role + "') THEN CREATE ROLE " + cls.role
+                + " LOGIN PASSWORD '" + cls.role_secret + "' NOSUPERUSER NOINHERIT; END IF; END $role$;")
+        cls.addClassCleanup(cls.drop_role)
+        cls.sql("GRANT USAGE ON SCHEMA wl_ingestion TO " + cls.role + ";"
+                "GRANT EXECUTE ON FUNCTION " + ", ".join(schema.signature(name) for name in schema.WORKER)
+                + " TO " + cls.role + ";")
         cls.connection = {'host': '127.0.0.1', 'port': port, 'dbname': 'postgres',
                           'user': 'postgres', 'password': cls.secret, 'connect_timeout': 5}
+
+    @classmethod
+    def drop_role(cls):
+        try:
+            cls.sql('DROP OWNED BY ' + cls.role + ';')
+        except Exception:
+            pass
+        try:
+            cls.sql('DROP ROLE IF EXISTS ' + cls.role + ';')
+        except Exception:
+            pass
 
     # ---------------------------------------------------------------- helpers
 
@@ -205,7 +226,7 @@ class WorkerPostgresTests(pg.IngestionAppendOnlyPostgresTests):
                                                            + ' WITH (FORCE);')))
         return database, name
 
-    def seed(self, database_name, *, count=1):
+    def seed(self, database_name, *, count=1, login_role='postgres'):
         """Commit one bound native set and return its worker-visible context."""
         plan, pin, seed, catalog = self.create_seed()
         raw = ('synthetic,raw\n' + self.owner + '\n').encode()
@@ -221,7 +242,7 @@ class WorkerPostgresTests(pg.IngestionAppendOnlyPostgresTests):
             "ALTER TABLE wl_ingestion.members ADD CONSTRAINT members_installation_fk "
             "FOREIGN KEY(installation_id) REFERENCES wl_sources.synthetic_worker_installation_ids(id) "
             "DEFERRABLE INITIALLY DEFERRED;")
-        seed += self.row('workers', {'id': self.WORKER, 'login_role': 'postgres',
+        seed += self.row('workers', {'id': self.WORKER, 'login_role': login_role,
                                      'peer_identity': 'peer-a', 'enabled': True,
                                      'credential_epoch': 1})
         seed += self.gateway_statement('create_set_v1', 'create',
@@ -239,6 +260,16 @@ class WorkerPostgresTests(pg.IngestionAppendOnlyPostgresTests):
         context_hex, member_id, set_id = row.split()
         plan['set_id'] = set_id
         return plan, pin, catalog, raw, bytes.fromhex(context_hex), member_id
+
+    def role_database(self, name):
+        from kurafolio.persistence.config import PostgresConfig
+        from kurafolio.persistence.context import Database
+        from psycopg.conninfo import make_conninfo
+        conninfo = make_conninfo(**dict(self.connection, dbname=name, user=self.role,
+                                        password='example-worker-only'))
+        database = Database(PostgresConfig(conninfo), schema_mode='sources')
+        self.addCleanup(database.close)
+        return database
 
     def realm(self, database):
         return self.scalar(database, "SELECT " + self.worker_realm()
@@ -266,28 +297,50 @@ class WorkerPostgresTests(pg.IngestionAppendOnlyPostgresTests):
 
     # ------------------------------------------------------------------ cases
 
+    def test_ac_01_request_id_replay_returns_the_same_claim(self):
+        """AC-IMP-007F-01: a lost acknowledgement replays the same request."""
+        database, name = self.fresh_database()
+        plan, pin, catalog, raw, context_bytes, member_id = self.seed(name)
+        context = json.loads(context_bytes)
+        request = {'version': 1, 'realm_digest': self.realm(name), 'credential_epoch': '1',
+                   'job_id': context['job_id'], 'set_id': plan['set_id'],
+                   'member_id': member_id, 'work_kind': 'normalize', 'fence': '1',
+                   'request_id': str(uuid.uuid4()), 'raw_digest': sha256(raw),
+                   'context_digest': sha256(context_bytes)}
+        sql = WorkerSQL(database, self.WORKER)
+        first = sql.call('claim_member_v1', request, token='ab' * 32)
+        second = sql.call('claim_member_v1', request, token='ab' * 32)
+        self.assertEqual(('claimed', 'already_claimed'),
+                         (first['outcome'], second['outcome']))
+        self.assertEqual(first['source_fingerprint'], second['source_fingerprint'])
+
     def test_ac_01_worker_role_reads_and_gateway_functions_are_denied(self):
-        """AC-IMP-007F-01: the worker login has no read or gateway grant."""
+        """AC-IMP-007F-01: the real worker login can call only worker functions."""
         import psycopg
         from psycopg import sql
-        role = 'synthetic_worker_limited_' + uuid.uuid4().hex[:8]
-        self.sql('CREATE ROLE ' + role + ' NOLOGIN;')
-        self.addCleanup(lambda: self.sql('DROP ROLE IF EXISTS ' + role + ';'))
-        statements = ("SELECT count(*) FROM wl_ingestion.sets",
-                      "SELECT wl_ingestion.create_set_v1(CAST(NULL AS text),CAST(NULL AS uuid),"
-                      "CAST(NULL AS bigint),CAST(NULL AS text),CAST(NULL AS text),"
-                      "CAST(NULL AS jsonb))",
-                      "SELECT wl_ingestion.accept_preview_v1(CAST(NULL AS text),CAST(NULL AS uuid),"
-                      "CAST(NULL AS bigint),CAST(NULL AS text),CAST(NULL AS text),"
-                      "CAST(NULL AS jsonb))")
-        with psycopg.connect(**self.connection, autocommit=True) as connection:
-            for statement in statements:
-                with self.subTest(statement=statement):
-                    with connection.transaction():
-                        connection.execute(sql.SQL('SET LOCAL ROLE {}').format(sql.Identifier(role)))
-                        with self.assertRaises(psycopg.errors.InsufficientPrivilege) as caught:
-                            connection.execute(statement)
-                        self.assertEqual('42501', caught.exception.sqlstate)
+        database, name = self.fresh_database()
+        plan, pin, catalog, raw, context_bytes, member_id = self.seed(name, login_role=self.role)
+        context = json.loads(context_bytes)
+        role_database = self.role_database(name)
+        role_sql = WorkerSQL(role_database, self.WORKER)
+        request = {'version': 1, 'realm_digest': self.realm(name), 'credential_epoch': '1',
+                   'job_id': context['job_id'], 'set_id': plan['set_id'],
+                   'member_id': member_id, 'work_kind': 'normalize', 'fence': '1',
+                   'request_id': str(uuid.uuid4()), 'raw_digest': sha256(raw),
+                   'context_digest': sha256(context_bytes)}
+        ack = role_sql.call('claim_member_v1', request, token='ab' * 32)
+        self.assertEqual('claimed', ack['outcome'])
+        with psycopg.connect(**dict(self.connection, dbname=name, user=self.role,
+                                    password='example-worker-only'), autocommit=True) as connection:
+            with self.assertRaises(psycopg.errors.InsufficientPrivilege) as caught:
+                connection.execute("SELECT count(*) FROM wl_ingestion.sets")
+            self.assertEqual('42501', caught.exception.sqlstate)
+            for function in ('create_set_v1', 'accept_preview_v1'):
+                with self.subTest(function=function):
+                    value = connection.execute(
+                        "SELECT has_function_privilege(%s, %s, 'EXECUTE')",
+                        (self.role, schema.signature(function))).fetchone()[0]
+                    self.assertFalse(value)
 
     def test_ac_03_normalize_admits_and_finishes_through_the_real_worker(self):
         """AC-IMP-007F-01/03: claim, admit and fenced finish carry absent proof."""
@@ -340,10 +393,13 @@ class WorkerPostgresTests(pg.IngestionAppendOnlyPostgresTests):
                 worker.handoff(_metadata(context_bytes, raw, 'ab' * 32, realm, plan['set_id'], member_id), context_bytes, raw)
                 worker._executor.run()
             # A normalized set is not cleanup work while it is still NORMALIZING.
-            worker._cleanup_once()
+            for _ in range(30):
+                worker._cleanup_once()
             self.assertEqual([], [row for row in self.query(database,
                 "SELECT l.work_kind FROM wl_ingestion.leases l WHERE l.set_id='" + plan['set_id'] + "'")
                 if row[0] == 'cleanup'])
+            self.assertEqual([], [row for row in self.query(database,
+                "SELECT l.work_kind FROM wl_ingestion.leases l WHERE l.work_kind='prepare'")])
             self.run_sql(name, 'BEGIN;' + self.cancel_call(catalog) + 'COMMIT;')
             worker._cleanup_once()
             worker._cleanup_once()
@@ -357,6 +413,52 @@ class WorkerPostgresTests(pg.IngestionAppendOnlyPostgresTests):
             self.assertEqual(1, int(self.scalar(name,
                 "SELECT count(*) FROM wl_ingestion.leases l WHERE l.set_id='" +
                 plan['set_id'] + "' AND l.work_kind='cleanup';")))
+
+    def test_ac_07_pending_then_failed_proof_keeps_capacity(self):
+        """AC-IMP-007F-07: a pending proof keeps storage until absence."""
+        database, name = self.fresh_database()
+        plan, pin, catalog, raw, context_bytes, member_id = self.seed(name)
+        context = json.loads(context_bytes)
+        realm = self.realm(name)
+        payload = b'{"synthetic":true}'
+        minimal = _minimal(context, sha256(raw), sha256(payload))
+        launcher = FakeLauncher(_metadata(context_bytes, raw, 'ab' * 32, realm, plan['set_id'], member_id),
+                                payload=payload, payload_kind='parser_v2',
+                                cleanup=('cleanup_pending', False))
+        with tempfile.TemporaryDirectory(prefix='wl-imp-007f-journal-') as directory:
+            os.chmod(directory, 0o700)
+            worker = self.worker(database, directory, realm, launcher,
+                                 [self.profile(context)], [(context['installation_id'], b'descriptor')])
+            with mock.patch.object(worker_module.discovery, 'admit_parser2', return_value=minimal):
+                worker.handoff(_metadata(context_bytes, raw, 'ab' * 32, realm, plan['set_id'], member_id),
+                               context_bytes, raw)
+                worker._executor.run()
+            self.run_sql(name, 'BEGIN;' + self.cancel_call(catalog) + 'COMMIT;')
+            worker._cleanup_once()
+        state = self.query(database,
+            "SELECT x.state, x.cleanup_state, (SELECT reserved_bytes FROM wl_ingestion.quotas q "
+            "WHERE q.portfolio_id=x.portfolio_id AND q.bucket='storage') FROM wl_ingestion.sets x "
+            "WHERE x.id='" + plan['set_id'] + "'")[0]
+        self.assertEqual(('CANCELLED', 'failed'), tuple(state)[:2])
+        self.assertGreater(int(state[2]), 0)
+
+    def test_ac_03_record_without_handle_keeps_cleanup_pending(self):
+        """AC-IMP-007F-03: a record without a handle yields no proof."""
+        database, name = self.fresh_database()
+        plan, pin, catalog, raw, context_bytes, member_id = self.seed(name)
+        self.run_sql(name, 'BEGIN;' + self.cancel_call(catalog) + 'COMMIT;')
+        context = json.loads(context_bytes)
+        with tempfile.TemporaryDirectory(prefix='wl-imp-007f-journal-') as directory:
+            os.chmod(directory, 0o700)
+            journal = WorkerJournal(directory)
+            journal.record(plan['set_id'], context['job_id'], member_id, '1')
+            launcher = FakeLauncher(_metadata(context_bytes, raw, 'ab' * 32, self.realm(name),
+                                              plan['set_id'], member_id), payload=b'x')
+            worker = self.worker(database, directory, self.realm(name), launcher,
+                                 [self.profile(context)],
+                                 [(context['installation_id'], b'descriptor')])
+            worker._cleanup_once()
+            self.assertEqual(1, len(worker.journal.records()))
 
     def test_ac_05_expired_normalize_lease_refuses_late_admit_and_finish(self):
         """AC-IMP-007F-05: a lapsed lease makes both worker calls import_stale."""
