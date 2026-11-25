@@ -56,19 +56,23 @@ class _Server(ThreadingHTTPServer):
     allow_reuse_address = True
     daemon_threads = True
 
-    def get_request(self):
-        connection, address = super().get_request()
-        try:
-            connection.settimeout(5)
-            tls = self.ssl_context.wrap_socket(connection, server_side=True)
-            self.peer_tls.verify_peer(tls)
-            return tls, address
-        except (ssl.SSLError, OSError, ValueError):
+    def process_request(self, request, client_address):
+        def handshake():
             try:
-                connection.close()
-            except OSError:
-                pass
-            raise OSError('peer refused') from None
+                request.settimeout(5)
+                tls = self.ssl_context.wrap_socket(request, server_side=True)
+                self.peer_tls.verify_peer(tls)
+            except (ssl.SSLError, OSError, ValueError):
+                try:
+                    request.close()
+                except OSError:
+                    pass
+                return
+            try:
+                self.finish_request(tls, client_address)
+            finally:
+                self.shutdown_request(tls)
+        threading.Thread(target=handshake, daemon=True).start()
 
 
 class _Handler(BaseHTTPRequestHandler):

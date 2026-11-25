@@ -294,6 +294,14 @@ class Launcher:
             attempt.payload, attempt.result = payload, result
             attempt.record = self.journal.update(attempt.record.job_id, attempt.record.fence,
                                                  state='result_ready', outcome='ok')
+            deadline = datetime.fromisoformat(attempt.record.deadline['token'])
+            delay = max(0, (deadline - datetime.now(timezone.utc)).total_seconds())
+            threading.Timer(delay, self._drop_result, args=(attempt,)).start()
+
+    def _drop_result(self, attempt):
+        with self._lock:
+            attempt.payload = None
+            attempt.result = None
 
     def _finish(self, attempt, state, outcome, *, cleanup_complete):
         with self._lock:
@@ -430,19 +438,23 @@ class _Server(ThreadingHTTPServer):
     allow_reuse_address = True
     daemon_threads = True
 
-    def get_request(self):
-        connection, address = super().get_request()
-        try:
-            connection.settimeout(5)
-            tls = self.ssl_context.wrap_socket(connection, server_side=True)
-            self.peer_tls.verify_peer(tls)
-            return tls, address
-        except (ssl.SSLError, OSError, ValueError):
+    def process_request(self, request, client_address):
+        def handshake():
             try:
-                connection.close()
-            except OSError:
-                pass
-            raise OSError('peer refused') from None
+                request.settimeout(5)
+                tls = self.ssl_context.wrap_socket(request, server_side=True)
+                self.peer_tls.verify_peer(tls)
+            except (ssl.SSLError, OSError, ValueError):
+                try:
+                    request.close()
+                except OSError:
+                    pass
+                return
+            try:
+                self.finish_request(tls, client_address)
+            finally:
+                self.shutdown_request(tls)
+        threading.Thread(target=handshake, daemon=True).start()
 
 
 class _Handler(BaseHTTPRequestHandler):

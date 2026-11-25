@@ -821,7 +821,7 @@ class RenewalTests(unittest.TestCase):
         """AC-IMP-007F-01: ImportWorker.start() can create the real keeper."""
         clock = FakeClock()
         keeper = LeaseKeeper(FakeSQL(clock.now), {}, realm_digest=REALM,
-                             credential_epoch='1', clock=clock.now, wait=lambda seconds: True)
+                             credential_epoch='1', clock=clock.now)
         keeper.start()
         keeper.stop()
     def test_ac_05_renews_at_most_ten_seconds_apart_and_stops_after_an_error(self):

@@ -208,7 +208,10 @@ class DockerEngine:
             raise EngineError('import_invalid')
         result = self._run(['inspect', engine_id], timeout=SETUP_TIMEOUT)
         if result.returncode:
-            return None
+            detail = result.stderr.decode('utf-8', 'replace').lower()
+            if 'no such object' in detail or 'no such container' in detail:
+                return None
+            raise EngineError('import_runner_unavailable')
         try:
             values = json.loads(result.stdout)
             return values[0]['State']

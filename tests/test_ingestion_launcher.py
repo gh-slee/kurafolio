@@ -263,6 +263,30 @@ class LauncherTests(unittest.TestCase):
                 self.assertEqual(('failed', outcome),
                                  (attempt.record.state, attempt.record.outcome))
 
+    def test_ac_07_unreachable_docker_never_proves_absence(self):
+        from kurafolio.ingestion.launcher_engine import EngineError
+
+        class Unreachable(FakeEngine):
+            failed = False
+
+            def remove(self, engine_id):
+                self.failed = True
+                return False
+
+            def inspect(self, engine_id):
+                if self.failed:
+                    raise EngineError('import_runner_unavailable')
+                return super().inspect(engine_id)
+
+        engine = Unreachable()
+        launcher = self.launcher(engine)
+        meta, attempt = self.start(launcher, engine)
+        with self.assertRaises(EngineError):
+            self.control(launcher, meta, attempt.handle, 'cancel')
+        record = LauncherJournal(self.journal_directory).get(meta['job_id'], meta['fence'])
+        self.assertFalse(record.cleanup_complete)
+        self.assertNotEqual('finished', record.state)
+
     def test_ac_03_a_refused_child_frame_is_frame_rejected(self):
         engine = FakeEngine(frame=b'not-a-frame')
         launcher = self.launcher(engine)

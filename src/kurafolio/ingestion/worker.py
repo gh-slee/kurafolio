@@ -57,8 +57,8 @@ class RawHold:
         self._dropped = False
         self._lock = threading.Lock()
 
-    def expired(self):
-        return _now() >= self.deadline
+    def expired(self, margin=None):
+        return _now() >= self.deadline - (margin or timedelta(0))
 
     def drop(self):
         with self._lock:
@@ -146,7 +146,8 @@ class LeaseKeeper:
                     continue
                 expires = _time(ack['expires_at'])
                 attempt.expires_at = expires
-                attempt.next_renew = min(now + timedelta(seconds=10), expires - RAW_SLACK)
+                candidate = min(now + timedelta(seconds=10), expires - RAW_SLACK)
+                attempt.next_renew = candidate if candidate > now else expires
             if self._wait(0.25):
                 return
 
@@ -408,7 +409,7 @@ class ImportWorker:
         while True:
             if attempt.lost.is_set():
                 raise WorkerCallError('import_stale')
-            if hold.expired():
+            if hold.expired(RAW_SLACK):
                 reason = 'deadline'
                 break
             status, _ = self.launcher.control(self._control(attempt, 'status', False))
@@ -527,6 +528,8 @@ class ImportWorker:
                     return self._proof(attempt, 'absent', status)
                 if status['state'] == 'failed' and status['cleanup_complete']:
                     return self._proof(attempt, 'absent', status)
+                if attempt.lost.is_set():
+                    return None
                 self.sleep(0.5)
                 status, _ = self.launcher.control(self._control(attempt, 'status', False))
                 self._check_status(attempt, status)
@@ -596,7 +599,7 @@ class ImportWorker:
             if status['state'] == 'finished' and status['cleanup_complete']:
                 state = 'absent'
             elif status['state'] == 'failed' and status['cleanup_complete']:
-                state = 'not_created'
+                state = 'absent'
             elif status['state'] == 'failed':
                 state = 'failed'
             else:

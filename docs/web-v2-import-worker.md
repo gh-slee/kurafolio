@@ -104,12 +104,12 @@ engine arguments.
 | Network | verified (2026-11-24, engine 29.6.1, `test_ac_06_network_and_filesystem_denials`) | not tested |
 | Read-only root | verified (2026-11-24, engine 29.6.1, `test_ac_06_network_and_filesystem_denials`) | not tested |
 | User 10001:10001 | verified (2026-11-24, engine 29.6.1, `test_ac_02_effective_profile_and_environment`) | not tested |
-| Capabilities dropped | verified (2026-11-24, engine 29.6.1, `test_ac_02_effective_profile_and_environment`) | not tested |
-| No-new-privileges | verified (2026-11-24, engine 29.6.1, `test_ac_02_effective_profile_and_environment`) | not tested |
-| IPC none | verified (2026-11-24, engine 29.6.1, `test_ac_02_effective_profile_and_environment`) | not tested |
-| PIDs limit 16 | verified (2026-11-24, engine 29.6.1, `test_ac_02_effective_profile_and_environment`; `test_ac_06_resource_and_output_limits`) | not tested |
+| Capabilities dropped | verified (2026-11-25, engine 29.6.1, `test_ac_02_effective_profile_and_environment`: `CapEff` 0) | not tested |
+| No-new-privileges | verified (2026-11-25, engine 29.6.1, `test_ac_02_effective_profile_and_environment`: `NoNewPrivs` 1) | not tested |
+| IPC none | not tested (HostConfig only; no effective namespace probe) | not tested |
+| PIDs limit 16 | verified (2026-11-25, engine 29.6.1, `test_ac_02_effective_profile_and_environment`; `test_ac_06_pids_limit_stops_a_fork_bomb`) | not tested |
 | Memory and swap 256 MiB | verified (2026-11-24, engine 29.6.1, `test_ac_02_effective_profile_and_environment`; `test_ac_06_resource_and_output_limits`) | not tested |
-| CPU 1 | verified (2026-11-24, engine 29.6.1, `test_ac_02_effective_profile_and_environment`; `test_ac_06_resource_and_output_limits`) | not tested |
+| CPU 1 quota | not tested (HostConfig only; RLIMIT_CPU is separate) | not tested |
 | RLIMIT_CPU 2 s | verified (2026-11-24, engine 29.6.1, `test_ac_02_effective_profile_and_environment`) | not tested |
 | nofile 64 | verified (2026-11-24, engine 29.6.1, `test_ac_02_effective_profile_and_environment`) | not tested |
 | core 0 | verified (2026-11-24, engine 29.6.1, `test_ac_02_effective_profile_and_environment`) | not tested |

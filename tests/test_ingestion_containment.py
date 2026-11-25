@@ -29,15 +29,19 @@ paths = json.loads(rest or "{}").get("paths", [])
 
 def probe(operation):
     if operation == "inspect":
+        status = dict(line.split(":", 1) for line in open("/proc/self/status").read().splitlines() if ":" in line)
         return {"uid": os.getuid(), "gid": os.getgid(), "environment": dict(os.environ),
                 "cpu": list(resource.getrlimit(resource.RLIMIT_CPU)),
                 "nofile": list(resource.getrlimit(resource.RLIMIT_NOFILE)),
                 "core": list(resource.getrlimit(resource.RLIMIT_CORE)),
+                "cpus": len(os.sched_getaffinity(0)),
+                "cap_effective": int(status.get("CapEff", "1").strip(), 16),
+                "no_new_privs": int(status.get("NoNewPrivs", "0").strip()),
                 "sockets": [os.path.exists(p) for p in ("/var/run/docker.sock",
                                                         "/run/postgresql/.s.PGSQL.5432")]}
     if operation == "network":
         denied = []
-        for target in (("1.1.1.1", 53), ("127.0.0.1", 5432)):
+        for target in (("1.1.1.1", 53), ("172.17.0.1", 80), ("127.0.0.1", 5432)):
             sock = socket.socket(); sock.settimeout(0.25)
             try:
                 sock.connect(target); denied.append(False)
@@ -149,6 +153,9 @@ class LauncherContainmentTests(unittest.TestCase):
         self.assertEqual(value['environment'], dict(item.split('=', 1) for item in ENVIRONMENT))
         self.assertEqual((value['cpu'], value['nofile'], value['core']), ([2, 2], [64, 64], [0, 0]))
         self.assertEqual(value['sockets'], [False, False])
+        self.assertEqual(value['cap_effective'], 0)
+        self.assertEqual(value['no_new_privs'], 1)
+        self.assertGreaterEqual(value['cpus'], 1)
         config = json.loads(docker('inspect', engine_id))[0]
         host = config['HostConfig']
         self.assertTrue(host['ReadonlyRootfs'])
@@ -166,7 +173,7 @@ class LauncherContainmentTests(unittest.TestCase):
     def test_ac_06_network_and_filesystem_denials(self):
         _, run = self.run_probe('network')
         value = json.loads(run.output)
-        self.assertEqual(value['denied'], [True, True])
+        self.assertEqual(value['denied'], [True, True, True])
         self.assertIn([1, 'lo'], value['interfaces'])
         self.assertEqual(value['routes'], [])
         with tempfile.TemporaryDirectory(prefix='kurafolio-launcher-host-') as temporary:
