@@ -59,7 +59,8 @@ for tracking and reports. Existing Web/CLI workspaces remain on SQLite.
   storage reservation, until the user cancels it or it expires, and cleanup then
   purges it. A worker crash leaves the member `receiving` or `normalizing`; the
   recovery is to cancel the set or let it expire, until the fenced sweep ticket
-  lands. The process commands and limits are documented with the launcher.
+  lands. The process commands, secret files and containment evidence are in
+  [web-v2-import-worker.md](web-v2-import-worker.md).
 - [Storage fragments](../src/kurafolio/persistence/ingestion_schema.py) define
   the closed table inventory, scoped foreign keys, canonical-byte checks and
   forced-RLS policies. Separate append-only and outbox trigger fragments reject
