@@ -2,7 +2,7 @@
 id: IMP-007P
 title: Build the ReviewBundle that the worker's prepare step passes to prepare_preview_v1
 priority: P0
-status: ready
+status: done
 type: feature
 parent: IMP-007
 depends_on: []
@@ -13,11 +13,11 @@ agent_tier: frontier
 gate: owner
 gate_approval: "owner 2026-11-21, Gate A on the text as written on PR #95's branch (Q31)"
 review: independent
-branch: 
-pr: 
+branch: ticket/imp-007p-build-the-reviewbundle-that-the-worker-s
+pr: https://github.com/gh-slee/kurafolio/pull/108
 spec: docs/specs/imp-007-r7/spec.md
 spec_approved: sha256:ab4f0a665240bd37f278712f3dc78aa90db9a7ecb92f3fc7e0700f67a4bab766
-updated: 2026-11-21
+updated: 2026-11-24
 ---
 
 # IMP-007P: Build the ReviewBundle that the worker's prepare step passes to prepare_preview_v1
@@ -338,12 +338,12 @@ The module is pure and nothing calls it until IMP-007V merges. Reverting the pul
 
 ## Plan
 
-- [ ] Test helper `oracle_basis` for every case in the Build plan's table; record any case that cannot be mapped and stop.
-- [ ] Intake and refusals (pages, pins, inputs, context, decisions) with the AC-05 refusal tests.
-- [ ] NEEDS_MAPPING reviews, matching the four initial vectors.
-- [ ] Fact classification and the READY Plan: activities, then coverage and membership, then snapshots; AC-01 byte for byte.
-- [ ] CONFLICT reviews and their literals; AC-03, AC-04, AC-06 and AC-07.
-- [ ] Gated PostgreSQL acceptance (AC-02) through `read_plan_basis_v1` and `prepare_preview_v1`; the CI skip count.
+- [x] Test helper `oracle_basis` for every case in the Build plan's table; record any case that cannot be mapped and stop.
+- [x] Intake and refusals (pages, pins, inputs, context, decisions) with the AC-05 refusal tests.
+- [x] NEEDS_MAPPING reviews, matching the four initial vectors.
+- [x] Fact classification and the READY Plan: activities, then coverage and membership, then snapshots; AC-01 byte for byte.
+- [x] CONFLICT reviews and their literals; AC-03, AC-04, AC-06 and AC-07.
+- [x] Gated PostgreSQL acceptance (AC-02) through `read_plan_basis_v1` and `prepare_preview_v1`; the CI skip count.
 - [ ] Docs (AC-09); full suite; pull request with the independent QA and Architect reviews.
 
 ## Decisions needed
@@ -374,11 +374,11 @@ The review's finding N1 (a later member's fact with its own parent decision that
 
 ## Handoff
 
-- State: Filed on 2026-11-20; backlog, waiting for the owner's Gate A and a Build plan.
-- Next step: The planner reads `reconciliation.md`, the merged `approval.py`, `mapping.py`, `reconciliation.py` and `prepare_preview_v1`, maps each oracle case to basis pages, and writes the Build plan, including the builder's exact signature for IMP-007V.
-- Verify: `PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -p 'test_ingestion_*.py' -v` and `KURAFOLIO_INGESTION_TEST=1 PYTHONPATH=src .venv/bin/python -m unittest tests.test_postgres_migration -v`
-- Gotchas: IMP-007V (the worker's prepare step) waits for this ticket, so no set reaches a preview through the worker until both land. IMP-007F and the activation ticket IMP-007S do not wait for it.
-- Open questions: Gate A.
+- State: Repair round 2 follows the supplemental Build plan merged in PR #113 (590be9a), merged here with origin/main at 0e97ee6. F1 follows the owner's item 5 option (b): unsupported historical-only authorities produce CONFLICT, including a carrier member with no facts, and snapshot children carry the unsupported code when the authority has a right side. N1 checks parent decisions after cross-member deduplication; only the later fact with its own invalid parent decision conflicts. The five specified AC-05 regression cases pass. Build plan and Decisions needed match main exactly; gated sections are unchanged.
+- Next step: Waiting for independent re-review in Claude Code: run `review IMP-007P` on PR #108. The owner authorized and the builder published the repair, refreshed the complete PR description and replied to every round 3 finding. Fresh QA and Architect re-review is NOT RUN; the configured reviewer cannot be started here. Frontier owner review follows independent acceptance. Stop here; no merge or CI-terminal monitoring is requested.
+- Verify: `python3 scripts/tickets.py spec IMP-007P --base origin/main`; `PYTHONPATH=src python -m unittest discover -s tests -p 'test_ingestion_*.py'` (122 tests, 26.171 seconds, no skips); `KURAFOLIO_INGESTION_TEST=1 PYTHONPATH=src python -m unittest discover -s tests -p test_postgres_migration.py -k test_review_bundle_builder_from_live_prepare_basis` (1 test, 12 live initial/READY subcases, 9.341 seconds, no skips); language, board and publication guards; `python3 scripts/check_pr_image.py` from the final clean tracked tree. Local repair evidence is under `work/imp-007p/supplement-*`.
+- Gotchas: No worker calls this builder until IMP-007V. Developer tests do not establish independent acceptance. This repair changes no SQL, DTO, oracle, existing PostgreSQL test or other helper. The earlier c965c14 CI passed all tests but failed the blocked own-ticket check; it is not CI evidence for this repair. No deployment or runtime migration is part of this repair.
+- Open questions: None in the approved repair scope. Only the owner answers Decisions needed items; the planner recommends. F4 and F5 remain informational and unchanged. Independent re-review and owner merge remain outstanding.
 
 ## Log
 
@@ -387,4 +387,22 @@ The review's finding N1 (a later member's fact with its own parent decision that
 - 2026-11-21 claude-code/opus-5.5: recorded Gate A in plan pull request #95. Asked "Gate A, tickets whose text is unchanged since filing (full text on PR #95's branch). Which do you approve exactly as written?" (Q31) with this ticket listed at sha256:ab4f0a665240bd37f278712f3dc78aa90db9a7ecb92f3fc7e0700f67a4bab766, the owner selected "IMP-007O,IMP-007P,IMP-007U,IMP-007S". `gate_approval` set to "owner 2026-11-21, Gate A on the text as written on PR #95's branch (Q31)"; `spec_approved` set to sha256:ab4f0a665240bd37f278712f3dc78aa90db9a7ecb92f3fc7e0700f67a4bab766, which `tickets.py spec` reports as the current hash; status backlog becomes ready. Decisions needed item resolved. No Build plan yet; the planner writes it in a later pull request.
 - 2026-11-22 claude-code/opus-5.5: wrote the frontier Build plan from `main` at `7d7acc1` in plan pull request https://github.com/gh-slee/kurafolio/pull/105. Updated the Context with the planning findings (caller-supplied IDs, verbatim decision arrays, no facts in initial reviews, refusals under Q25, the competing-stream gap, the CI job that runs gated tests), replaced the Plan steps and added Decisions needed items 2 to 4 for the owner, with the plan following each recommendation. Gate A (#95, Q31) and the gated sections are unchanged.
 - 2026-11-22 claude-code/opus-5.5: recorded the owner's answer to Decisions needed items 2 to 4 in plan pull request https://github.com/gh-slee/kurafolio/pull/105, relayed to this planning session by the coordinating session. Asked "Do you accept the planner's recommendations on decisions 2 to 4?", the owner answered "Accept all three": item 2 (a), refuse only an untrusted basis and show a CONFLICT review for r7 conflict outcomes; item 3 (a), build without the competing-stream check against accepted revisions of other connections; item 4 (a), CONFLICT `unsupported` for an incoming `mirror`. "Before you claim" no longer waits on them. Filed the follow-ups IMP-007X (extend the basis for that check) and IMP-007Y (mirror vectors and effect) as backlog tickets in the same pull request. No Gate A recorded; the gated sections are unchanged.
+- 2026-11-22 codex/gpt-6.1-sol: claimed the merged Build plan from origin/main; spec sha256:ab4f0a665240bd37f278712f3dc78aa90db9a7ecb92f3fc7e0700f67a4bab766 matches. Started the independent oracle basis helper before builder implementation.
+- 2026-11-22 codex/gpt-6.1-sol: implemented the pure builder and independent literal basis helper. All planned oracle review and Plan bytes match; focused determinism, builtin, CONFLICT and ambient-I/O checks pass. The large-basis fixture builds in 0.013 s (NEEDS_MAPPING) and 0.031 s (READY) locally. Maximum-size and PostgreSQL acceptance remain outstanding.
+- 2026-11-22 codex/gpt-6.1-sol: completed the planned core acceptance coverage (14 focused tests), AC-09 docs and one gated PostgreSQL test that accepts/replays 12 live-lease subcases in 9.085 s with no skips. The foundation skip guard increases from 128 to 129. Four valid 4,096,703-byte stages exceed the real bundle limit and are refused in 9.800 s; the separate 4 x 10,000-row probe is refused at the 4 MiB Minimal bound in 10.464 s. The default full suite is still running. Independent QA and Architect review are NOT RUN; no publication.
+- 2026-11-22 codex/gpt-6.1-sol: completed the default developer suite: 1,440 tests in 745.501 s, 267 opt-in skips, no failures or errors. The final focused builder suite separately passes 14 tests in 26.157 s; live PostgreSQL accepts/replays all 12 required subcases in 9.085 s without skips. Language, worktree publication, ticket consistency and approved-spec checks pass. Candidate image verification follows this clean local checkpoint. Independent QA and Architect review are NOT RUN; CI and publication are NOT RUN.
+- 2026-11-23 codex/gpt-6.1-sol: pushed the four approved commits through ffbe53e and opened draft PR https://github.com/gh-slee/kurafolio/pull/108 with the reviewed complete description. The PR contains exactly the six planned paths. Recorded done/pr metadata locally after PR creation; required validation and a new exact-HEAD candidate check precede its separate publication approval. Independent QA and Architect reviews remain NOT RUN.
+- 2026-11-23 codex/gpt-6.1-sol: outcome: implementing model codex/gpt-6.1-sol; reviewing model claude-code/opus-5.5, NOT RUN (fresh-context QA and Architect reviews must run in Claude Code); review repair rounds 0; nothing missing from the approved spec or Build plan. Developer implementation and self-tests are complete; independent acceptance and owner merge are outstanding.
+- 2026-11-23 claude-code/opus-5.5: independent QA and Architect review of head 240827b (https://github.com/gh-slee/kurafolio/pull/108#issuecomment-7110496850): changes requested. AC-01 to AC-09 pass; live PostgreSQL AC-02 re-run without skips. F1 (medium): historical_only with an accepted left side yields READY, not CONFLICT unsupported. F2 (low): a cross-member duplicate keeps parent_revision_id. F3: stale Handoff. F4 and F5 informational.
+- 2026-11-23 claude-code/sonnet-5.5: review repair round 1. Merged origin/main (CI skip count 132 ingestion tests, `--expect-skipped 133`), fixed F2 with a regression test, refreshed the Handoff and Log spacing (F3). F1 is blocked: the Build plan does not say which fact row carries `required_decision` when the `historical_only` left side is an accepted revision, so Decisions needed item 5 asks the planner; status `blocked`. F4 and F5 left as informational because the Build plan does not settle them.
+
+- 2026-11-23 codex/gpt-6.1-sol: recorded the independent QA and Architect re-review by claude-code/opus-5.5 of af2fcdd (https://github.com/gh-slee/kurafolio/pull/108#issuecomment-7119971609): changes requested. AC-01 to AC-07 and AC-09 pass; AC-08 traceability passes with F1 and N1 open. The merge, skip count and F2 code fix are correct. F1 needs the owner's answer to item 5 and planner clarification for all-duplicate members. N1 needs a rule for an explicit parent on a cross-member duplicate within the same set; no implementation or Build plan change was made. Reviewed failed PR-event postgres-ingestion logs and requested only job 137958422201 in run 45250443225 again; terminal result follows in the local handoff evidence. Status stays blocked; no publication.
 - 2026-11-23 claude-code/opus-5.5: supplemented the merged Build plan in plan pull request https://github.com/gh-slee/kurafolio/pull/113 for review findings F1 and N1 on PR #108; no replan. Recorded Decisions needed item 5, copied from PR #108's branch, as resolved: asked "IMP-007P F1 (Decisions needed item 5): when a `historical_only` authority's left side is an accepted revision rather than an incoming snapshot, how should the builder handle it?", the owner chose "(b) CONFLICT (Recommended)", relayed to this planning session by the coordinating session. Added the item 5 carrier, review-state and precedence rules (all facts of the attributed member; CONFLICT even when that member has no facts) and the N1 rule (a parent decision on a fact whose final action is not `correction` or `void` is CONFLICT `parent`, later member only), with the test changes for PR #108. Gate A and the gated sections are unchanged.
+
+- 2026-11-24 codex/gpt-6.1-sol: review repair round 2 follows owner-approved item 5 (b) and the N1 supplement merged in PR #113. Merged origin/main at 0e97ee6, preserving main's Build plan and Decisions needed verbatim and both Log histories. Added unsupported authority state/carrier handling and the post-deduplication parent check, with the five specified AC-05 cases. Renamed the former READY duplicate-with-parent test to assert CONFLICT; the no-parent variant remains READY. Developer ingestion tests: 122 OK, no skips, 26.171 seconds. Existing live PostgreSQL AC-02: 1 test, 12 subcases, no skips, 9.341 seconds. No SQL, contract, oracle or existing PostgreSQL test change.
+
+- 2026-11-24 codex/gpt-6.1-sol: outcome: implementing model codex/gpt-6.1-sol; reviewing model claude-code/opus-5.5, fresh repair re-review NOT RUN; review repair rounds 2. The item 5 and N1 planning gaps were resolved by the supplement on main; nothing remains missing in this bounded repair. Status done records builder completion only; exact-HEAD candidate verification, publication approval and fresh independent QA/Architect acceptance remain required before the owner's frontier review.
+
+- 2026-11-24 codex/gpt-6.1-sol: published owner-approved merge 7ae328c and repair ef446a5 normally to PR #108, refreshed the full template-based description with `gh pr edit --body-file` after validator PASS, and replied to each finding from round 3 (https://github.com/gh-slee/kurafolio/pull/108#issuecomment-7149430149). This owner-authorized ticket-only checkpoint records waiting for independent Claude Code re-review. No new implementation change, merge, force-push, release or service switch.
+
+- 2026-11-24 codex/gpt-6.1-sol: outcome: implementing model codex/gpt-6.1-sol; reviewing model claude-code/opus-5.5, fresh QA/Architect re-review NOT RUN; review repair rounds 2; nothing missing after the merged item 5/N1 supplement. Status done and PR URL record builder completion. Independent acceptance and the owner's frontier review remain pending; run `review IMP-007P` in Claude Code.
