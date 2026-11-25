@@ -2,7 +2,7 @@
 id: IMP-007F
 title: Add the dedicated import worker and trusted launcher
 priority: P0
-status: in_progress
+status: done
 type: feature
 parent: IMP-007
 depends_on: [IMP-007B, IMP-007D, IMP-007L]
@@ -17,7 +17,7 @@ branch: ticket/imp-007f-add-the-dedicated-import-worker-and-trus
 pr: https://github.com/gh-slee/kurafolio/pull/116
 spec: docs/specs/imp-007-r7/spec.md
 spec_approved: sha256:7a48a991a883a22addf0aafbeb6d6503bc13833e2ee0c0ef426c1523442bd032
-updated: 2026-11-24
+updated: 2026-11-25
 ---
 
 # IMP-007F: Add the dedicated import worker and trusted launcher
@@ -273,8 +273,8 @@ Raised by the planner on 2026-11-20 from the merged code. The owner answered D1 
 
 ## Handoff
 
-- State: All third-pass review items are built on PR #116. Gated text and Build plan are unchanged. PostgreSQL worker acceptance is in `tests/test_postgres_worker.py` with a real worker login, and CI runs it in `postgres-ingestion`.
-- Next step: Commit, push, rerun the pre-PR image gate, then ask for re-review once CI is green at the new head.
+- State: All third-pass review items are built on PR #116 at `81e8256808ac`; this commit only sets `status: done` for the owner review, as the quick start requires. Gated text and Build plan are unchanged. PostgreSQL worker acceptance is in `tests/test_postgres_worker.py` with a real worker login, and `postgres-ingestion` runs all 18 cases.
+- Next step: Wait for CI at this head, then ask the owner for `review IMP-007F`.
 - Verify: `PYTHONPATH=src .venv/bin/python -m unittest tests.test_ingestion_worker tests.test_ingestion_launcher` (46 tests); `KURAFOLIO_INGESTION_TEST=1 KURAFOLIO_PORT_BASE=<claim port> ... tests.test_postgres_worker` (18 real-PostgreSQL cases, including the SIGKILL matrix, the launcher kill under PostgreSQL plus Docker, AC-05 paused/new-fence and the four AC-07 terminal states); `KURAFOLIO_LAUNCHER_TEST=1 KURAFOLIO_LAUNCHER_BASE_IMAGE=<sha256 image id> ... tests.test_ingestion_containment` (7 Docker Desktop cases, 2026-11-25, engine 29.6.1); `docker compose -f compose.ingestion.yaml up -d` and `stop` on the shipped image (2026-11-25). Environment setup in [postgres-foundation.md](../docs/postgres-foundation.md), [web-v2-imports.md](../docs/web-v2-imports.md) and [web-v2-import-worker.md](../docs/web-v2-import-worker.md).
 - Plan deviation for review: `WorkerSQL.call` takes a keyword-only `token=` per attempt, although the Build plan writes the signature as `call(name, request, payload=None)`. The merged SQL binds `p_token` on every worker function, so the token cannot be omitted without a second call path.
 - Gotchas: The worker sends `claim_plan_v1` only with `work_kind: "cleanup"` and never calls `read_plan_basis_v1` or `prepare_preview_v1`; normalized sets wait in `NORMALIZING` until cancel or expiry. Do not open a worker-only pull request from the ticket branch: `pr-check` fails it. Keep the worker journal volume: cleanup needs its handles. The PostgreSQL case commits its fixture set, so it retargets the deferred `members` installation foreign key to a synthetic ID table in its own transaction; it also builds the realm digest over a TCP connection, because the worker itself connects over loopback and a socket connection sees a different realm. The containment test builds an offline probe image from a cached immutable base; native Linux CI has not run the matrix, and the launcher is trusted host-level Docker authority on Docker Desktop.
@@ -314,4 +314,5 @@ Raised by the planner on 2026-11-20 from the merged code. The owner answered D1 
 - 2026-11-25 opencode/deepseek-flash  owner decision: build the third-pass review items on this ticket, not waive them. Scope: H2 PostgreSQL worker matrix with a real worker login and CI execution; H4 native child dispatch by installation/provider; B3 launcher image with Docker CLI and image-owned journals plus a real compose up/stop and fixed ConfigError exit; B2 a combined keeper/deadline test and bounded cancel; AC-06 a real launcher limit-exceeded finish; AC-09 matrix from `launcher check`; and the low handshake/timer/shutdown/lock items.
 - 2026-11-25 opencode/deepseek-flash  built the owner-directed items: the PG worker suite now logs in as `wl007f_worker` with real worker grants and includes request_id replay, a 30-iteration pull loop, a pending→failed proof and a handle-null cleanup case; CI runs `test_postgres_worker.py` in postgres-ingestion. Added `Dockerfile.ingestion` with the Docker CLI and image-owned 0700 journal directories; compose mounts the worker DSN and correct catalog path; `docker compose up -d` started both services and `stop` completed in 1 s. Launcher `check` now creates a container and prints actual HostConfig rows; docs use those rows. Native child dispatch decodes `NativeChildContext` and selects a fixed provider registration with `normalize_native`. Low items: capped handshake threads, daemon result timers, stop continues after EngineError, per-key handoff locks. Still open before done: the SIGKILL/launcher-kill crash matrix and a real-launcher limit-exceeded member finish.
 - 2026-11-25 opencode/deepseek-flash  added the SIGKILL matrix at claim, handle, result, admit and finish (including the handle-less cleanup limit) and a real-launcher wall-limit run where `finish` rejects the member with `import_limit`; CI now runs ten worker PostgreSQL cases. Still to build after this push: a launcher SIGKILL/restart under PostgreSQL plus Docker, AC-05 second-worker/new-fence takeover and the AC-07 four-set scenarios.
+- 2026-11-25 opencode/deepseek-flash  final review state: CI at `81e8256808ac` passed every job except `pr-check`, which requires `status: done`; this commit sets it and leaves code unchanged. Image gate `sha256:ade0871bce34f681…` at `81e8256808ac`; 18 PostgreSQL worker cases, 46 unit cases, 7 Docker Desktop containment cases. Re-review requested.
 - 2026-11-25 opencode/deepseek-flash  finished the third-pass items: AC-05 runs a paused real worker (SIGSTOP) whose late admit and finish are refused, plus a re-upload to fence 2 where only the second worker publishes; AC-07 covers cancelled reception, cancelled after launch, expired and committed sets, each purged with the reservation released once and a pending→failed row; AC-03 adds confirm-twice replay and a launcher SIGKILL under PostgreSQL plus Docker with restart reconciliation; the launcher cancel path is bounded to 3.5 s inside the 5 s raw-deadline margin, with a keeper-plus-deadline-row test; `tests/test_ingestion_worker.py:940` is now a real cancel proof. Local runs: 18 PostgreSQL worker cases, 46 unit cases, 7 Docker Desktop containment cases.
