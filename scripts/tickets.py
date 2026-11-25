@@ -863,7 +863,7 @@ def main(argv: list[str] | None = None) -> int:
     for name in ('claim', 'takeover'):
         s = sub.add_parser(name)
         s.add_argument('id')
-        s.add_argument('--agent', required=True, help='board name from AGENTS.md, e.g. claude-code/sonnet-5.5, codex/gpt-6.1-sol, opencode/deepseek-flash')
+        s.add_argument('--agent', required=True, help='board name from AGENTS.md, e.g. claude-code/sonnet-5.5, codex/gpt-6.2-sol, opencode/deepseek-flash')
         s.add_argument('--worktree', action='store_true', help='create/attach the ticket worktree')
         s.add_argument('--worktree-path')
         s.add_argument('--base', default='origin/main')
