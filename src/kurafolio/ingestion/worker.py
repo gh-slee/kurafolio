@@ -110,8 +110,8 @@ class LeaseKeeper:
         self._credential_epoch = credential_epoch
         self._clock = clock
         self._sleep = sleep
-        self._wait = wait if wait is not None else self._stop.wait
         self._stop = threading.Event()
+        self._wait = wait if wait is not None else self._stop.wait
         self._thread = None
 
     def start(self):
@@ -128,10 +128,6 @@ class LeaseKeeper:
             now = self._clock()
             for attempt in list(self._attempts.values()):
                 if attempt.lost.is_set() or attempt.member_id is None:
-                    continue
-                if now >= attempt.expires_at - RAW_SLACK:
-                    attempt.mark_lost()
-                    LOG.warning('lease_expired job_id=%s fence=%s', attempt.job_id, attempt.fence)
                     continue
                 if attempt.next_renew is not None and now < attempt.next_renew:
                     continue
@@ -167,6 +163,7 @@ class ImportWorker:
         self.launcher = launcher
         self._attempts = {}
         self._lock = threading.Lock()
+        self._handoff_lock = threading.Lock()
         self._slots = threading.Semaphore(MAX_ACTIVE)
         self._stop = threading.Event()
         self._executor = None
@@ -215,6 +212,8 @@ class ImportWorker:
             self._executor.shutdown(wait=False, cancel_futures=True)
             self._executor = None
         for attempt in list(self._attempts.values()):
+            if attempt.lost is not None:
+                attempt.mark_lost()
             self._cancel_launch(attempt)
             if attempt.hold is not None:
                 attempt.hold.drop()
@@ -228,6 +227,10 @@ class ImportWorker:
     # handoff ----------------------------------------------------------------
 
     def handoff(self, metadata, context, raw):
+        with self._handoff_lock:
+            return self._handoff(metadata, context, raw)
+
+    def _handoff(self, metadata, context, raw):
         if self._stop.is_set():
             raise IngestionError('import_runner_unavailable')
         if _now() >= _time(metadata['raw_deadline']) or _now() >= _time(metadata['expires_at']):
@@ -244,6 +247,7 @@ class ImportWorker:
         if not self._slots.acquire(blocking=False):
             raise IngestionError('import_busy')
         created = False
+        keep_record = False
         try:
             created = self.journal.record(metadata['set_id'], metadata['job_id'],
                                           metadata['member_id'], metadata['fence'])
@@ -265,6 +269,7 @@ class ImportWorker:
                 raise IngestionError(error.code) from None
             if ack['outcome'] == 'already_claimed':
                 # A restarted worker may not reuse the dead process's bytes or launch.
+                keep_record = True
                 raise IngestionError('import_runner_unavailable')
             if ack['outcome'] != 'claimed':
                 raise IngestionError('import_runner_unavailable')
@@ -283,6 +288,8 @@ class ImportWorker:
             self._slots.release()
             raise
         except (JournalError, IngestionError):
+            if created and not keep_record:
+                self.journal.remove(metadata['job_id'], metadata['fence'])
             self._slots.release()
             raise
         except Exception:
@@ -304,28 +311,29 @@ class ImportWorker:
             try:
                 context_value = self._context(attempt)
             except IngestionError:
-                return
-            try:
-                status = self.launcher.start(self._start_metadata(attempt, context_value),
-                                             bytes(hold.context), bytes(hold.raw))
-                if attempt.lost.is_set():
-                    self._cancel_launch(attempt)
-                    return
-                handle = validate(status, 'LaunchStatus')['handle']
-                self.journal.set_handle(attempt.job_id, attempt.fence, handle)
-                attempt.handle = handle
-                outcome, code = self._run_child(attempt, context_value, hold)
-            except (WorkerCallError, IngestionError) as error:
-                if getattr(error, 'code', None) == 'import_stale':
-                    self._cancel_launch(attempt)
-                    return
-                outcome, code = 'reupload_required', 'import_runner_unavailable'
-            except Exception:
-                LOG.exception('normalize_failed job_id=%s fence=%s', attempt.job_id, attempt.fence)
-                outcome, code = 'reupload_required', 'import_runner_unavailable'
-            finally:
-                if hold is not None:
-                    hold.drop()
+                outcome, code = 'rejected', 'import_stale'
+            else:
+                try:
+                    status = self.launcher.start(self._start_metadata(attempt, context_value),
+                                                 bytes(hold.context), bytes(hold.raw))
+                    if attempt.lost.is_set():
+                        self._cancel_launch(attempt)
+                        return
+                    handle = validate(status, 'LaunchStatus')['handle']
+                    self.journal.set_handle(attempt.job_id, attempt.fence, handle)
+                    attempt.handle = handle
+                    outcome, code = self._run_child(attempt, context_value, hold)
+                except (WorkerCallError, IngestionError) as error:
+                    if getattr(error, 'code', None) == 'import_stale':
+                        self._cancel_launch(attempt)
+                        return
+                    outcome, code = 'reupload_required', 'import_runner_unavailable'
+                except Exception:
+                    LOG.exception('normalize_failed job_id=%s fence=%s', attempt.job_id, attempt.fence)
+                    outcome, code = 'reupload_required', 'import_runner_unavailable'
+                finally:
+                    if hold is not None:
+                        hold.drop()
             if attempt.lost.is_set():
                 self._cancel_launch(attempt)
                 return
@@ -518,7 +526,7 @@ class ImportWorker:
                 if status['state'] == 'finished' and status['cleanup_complete']:
                     return self._proof(attempt, 'absent', status)
                 if status['state'] == 'failed' and status['cleanup_complete']:
-                    return self._proof(attempt, 'not_created', status)
+                    return self._proof(attempt, 'absent', status)
                 self.sleep(0.5)
                 status, _ = self.launcher.control(self._control(attempt, 'status', False))
                 self._check_status(attempt, status)
@@ -531,7 +539,6 @@ class ImportWorker:
         if status['state'] == 'failed':
             return self._proof(attempt, 'failed', status)
         return self._proof(attempt, 'pending', status)
-
     def _proof(self, attempt, state, status):
         proof = {'job_id': attempt.job_id, 'fence': attempt.fence, 'state': state,
                  'launcher_instance_id': self.config.instance_id,
@@ -578,7 +585,9 @@ class ImportWorker:
                             handle=record.handle, lost=threading.Event())
             probes[(record.job_id, record.fence)] = (probe, None)
             try:
-                status, _ = self.launcher.control(self._control(probe, 'status', False))
+                status, _ = self.launcher.control(self._control(probe, 'cancel', False))
+                if status['state'] not in {'finished', 'failed'}:
+                    status, _ = self.launcher.control(self._control(probe, 'status', False))
             except Exception:
                 continue
             if (status['job_id'] != record.job_id or status['fence'] != record.fence

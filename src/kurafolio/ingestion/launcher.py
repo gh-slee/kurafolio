@@ -191,7 +191,8 @@ class Launcher:
                     self.engine.kill(engine_id)
                 except EngineError:
                     pass
-                removed = self.engine.remove(engine_id)
+                self.engine.remove(engine_id)
+                removed = self.engine.inspect(engine_id) is None
             self.journal.update(record.job_id, record.fence,
                                 state='finished' if removed else 'cleanup_pending',
                                 outcome='cancelled', cleanup_complete=removed,
@@ -317,6 +318,9 @@ class Launcher:
                 or request['member_id'] != attempt.record.member_id
                 or sha256(request['handle'].encode()) != attempt.record.handle_digest):
             raise IngestionError('authentication_required')
+        with self._lock:
+            self._attempts.setdefault((attempt.record.job_id, attempt.record.fence), attempt)
+        self._expire_results(attempt)
         operation = request['operation']
         if operation == 'status':
             return self._status_result(attempt, request['include_result'])
@@ -337,11 +341,17 @@ class Launcher:
         record = self.journal.get(request['job_id'], request['fence'])
         if record is None:
             return None
-        attempt = Attempt(record=record, handle=request['handle'], nonce=None,
-                          context_sha256='', raw_sha256='', payload_kind='parser_v2',
-                          installation_id='', wrapper_profile_digest='')
-        self._attempts[(record.job_id, record.fence)] = attempt
-        return attempt
+        return Attempt(record=record, handle=request['handle'], nonce=None,
+                       context_sha256='', raw_sha256='', payload_kind='parser_v2',
+                       installation_id='', wrapper_profile_digest='')
+
+    def _expire_results(self, attempt):
+        if attempt.payload is None and attempt.result is None:
+            return
+        deadline = datetime.fromisoformat(attempt.record.deadline['token'])
+        if datetime.now(timezone.utc) >= deadline:
+            attempt.payload = None
+            attempt.result = None
 
     def _status_result(self, attempt, include_result):
         status = _status(attempt)
@@ -359,7 +369,8 @@ class Launcher:
                 self.engine.kill(engine_id)
             except EngineError:
                 pass
-            removed = self.engine.remove(engine_id)
+            self.engine.remove(engine_id)
+            removed = self.engine.inspect(engine_id) is None
             self._finish(attempt, 'finished' if removed else 'cleanup_pending',
                          attempt.record.outcome or 'cancelled', cleanup_complete=removed)
         else:
@@ -378,6 +389,10 @@ class Launcher:
         if self._server is not None:
             self._server.stop()
             self._server = None
+        with self._lock:
+            attempts = list(self._attempts.values())
+        for attempt in attempts:
+            self._cancel(attempt)
 
 
 class LauncherServer:
@@ -418,6 +433,7 @@ class _Server(ThreadingHTTPServer):
     def get_request(self):
         connection, address = super().get_request()
         try:
+            connection.settimeout(5)
             tls = self.ssl_context.wrap_socket(connection, server_side=True)
             self.peer_tls.verify_peer(tls)
             return tls, address
@@ -555,3 +571,7 @@ def main(argv=None):
     while launcher._server is not None:
         time.sleep(1)
     return 0
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

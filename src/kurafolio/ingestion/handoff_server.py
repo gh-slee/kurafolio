@@ -59,6 +59,7 @@ class _Server(ThreadingHTTPServer):
     def get_request(self):
         connection, address = super().get_request()
         try:
+            connection.settimeout(5)
             tls = self.ssl_context.wrap_socket(connection, server_side=True)
             self.peer_tls.verify_peer(tls)
             return tls, address

@@ -12,6 +12,7 @@ import os
 from pathlib import Path
 import subprocess
 import tempfile
+import time
 import unittest
 import uuid
 
@@ -36,7 +37,7 @@ def probe(operation):
                                                         "/run/postgresql/.s.PGSQL.5432")]}
     if operation == "network":
         denied = []
-        for target in (("192.0.2.1", 443), ("127.0.0.1", 5432)):
+        for target in (("1.1.1.1", 53), ("127.0.0.1", 5432)):
             sock = socket.socket(); sock.settimeout(0.25)
             try:
                 sock.connect(target); denied.append(False)
@@ -46,6 +47,14 @@ def probe(operation):
                 sock.close()
         return {"denied": denied, "interfaces": [list(v) for v in socket.if_nameindex()],
                 "routes": open("/proc/net/route").read().splitlines()[1:]}
+    if operation == "files":
+        denied = []
+        for path in paths:
+            try:
+                open(path, "rb").read(1); denied.append(False)
+            except OSError:
+                denied.append(True)
+        return {"denied": denied, "socket": not os.path.exists("/var/run/docker.sock")}
     if operation == "readonly":
         blocked = []
         for name in ("/app/source-test", "/etc/source-test", "/data/source-test"):
@@ -161,18 +170,22 @@ class LauncherContainmentTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix='kurafolio-launcher-host-') as temporary:
             canary = Path(temporary) / 'canary'
             canary.write_text('invented')
-            _, run = self.run_probe('readonly', [str(canary)])
+            _, run = self.run_probe('files', [str(canary)])
+            value = json.loads(run.output)
+            self.assertEqual(value, {'denied': [True], 'socket': True})
+            _, run = self.run_probe('readonly')
             value = json.loads(run.output)
             self.assertEqual(value, {'blocked': [True, True, True], 'tmp_writable': True})
 
     def test_ac_06_resource_and_output_limits(self):
         cases = {'memory': 'resource_exit', 'cpu': 'resource_exit', 'stdout': 'output_limit',
-                 'stderr': 'output_limit', 'sleep': 'wall_limit', 'pids': None}
+                 'stderr': 'output_limit', 'sleep': 'wall_limit'}
         for operation, expected in cases.items():
             with self.subTest(operation=operation):
+                started = time.monotonic()
                 engine_id, run = self.run_probe(operation)
-                if expected is not None:
-                    self.assertEqual(run.outcome, expected)
+                self.assertLess(time.monotonic() - started, 15)
+                self.assertEqual(run.outcome, expected)
                 self.assertIsNotNone(self.engine.inspect(engine_id))
                 self.assertTrue(self.engine.remove(engine_id))
                 self.assertIsNone(self.engine.inspect(engine_id))
@@ -210,12 +223,30 @@ class LauncherContainmentTests(unittest.TestCase):
                              (record.state, record.cleanup_complete, record.outcome))
             self.assertIsNone(self.engine.inspect(engine_id))
 
+    def test_ac_06_pids_limit_stops_a_fork_bomb(self):
+        _, run = self.run_probe('pids')
+        self.assertIsNone(run.outcome)
+        self.assertTrue(json.loads(run.output)['limited'])
+
     def test_ac_06_cancel_removes_the_exact_engine_id(self):
         engine_id, run = self.run_probe('descendant')
         self.assertIsNotNone(self.engine.inspect(engine_id))
         self.engine.kill(engine_id)
         self.assertTrue(self.engine.remove(engine_id))
         self.assertIsNone(self.engine.inspect(engine_id))
+
+
+class DocumentationTests(unittest.TestCase):
+    def test_ac_09_containment_matrix_names_both_platforms_and_tests(self):
+        """AC-IMP-007F-09: the table is present, with both platform columns."""
+        text = (Path(__file__).resolve().parents[1]
+                / 'docs/web-v2-import-worker.md').read_text()
+        self.assertIn('| Control | Docker Desktop, Apple Silicon | Native Linux CI |', text)
+        for row in ('Network', 'Read-only root', 'PIDs limit 16', 'Output limits',
+                    'Docker socket absent'):
+            self.assertIn('| ' + row + ' |', text)
+        self.assertIn('test_ac_06_network_and_filesystem_denials', text)
+        self.assertIn('not tested', text)
 
 
 if __name__ == '__main__':

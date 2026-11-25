@@ -44,6 +44,13 @@ before any database or Docker connection.
   worker UUID, credential epoch, instance UUID, realm digest, API-facing TLS,
   launcher-facing TLS and address, handoff bind address and port, journal
   directory, source descriptor catalog and wrapper-profile file.
+- The launcher image must contain the Docker CLI and the compose fragment adds
+  the operator's Docker socket group through `KURAFOLIO_DOCKER_GID`. The socket
+  is not readable by UID 10001 by default; provisioning the group is an operator
+  step. A launcher image without the CLI refuses before starting.
+- The two journal volumes must be pre-created with owner `10001:10001` and mode
+  `0700`; a fresh named volume is root-owned and the service refuses to start.
+  The compose fragment does not create or chown them.
 - Secret key files are never group- or world-readable. No secret value is
   passed through an environment variable, command line or image layer.
 - The launcher mounts the Docker socket and its own journal volume. The worker

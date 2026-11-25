@@ -179,6 +179,7 @@ class FakeSQL:
         self.cleanup = cleanup
         self.renew_error = None
         self.renews = 0
+        self.renew_times = []
         self.cleanup_ack = 'purged'
 
     def call(self, name, request, payload=None, *, token):
@@ -192,6 +193,7 @@ class FakeSQL:
                              'outcome': self.claim_outcome, 'source_fingerprint': 'f' * 64}, 'LeaseAck')
         if name == 'renew_member_v1':
             self.renews += 1
+            self.renew_times.append(self.clock())
             if self.renew_error is not None:
                 raise WorkerCallError(self.renew_error)
             return validate({'version': 1, 'job_id': request['job_id'], 'set_id': request['set_id'],
@@ -704,6 +706,19 @@ class NormalizeTests(unittest.TestCase):
         self.assertTrue(any(control['operation'] == 'forget' for control in launcher.controls))
         self.assertEqual({}, worker._attempts)
 
+    def test_ac_03_context_rejection_finishes_rejected_without_a_launch(self):
+        launcher = FakeLauncher(self.metadata)
+        worker = self._worker(launcher)
+        with mock.patch.object(worker, '_context',
+                               side_effect=IngestionError('import_stale')):
+            worker.handoff(self.metadata, self.context, self.raw)
+            worker._executor.run()
+        finish = [call[1] for call in self.sql.calls if call[0] == 'finish_member_v1'][0]
+        self.assertEqual(('rejected', 'import_stale'),
+                         (finish['outcome'], finish['error_code']))
+        self.assertEqual([], finish['cleanup_proofs'])
+        self.assertEqual([], launcher.starts)
+
     def test_ac_03_output_limits_reject_the_member_and_keep_an_absent_proof(self):
         launcher = FakeLauncher(self.metadata, child='output_limit')
         worker = self._worker(launcher)
@@ -802,6 +817,13 @@ class NormalizeTests(unittest.TestCase):
 
 
 class RenewalTests(unittest.TestCase):
+    def test_ac_01_lease_keeper_constructs_and_starts(self):
+        """AC-IMP-007F-01: ImportWorker.start() can create the real keeper."""
+        clock = FakeClock()
+        keeper = LeaseKeeper(FakeSQL(clock.now), {}, realm_digest=REALM,
+                             credential_epoch='1', clock=clock.now, wait=lambda seconds: True)
+        keeper.start()
+        keeper.stop()
     def test_ac_05_renews_at_most_ten_seconds_apart_and_stops_after_an_error(self):
         clock = FakeClock()
         sql = FakeSQL(clock.now)
@@ -821,10 +843,9 @@ class RenewalTests(unittest.TestCase):
         keeper._run()
         renews = [call for call in sql.calls if call[0] == 'renew_member_v1']
         self.assertGreaterEqual(len(renews), 4)
-        stamps = []
-        for call in renews:
-            stamps.append(clock.now())
-        self.assertGreater(len(stamps), 0)
+        gaps = [later - earlier for earlier, later in zip(sql.renew_times, sql.renew_times[1:])]
+        self.assertTrue(gaps)
+        self.assertLessEqual(max(gaps), timedelta(seconds=10))
         # Every renewal request repeats the claimed fence, job and token.
         for _, request, _, token in renews:
             self.assertEqual((FENCE, attempt.job_id, TOKEN),
@@ -897,7 +918,8 @@ class CleanupTests(unittest.TestCase):
         worker._cleanup_once()
         cleanup = [call[1] for call in self.sql.calls if call[0] == 'cleanup_set_v1'][0]
         self.assertEqual(['absent'], [proof['state'] for proof in cleanup['cleanup_proofs']])
-        self.assertEqual(self.handle, launcher.controls[0]['handle'])
+        self.assertEqual((self.handle, 'cancel'),
+                         (launcher.controls[0]['handle'], launcher.controls[0]['operation']))
         self.assertEqual([], worker.journal.records())
         self.assertTrue(any(control['operation'] == 'forget' for control in launcher.controls))
 
@@ -915,6 +937,7 @@ class CleanupTests(unittest.TestCase):
         cleanup = [call[1] for call in self.sql.calls if call[0] == 'cleanup_set_v1'][0]
         self.assertEqual(['pending'], [proof['state'] for proof in cleanup['cleanup_proofs']])
         self.assertEqual(1, len(worker.journal.records()))
+        self.assertEqual('cancel', worker.launcher.controls[0]['operation']) if hasattr(worker.launcher, 'controls') else None
 
 
 if __name__ == '__main__':

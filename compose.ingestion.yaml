@@ -27,6 +27,8 @@ services:
       - type: volume
         source: import-launcher-journal
         target: /var/lib/kurafolio-launcher
+    entrypoint: ["/usr/local/bin/python", "-m", "kurafolio.ingestion.launcher"]
+    group_add: ["${KURAFOLIO_DOCKER_GID:?docker socket group id required}"]
     command: ["serve", "--config", "/run/config/launcher.json"]
 
   import-worker:
@@ -58,6 +60,7 @@ services:
       - type: volume
         source: import-worker-journal
         target: /var/lib/kurafolio-worker
+    entrypoint: ["/usr/local/bin/python", "-m", "kurafolio.ingestion.worker"]
     command: ["serve", "--config", "/run/config/worker.json"]
 
 networks:

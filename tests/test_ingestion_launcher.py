@@ -84,7 +84,7 @@ class FakeEngine:
         self.created = []
         self.starts = []
         self.killed = []
-        self.removed = []
+        self.removed = set()
         self.found = ()
         self.created_ok = created
         self.image_calls = []
@@ -107,6 +107,8 @@ class FakeEngine:
                    killed=False, started_at='2026-11-24T00:00:00Z')
 
     def inspect(self, engine_id):
+        if engine_id in self.removed:
+            return None
         return {'ExitCode': self.exit_code, 'OOMKilled': self.oom,
                 'StartedAt': '2026-11-24T00:00:00Z'}
 
@@ -114,7 +116,7 @@ class FakeEngine:
         self.killed.append(engine_id)
 
     def remove(self, engine_id):
-        self.removed.append(engine_id)
+        self.removed.add(engine_id)
         return True
 
     def find(self, instance_id, nonce_digest):
@@ -350,6 +352,16 @@ class LauncherTests(unittest.TestCase):
         control['handle'] = status_value['handle']
         status, body = post('worker', '/internal/v1/control', encode(control))
         self.assertEqual((409, {'code': 'import_conflict'}), (status, json.loads(body)))
+
+    def test_ac_08_module_entry_points_call_main(self):
+        from kurafolio.ingestion import launcher as launcher_module
+        from kurafolio.ingestion import worker as worker_module
+        with self.assertRaises(SystemExit) as launcher_exit:
+            launcher_module.main(['--help'])
+        self.assertEqual(0, launcher_exit.exception.code)
+        with self.assertRaises(SystemExit) as worker_exit:
+            worker_module.main(['--help'])
+        self.assertEqual(0, worker_exit.exception.code)
 
     def test_ac_02_child_refuses_unreviewed_frames(self):
         from kurafolio.ingestion.runner_child import run as child_run
