@@ -25,6 +25,7 @@ from unittest import mock
 from kurafolio.ingestion import worker as worker_module
 from kurafolio.ingestion.codec import digest as digest_body, encode, sha256, validate
 from kurafolio.ingestion.worker import ImportWorker
+from kurafolio.ingestion.launcher_engine import ENTRY, DockerEngine
 from kurafolio.ingestion.launcher_journal import LauncherJournal
 from kurafolio.ingestion.worker_journal import WorkerJournal
 from kurafolio.ingestion.worker_sql import WorkerCallError, WorkerSQL
@@ -106,23 +107,19 @@ def _crash_child(conninfo, journal_directory, realm, metadata, context, raw, pro
 
 
 
-class _MappedEngine:
+class _MappedEngine(DockerEngine):
     """DockerEngine with the reviewed fake digest mapped to one real image."""
 
-    def __new__(cls, image_id, reference=None):
-        from kurafolio.ingestion.launcher_engine import DockerEngine
+    def __init__(self, image_id, reference):
+        super().__init__()
+        self.image_id = image_id
+        self.real_reference = reference
 
-        class Engine(DockerEngine):
-            def image(self, value):
-                return image_id
+    def image(self, value):
+        return self.image_id
 
-            def create(self, *, reference, labels, entry):
-                from kurafolio.ingestion.launcher_engine import DockerEngine as Base
-                return Base.create(self, reference=self.real_reference, labels=labels, entry=entry)
-
-        engine = Engine()
-        engine.real_reference = reference
-        return engine
+    def create(self, *, reference, labels, entry=ENTRY):
+        return super().create(reference=self.real_reference, labels=labels, entry=entry)
 
 def _paused_worker_child(conninfo, marker, results, claim, admit, finish, token, minimal):
     from kurafolio.persistence.config import PostgresConfig
@@ -905,7 +902,6 @@ class WorkerPostgresTests(pg.IngestionAppendOnlyPostgresTests):
         import subprocess
         from types import SimpleNamespace
         from kurafolio.ingestion.launcher import Launcher
-        from kurafolio.ingestion.launcher_engine import DockerEngine
 
         digest = subprocess.check_output(
             ['docker', 'image', 'inspect', '--format', '{{index .RepoDigests 0}}', self.IMAGE],
@@ -997,12 +993,11 @@ class WorkerPostgresTests(pg.IngestionAppendOnlyPostgresTests):
         import subprocess
         from types import SimpleNamespace
         from kurafolio.ingestion.launcher import Launcher
-        from kurafolio.ingestion.launcher_engine import ENTRY, DockerEngine
 
         digest = subprocess.check_output(
             ['docker', 'image', 'inspect', '--format', '{{index .RepoDigests 0}}', self.IMAGE],
             text=True).strip()
-        repository, _, image_digest = digest.partition('@sha256:')
+        repository, _, _ = digest.partition('@sha256:')
         database, name = self.fresh_database()
         plan, pin, catalog, raw, context_bytes, member_id = self.seed(name)
         context = json.loads(context_bytes)
@@ -1031,7 +1026,7 @@ class WorkerPostgresTests(pg.IngestionAppendOnlyPostgresTests):
                                      journal_directory=journal,
                                      image_repository=repository, profiles_file=profiles,
                                      bind_address='127.0.0.1', bind_port=0, server_tls=None)
-            launcher = Launcher(config, TestEngine(digest))
+            launcher = Launcher(config, _MappedEngine(context['image_digest'], digest))
             launcher.entry = ('/bin/sh', '-c', 'sleep 20')
             self.addCleanup(launcher.stop)
             deadline = _instant(datetime.now(UTC) + timedelta(seconds=40))
