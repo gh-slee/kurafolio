@@ -2,7 +2,7 @@
 id: IMP-007R
 title: Sweep a lapsed normalize attempt into reupload_required
 priority: P0
-status: ready
+status: in_progress
 type: feature
 parent: IMP-007
 depends_on: []
@@ -13,11 +13,11 @@ agent_tier: frontier
 gate: owner
 gate_approval: "owner 2026-11-23, Gate A on the amended text (hash 5eebf8c6…): Approve Gate A"
 review: independent
-branch: 
+branch: ticket/imp-007r-sweep-a-lapsed-normalize-attempt-into-re
 pr: 
 spec: docs/specs/imp-007-r7/spec.md
 spec_approved: sha256:5eebf8c637dd7d798e6d72bda1280f64e4cab3507c733fa4ae3fcc441bedc724
-updated: 2026-11-23
+updated: 2026-11-24
 ---
 
 # IMP-007R: Sweep a lapsed normalize attempt into reupload_required
@@ -395,11 +395,11 @@ Only the owner answers. The planner recommends an option for each.
 
 ## Handoff
 
-- State: Filed on 2026-11-20; backlog. Decisions 1 to 3 were resolved on 2026-11-21; waiting for Gate A and a Build plan. Builds before, after or between IMP-007O, IMP-007Q, IMP-007T and IMP-007W, one at a time on the `ingestion-schema-sql` lock.
-- Next step: The owner gives Gate A; the planner then writes the Build plan from the merged SQL.
+- State: Claimed by codex/gpt-6.1-sol on 2026-11-24; approved spec and merged Build plan verified. Baseline SQL hashes match the plan.
+- Next step: Run the existing PostgreSQL baseline, then implement the prescribed insertions and acceptance tests.
 - Verify: `KURAFOLIO_INGESTION_TEST=1 PYTHONPATH=src .venv/bin/python -m unittest tests.test_postgres_migration -v`
-- Gotchas: Never release a slot without proof that the attempt has no live child or raw buffer. A lapsed lease can expire before its raw deadline; the sweep waits for both. A refusal raised as an exception inside `claim_plan_v1` must not roll back the sweep.
-- Open questions: Gate A (Decisions needed item 4).
+- Gotchas: Sweep changes must survive refusal answers. Keep raw slots held without proof. Use only isolated synthetic PostgreSQL resources.
+- Open questions: None. Independent QA and Architect review have not run; this Codex builder cannot start the required Claude reviewer.
 
 ## Log
 
@@ -410,3 +410,5 @@ Only the owner answers. The planner recommends an option for each.
 - 2026-11-23 claude-code/opus-5.5: recorded the owner's choice on Decisions needed item 5 in plan pull request https://github.com/gh-slee/kurafolio/pull/112. Asked "For item 5, should the spec wording be amended with a new Gate A (a)?", with (a) described as "Amend the text and give a new Gate A. The exact replacement wording is in the ticket.", the owner replied "Yes, amend (a)". Gated change: the last sentence of the Requirements bullet on DTOs and inventory now says the frozen r7 inventory, `oracle.json` and both expected structure digests stay as they are because neither covers function bodies, and AC-07 says the same and passes against a real `0004` install. Spec hash sha256:8b2ab2f1293f7e513e1415f7c6531ae33fe4d3503a03a8aa3018a748e7af2952 becomes sha256:5eebf8c637dd7d798e6d72bda1280f64e4cab3507c733fa4ae3fcc441bedc724. Gate A on the amended text not recorded: the owner chose to amend but has not approved this exact text and hash. `gate_approval` and `spec_approved` unchanged; item 6 still open.
 - 2026-11-23 claude-code/opus-5.5: recorded Gate A on the amended text in plan pull request https://github.com/gh-slee/kurafolio/pull/112. Asked "Do you give Gate A on IMP-007R at this hash, or do you want the wording changed first?" after being shown the amended Requirements sentence, the amended AC-IMP-007R-07 and sha256:5eebf8c637dd7d798e6d72bda1280f64e4cab3507c733fa4ae3fcc441bedc724, the owner replied "Approve Gate A". `tickets.py spec` computed exactly that hash before recording. `gate_approval` set to "owner 2026-11-23, Gate A on the amended text (hash 5eebf8c6…): Approve Gate A"; `spec_approved` set to sha256:5eebf8c637dd7d798e6d72bda1280f64e4cab3507c733fa4ae3fcc441bedc724; status stays ready. Decisions needed item 6 (the `0004` confirmation) is still open and blocks the build.
 - 2026-11-23 claude-code/opus-5.5: recorded the owner's answer to Decisions needed item 6 in plan pull request https://github.com/gh-slee/kurafolio/pull/112. Asked "Has any database outside disposable tests run `operator migrate-ingestion` at `0004`, or been backed up with `backup-ingestion`: no, none has, or yes, one has?", the owner replied "No, none has". The in-place `0004` change goes ahead; the builder cites this line as the AC-08 evidence. Updated Build plan step "Before you claim" 1 to match. Gated sections and Gate A fields unchanged (sha256:5eebf8c637dd7d798e6d72bda1280f64e4cab3507c733fa4ae3fcc441bedc724). No owner items remain open.
+
+- 2026-11-24 codex/gpt-6.1-sol: claimed the approved build from origin/main at f146fc9; spec hash 5eebf8c637dd7d798e6d72bda1280f64e4cab3507c733fa4ae3fcc441bedc724 matches. Decisions 5 and 6 are resolved. AC-08 owner evidence: Decisions item 6 records the owner's 2026-11-23 answer, "No, none has", for databases and backups outside disposable tests. No push or PR publication authorized.
