@@ -2,7 +2,7 @@
 id: IMP-007M
 title: Decide how a re-upload gets back a raw slot that finish could not prove
 priority: P0
-status: ready
+status: done
 type: decision
 parent: IMP-007
 depends_on: [IMP-007C]
@@ -13,11 +13,11 @@ agent_tier: frontier
 gate: owner
 gate_approval: "owner 2026-11-12, release to write the options and a recommendation; the decision itself stays with the owner"
 review: independent
-branch: 
-pr: 
+branch: ticket/imp-007m-decide-how-a-re-upload-gets-back-a-raw-s
+pr: https://github.com/gh-slee/kurafolio/pull/97
 spec: docs/specs/imp-007-r7/spec.md
 spec_approved: sha256:cf968d22fe6dcdfadf0a39af3744c41c18ba150851cc4b05611ef5f8f1fe2aaa
-updated: 2026-11-20
+updated: 2026-11-21
 ---
 
 # IMP-007M: Decide how a re-upload gets back a raw slot that finish could not prove
@@ -56,8 +56,8 @@ When `finish_member_v1` ends an attempt with `reupload_required` but its launche
 
 ## Acceptance criteria
 
-- [ ] AC-IMP-007M-01: The owner records a decision on whether and how a held slot of a fenced attempt in a live set is released.
-- [ ] AC-IMP-007M-02: If a change is chosen, a follow-up implementation ticket names the function, its fencing and its PostgreSQL tests.
+- [x] AC-IMP-007M-01: The owner records a decision on whether and how a held slot of a fenced attempt in a live set is released.
+- [x] AC-IMP-007M-02: If a change is chosen, a follow-up implementation ticket names the function, its fencing and its PostgreSQL tests.
 
 
 ## Build plan
@@ -119,7 +119,7 @@ Revert the closeout commit; the ticket goes back to `ready`. Nothing outside `ti
 
 - [x] Write the options (for example: a normalize-scoped cleanup call on the finished attempt; a reserve that accepts proofs for the previous fence; keep the current terminal-only release) with a recommendation. Done in the planning pull request: Decisions needed 1 to 3.
 - [x] Ask the owner and record the answer (AC-01). The owner answered on 2026-11-20; plan PR #85 recorded the answers under Decisions needed and in the Log.
-- [ ] If a change is chosen, file the follow-up ticket (AC-02); run the checks, start the independent review and open the pull request. IMP-007Q was filed in plan PR #85; the build ticks AC-01 and AC-02, runs the checks, starts the independent review and opens the closeout pull request.
+- [x] If a change is chosen, file the follow-up ticket (AC-02); run the checks, start the independent review and open the pull request. IMP-007Q was filed in plan PR #85; AC-01 and AC-02 are ticked, the checks passed, PR #97 is open and Claude Opus 5.5 ran the independent QA and architecture review. Its three metadata findings were addressed in repair round 1, which Claude Opus 5.5 approved on `e0a6129` in the 2026-11-22 re-review.
 
 ## Decisions needed
 
@@ -142,11 +142,13 @@ All three decisions were answered by the owner on 2026-11-20. Nothing is open. T
 
 ## Handoff
 
-- State: Decided. The owner answered decisions 1 to 3 on 2026-11-20 ("B with F"; `stage_admitted` covered; resource dropped). Plan PR #85 records the answers, drops `ingestion-schema-sql` and files IMP-007Q (option B). Option F is IMP-007F PR 1 (plan PR #86). AC-01 and AC-02 are not ticked yet; that is the build.
-- Next step: After PR #85 merges, a builder runs the closeout in the Build plan: check the record and IMP-007Q on `main`, tick AC-01 and AC-02, set `done` and open the ticket-only pull request with the independent review.
-- Verify: `python3 scripts/tickets.py spec IMP-007M` (MATCHES), `python3 scripts/tickets.py check`, `git show origin/main:tickets/IMP-007Q.md`.
-- Gotchas: Never release a slot without proof that the attempt has no live child or raw buffer. The closeout touches only this file; the SQL and worker work belongs to IMP-007Q and IMP-007F.
-- Open questions: None for this ticket. IMP-007Q has its own Decisions needed and Gate A.
+- State: PR #97 is open and awaiting the owner's review. Repair round 1 is confirmed: Claude Opus 5.5 approved `e0a6129` against base `b3a5f1c`, with all three findings fixed and both ACs passing. That head also passed its PR and push CI. This record preserves the approval; the record commit remains subject to normal publication and exact-head CI gates.
+- Acceptance evidence: AC-01 is covered by Decisions needed 1 to 3 and the 2026-11-20 Log entries: B with F, `stage_admitted` included and the resource removed. AC-02 is covered by IMP-007Q on `origin/main` at `1274b54`: AC-IMP-007Q-01 names `release_member_slot_v1`, AC-IMP-007Q-05 its fencing and AC-IMP-007Q-11 its opt-in PostgreSQL tests. IMP-007F stage 1 normalize step 6 and resolved D8 retain option F. These records describe the decided follow-up work; this closeout adds no slot-release behaviour.
+- Next step: The owner reviews PR #97 and decides whether to merge after the review record has passed its normal publication and CI gates. No further repair or independent re-review was requested. Retain the claim until merge and all checks and questions are resolved, then release it and stop.
+- Verify: `python3 scripts/tickets.py check`, `python3 scripts/tickets.py pr-check --branch ticket/imp-007m-decide-how-a-re-upload-gets-back-a-raw-s`, `python3 scripts/tickets.py spec IMP-007M --base origin/main`, `python3 scripts/check_language.py`, `python3 scripts/check_publication.py --worktree` and `python3 scripts/check_pr_image.py` from the clean committed branch.
+- Review: APPROVE by `claude-code/opus-5.5` (Claude Opus 5.5, high), QA and Architect, on `e0a6129`; [repair round 1 re-review](https://github.com/gh-slee/kurafolio/pull/97#issuecomment-7082064298). All three findings from the first review are fixed, both ACs still pass and no new problem was found. This approval covers `e0a6129`, not the subsequent record commit. The reviewer checked agreement between ticket records, not the exact owner conversations, and did not run PostgreSQL acceptance or code tests.
+- Gotchas: Never release a slot without proof that the attempt has no live child or raw buffer. This closeout changes only this file and leaves the approved gated text unchanged. Option B and the worker's release call belong to IMP-007Q; option F belongs to IMP-007F. No SQL, worker, docs or runtime changes here. `status: done` follows the ticket PR workflow. The approval and green CI above apply to `e0a6129`; the record commit needs its own CI, and only the owner merges.
+- Open questions: No product decision is open for this ticket.
 
 ## Log
 
@@ -159,3 +161,11 @@ All three decisions were answered by the owner on 2026-11-20. Nothing is open. T
 - 2026-11-20 claude-code/opus-5.5: where B and F are built. The owner was asked "IMP-007F: D3 ship compose.ingestion.yaml (launcher + worker only) that OPS-021 later includes; D5 change Requirements ... a new Gate A you'd be approving here; D6 prepare and cleanup fit in one lease with no renewal for the MVP; D8 the F wait-for-proof goes in IMP-007F now, and calling B's new release function goes in B's follow-up ticket. Accept all four?" and chose "Accept all (Recommended)". Option F is IMP-007F PR 1 (plan PR #86); option B, including the worker's call, is IMP-007Q. Plan PR #85.
 - 2026-11-20 claude-code/opus-5.5: decisions 2 and 3 answered, and the owner's confirmation of the `resources` change. The owner was asked "IMP-007M #2 the new release also covers a slot held after a stage_admitted finish; #3 drop IMP-007M's resources: [ingestion-schema-sql] so it isn't stuck behind IMP-007N's lock (your edit or confirmation). APP-011E #2 preferences routes return 404 and are absent from OpenAPI on identity/sources instances. Accept all three?" and chose "Accept all (Recommended)". Decision 2 is yes; decision 3 is drop. On that confirmation `resources` changes from `[ingestion-schema-sql]` to `[]`. Plan PR #85.
 - 2026-11-20 claude-code/opus-5.5: filed IMP-007Q (option B: worker-fenced late-proof release of a held raw slot, covering `reupload_required` and `stage_admitted` finishes, plus the worker's call) in plan PR #85, as `backlog` with no Gate A. Rewrote this ticket's Build plan as a ticket-only closeout that checks the record and IMP-007Q on `main` and ticks AC-01 and AC-02; updated Context, Plan, Decisions needed and Handoff. No gated section changed; `spec IMP-007M` still matches sha256:cf968d22fe6dcdfadf0a39af3744c41c18ba150851cc4b05611ef5f8f1fe2aaa.
+- 2026-11-21 codex/gpt-6.1-sol: claimed the ticket-only closeout from `origin/main` at `1274b54`; the Build plan is merged, `resources: []` is unchanged and the approved spec matches. Verified the three recorded owner decisions, IMP-007Q AC-01/05/11 and IMP-007F stage 1 normalize step 6 with D8 resolved. No product implementation is included.
+- 2026-11-21 codex/gpt-6.1-sol: verified AC-IMP-007M-01 against Decisions needed 1 to 3 and the 2026-11-20 decision Log entries on `origin/main` at `1274b54`; verified AC-IMP-007M-02 against IMP-007Q AC-01/05/11 on that same base. Both criteria are ticked without changing the approved spec text. IMP-007F stage 1 normalize step 6 and D8 retain option F. The final Plan box remains open because no PR or independent review exists yet.
+- 2026-11-21 codex/gpt-6.1-sol: local closeout checks passed: `tickets.py check` (139 tickets, 0 errors), `tickets.py spec IMP-007M --base origin/main` (MATCHES; gated sections unchanged), `check_language.py` (532 files, no violations) and `check_publication.py --worktree` (686 files, no violations). No code tests are required by this ticket-only Build plan. Independent QA and architecture review: NOT RUN, because Codex cannot start the configured Claude Opus 5.5 reviewer; run `review IMP-007M` in Claude Code after the PR opens. Publication, the actual PR URL, final status and outcome line remain pending.
+- 2026-11-21 codex/gpt-6.1-sol: PR #97 opened at `6c692dd` with the validated description. Prepared the final ticket metadata locally: `status: done`, the actual PR URL and this outcome record. The final Plan box stays open because the configured independent review is NOT RUN. CI and owner merge remain pending; no application behaviour changed.
+- 2026-11-22 codex/gpt-6.1-sol: outcome: implementing model `codex/gpt-6.1-sol`; reviewing model `claude-code/opus-5.5`, independent QA and architecture re-review APPROVE on `e0a6129`; review repair rounds: 1; spec and Build plan: nothing missing. AC-01/02 pass and all three findings are fixed. This commit records that approval and is subject to its own publication and CI gates; the owner reviews and merges PR #97.
+- 2026-11-21 codex/gpt-6.1-sol: recorded the [independent reviewer findings](https://github.com/gh-slee/kurafolio/pull/97#issuecomment-7074263111) from `claude-code/opus-5.5` (Claude Opus 5.5, high), QA and Architect, on base `1274b54` and head `b9df7ed`. Verdict CHANGES NEEDED: both ACs pass; update the stale Handoff, tick the final Plan box and replace the current review NOT RUN markers and repair count. The reviewer checked consistency among the ticket records, not the exact owner conversations, and did not run PostgreSQL acceptance or code tests.
+- 2026-11-21 codex/gpt-6.1-sol: repair round 1 addresses all three findings in this ticket: refreshed the Handoff with the pushed and reviewed head and its green CI, ticked the completed Plan step, updated the current review and outcome records, and prepared a matching complete PR description. The historical checkpoint Log entries remain as history. No gated text, Build plan, Context, other ticket or product file changed. The repair requires publication, its own CI and independent confirmation; no passing re-review is claimed.
+- 2026-11-22 codex/gpt-6.1-sol: recorded the [independent re-review](https://github.com/gh-slee/kurafolio/pull/97#issuecomment-7082064298) by `claude-code/opus-5.5` (Claude Opus 5.5, high), QA and Architect, on base `b3a5f1c` and head `e0a6129`. Verdict APPROVE: all three findings fixed, no new problems, AC-IMP-007M-01 and AC-IMP-007M-02 still pass. Updated the current Handoff, Plan confirmation wording and outcome to reflect the approved repair; repair rounds remain 1. The reviewer requested this evidence record and CI on its commit, not another repair round or mandatory re-review. The approval does not cover this later record commit. Exact owner conversations, PostgreSQL acceptance and code tests were outside the review.

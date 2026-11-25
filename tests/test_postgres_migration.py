@@ -1,6 +1,8 @@
 """Fixed ingestion storage structure; this is not full migration acceptance."""
-import json
+import base64
 import hashlib
+import importlib.util
+import json
 import os
 import secrets
 import subprocess
@@ -15,8 +17,42 @@ from kurafolio.persistence import ingestion_schema as schema
 
 ORACLE = json.loads((Path(__file__).parent / 'fixtures/ingestion/oracle.json').read_text())
 
+# IMP-007O: the one insertion into the bind RETURN of reserve_member_v1.
+IMP_007O_ADDED = ("\n  'context_unpadded_base64',pg_catalog.translate(pg_catalog.encode("
+                  "mem.context_bytes,'base64'),pg_catalog.chr(10)||'=',''),")
+# SHA-256 of RESERVE_DDL before IMP-007O. A later ticket that changes another part
+# of reserve_member_v1 replaces this pin with its own pre-change hash or retires the
+# IMP-007O comparison tests; its plan decides which.
+PRE_IMP_007O_RESERVE_SHA256 = 'a697e3798ee898150bf1291773cb154b63680705b7ea845aef48f7217ada2e47'
+# Result keys recorded from the pre-change body (AC-IMP-007O-02).
+BIND_KEYS = frozenset({'version', 'job_id', 'set_id', 'member_id', 'fence', 'raw_sha256', 'raw_bytes',
+                       'context_sha256', 'context_bytes', 'realm_digest', 'expires_at', 'raw_deadline'})
+RESERVE_KEYS = frozenset({'action', 'set_id', 'member_id', 'lease_id', 'fence', 'raw_deadline',
+                          'offer_expires_at'})
+
 
 class IngestionStorageDDLTests(unittest.TestCase):
+    def test_bind_returns_the_context_bytes_under_one_private_key(self):
+        """AC-IMP-007O-01; AC-IMP-007O-02; AC-IMP-007O-03; AC-IMP-007O-04."""
+        from kurafolio.ingestion import contracts
+        ddl = schema.RESERVE_DDL
+        for text in (IMP_007O_ADDED, "'context_unpadded_base64'", "'base64'",
+                     'pg_catalog.encode(mem.context_bytes'):
+            self.assertEqual(1, ddl.count(text))
+        position = ddl.index(IMP_007O_ADDED)
+        self.assertGreater(position, ddl.index('-- Handoff metadata for the trusted API only'))
+        self.assertGreater(position, ddl.index("'offer_expires_at',"))
+        self.assertLess(position, ddl.index("EXCEPTION WHEN SQLSTATE '22023'"))
+        self.assertEqual(PRE_IMP_007O_RESERVE_SHA256,
+                         hashlib.sha256(ddl.replace(IMP_007O_ADDED, '', 1).encode()).hexdigest())
+        frozen = json.loads((Path(__file__).resolve().parents[1] /
+                             'docs/specs/imp-007-r7/wire-contracts.json').read_text())['$defs']
+        for definitions in ({key: json.loads(value) for key, value in contracts._WIRE.items()}, frozen):
+            for definition in definitions.values():
+                self.assertNotIn('context_unpadded_base64', definition.get('properties', {}))
+            self.assertEqual(BIND_KEYS | {'handoff_token'}, set(definitions['Handoff']['properties']))
+        self.assertIsNone(re.search(r'RAISE\s+(NOTICE|LOG|WARNING|INFO|DEBUG)', ddl))
+
     def test_inventory_is_the_exact_closed_contract_and_copy_isolated(self):
         expected = ORACLE['sql-inventory']
         self.assertEqual(expected, schema.inventory())
@@ -274,6 +310,354 @@ class IngestionStorageDDLTests(unittest.TestCase):
         self.assertIn("pg_catalog.jsonb_array_length(p_request->'cleanup_proofs')>12", schema.CLEANUP_SET_DDL)
         self.assertIn("q.value->'job_id' IS DISTINCT FROM p_request->'job_id'", schema.FINISH_DDL)
         self.assertNotIn("q.value->'job_id' IS DISTINCT FROM p_request->'job_id'", schema.CLEANUP_SET_DDL)
+
+
+@unittest.skipUnless(os.environ.get('KURAFOLIO_INGESTION_TEST') == '1',
+                     'Opt-in isolated ingestion PostgreSQL runtime inventory acceptance')
+class IngestionRuntimeInventoryPostgresTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        import sys
+        import psycopg
+        from psycopg import sql
+        from psycopg.conninfo import conninfo_to_dict
+        from kurafolio.data_sources.contract_v1 import CatalogSnapshot
+        from kurafolio.persistence.config import PostgresConfig
+        from kurafolio.persistence.context import Database, execute
+        from kurafolio.persistence.ingestion_migration import migrate_ingestion
+        from kurafolio.persistence.source_migration import migrate_sources
+
+        cls.directory = tempfile.TemporaryDirectory(prefix='wl-imp-007w-runtime-')
+        cls.path = Path(cls.directory.name) / 'fixture'
+        cls.script = Path(__file__).resolve().parents[1] / 'scripts/postgres.py'
+        cls.databases = []
+        cls.addClassCleanup(cls._cleanup)
+        subprocess.run([sys.executable, str(cls.script), 'test-identity-environment',
+                        '--output', str(cls.path)], check=True, capture_output=True, timeout=120)
+        fixture = json.loads((cls.path / 'test-config.json').read_text())
+        cls.roles = (fixture['runtime_role'], fixture['identity_role'], 'synthetic_ingestion_worker')
+        options = conninfo_to_dict(PostgresConfig.from_secret_file(cls.path / 'migration.conninfo').conninfo)
+        cls.admin = dict(options, user='postgres', password=(cls.path / 'bootstrap.secret').read_text())
+        with psycopg.connect(**cls.admin, autocommit=True) as conn:
+            conn.execute(sql.SQL('CREATE ROLE {} LOGIN').format(sql.Identifier(cls.roles[2])))
+        for name in ('migration', 'runtime', 'identity'):
+            cls.databases.append(Database(PostgresConfig.from_secret_file(cls.path / (name + '.conninfo')),
+                                          schema_mode='sources'))
+        cls.operator, cls.runtime, cls.gateway = cls.databases
+        cls.arguments = dict(zip(('runtime_role', 'gateway_role', 'worker_role'), cls.roles))
+        key = hashlib.sha256((cls.path / 'identity.key').read_bytes()).hexdigest()
+        catalog = CatalogSnapshot(1, '0', (), (), ())
+        migrate_sources(cls.operator, *cls.roles[:2], key, catalog)
+        with cls.operator.engine.begin() as conn:
+            tenant, portfolio = uuid.uuid4(), uuid.uuid4()
+            execute(conn, 'INSERT INTO wl_pg.tenant_roots(tenant_id,portfolio_id) VALUES(:t,:p)',
+                    t=tenant, p=portfolio)
+            execute(conn, 'INSERT INTO wl_pg.portfolios(tenant_id,portfolio_id) VALUES(:t,:p)',
+                    t=tenant, p=portfolio)
+            execute(conn, """
+                INSERT INTO wl_identity.users(id,portfolio_id,username,username_key,argon_hash,
+                                             credential_incarnation,credential_epoch,created_at)
+                SELECT :t,:p,'SyntheticOperator','syntheticoperator','synthetic-unused',
+                       incarnation,restore_epoch,clock_timestamp() FROM wl_pg.instance_state WHERE id=1
+            """, t=tenant, p=portfolio)
+            execute(conn, 'UPDATE wl_identity.instance_auth_state SET bootstrap_closed=true,admin_user_id=:t WHERE id=1',
+                    t=tenant)
+        migrate_ingestion(cls.operator, *cls.roles, key, catalog)
+
+    @classmethod
+    def _cleanup(cls):
+        import sys
+        for database in cls.databases:
+            database.close()
+        config = cls.path / 'test-config.json'
+        if config.exists():
+            subprocess.run([sys.executable, str(cls.script), 'cleanup-test-environment',
+                            '--config', str(config)], check=True, capture_output=True, timeout=45)
+        cls.directory.cleanup()
+
+    def _check(self, database=None, **arguments):
+        from kurafolio.persistence.ingestion_migration import verify_runtime_inventory
+        with (database or self.runtime).engine.begin() as conn:
+            return verify_runtime_inventory(conn, **{**self.arguments, **arguments})
+
+    def _assert_clean(self):
+        self.assertEqual({'schema_revision': '0004_ingestion', 'functions': 68}, self._check())
+
+    def test_imp_007o_installed_bind_body_with_unchanged_digests(self):
+        """AC-IMP-007O-03: old function bodies fail both live inventory checks."""
+        from kurafolio.persistence.context import execute
+        from kurafolio.persistence.errors import PersistenceError
+        from kurafolio.persistence.ingestion_migration import verify_inventory
+        self._assert_clean()
+        with self.operator.engine.begin() as conn:
+            self.assertEqual({'schema_revision': '0004_ingestion', 'functions': 68},
+                             verify_inventory(conn, **self.arguments))
+            body = execute(conn, "SELECT p.prosrc FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n "
+                           "ON n.oid=p.pronamespace WHERE n.nspname='wl_ingestion' "
+                           "AND p.proname='reserve_member_v1'").scalar_one()
+        self.assertEqual(1, body.count("'context_unpadded_base64'"))
+        old = schema.RESERVE_DDL.replace(IMP_007O_ADDED, '', 1)
+        self.assertEqual(PRE_IMP_007O_RESERVE_SHA256, hashlib.sha256(old.encode()).hexdigest())
+        replace = lambda ddl: ddl.replace('CREATE FUNCTION ', 'CREATE OR REPLACE FUNCTION ', 1)
+        try:
+            with self.operator.engine.begin() as conn:
+                conn.exec_driver_sql(replace(old), execution_options={'no_parameters': True})
+            with self.assertRaisesRegex(PersistenceError, '^migration_target_invalid$'):
+                self._check()
+            with self.operator.engine.begin() as conn:
+                with self.assertRaisesRegex(PersistenceError, '^migration_target_invalid$'):
+                    verify_inventory(conn, **self.arguments)
+        finally:
+            with self.operator.engine.begin() as conn:
+                conn.exec_driver_sql(replace(schema.RESERVE_DDL), execution_options={'no_parameters': True})
+            self._assert_clean()
+            with self.operator.engine.begin() as conn:
+                self.assertEqual({'schema_revision': '0004_ingestion', 'functions': 68},
+                                 verify_inventory(conn, **self.arguments))
+
+    def test_ac_01_02_equal_inventory_and_unchanged_privileges(self):
+        """AC-IMP-007W-01; AC-IMP-007W-02: same catalog, no rights changed."""
+        from kurafolio.persistence.context import execute
+        from kurafolio.persistence.ingestion_migration import verify_inventory
+
+        def snapshot():
+            with self.operator.engine.begin() as conn:
+                acls = execute(conn, """
+                    WITH namespaces AS (
+                        SELECT * FROM pg_catalog.pg_namespace
+                        WHERE nspname IN ('wl_pg','wl_identity','wl_sources','wl_ingestion')
+                    ), rights AS (
+                        SELECT n.nspname,'schema' AS kind,n.nspname AS object_name,0 AS column_number,a.*
+                        FROM namespaces n CROSS JOIN LATERAL pg_catalog.aclexplode(
+                            coalesce(n.nspacl,pg_catalog.acldefault('n',n.nspowner))) a
+                        UNION ALL
+                        SELECT n.nspname,'table',c.relname,0,a.*
+                        FROM namespaces n JOIN pg_catalog.pg_class c ON c.relnamespace=n.oid
+                        CROSS JOIN LATERAL pg_catalog.aclexplode(
+                            coalesce(c.relacl,pg_catalog.acldefault('r',c.relowner))) a WHERE c.relkind='r'
+                        UNION ALL
+                        SELECT n.nspname,'column',c.relname,b.attnum,a.*
+                        FROM namespaces n JOIN pg_catalog.pg_class c ON c.relnamespace=n.oid
+                        JOIN pg_catalog.pg_attribute b ON b.attrelid=c.oid AND b.attnum>0
+                        CROSS JOIN LATERAL pg_catalog.aclexplode(b.attacl) a
+                        UNION ALL
+                        SELECT n.nspname,'function',p.proname,0,a.*
+                        FROM namespaces n JOIN pg_catalog.pg_proc p ON p.pronamespace=n.oid
+                        CROSS JOIN LATERAL pg_catalog.aclexplode(
+                            coalesce(p.proacl,pg_catalog.acldefault('f',p.proowner))) a
+                    ) SELECT * FROM rights ORDER BY 1,2,3,4,5,6,7,8
+                """).all()
+                privileges = []
+                for role in self.roles:
+                    privileges.append(execute(conn, """
+                        SELECT pg_catalog.has_database_privilege(:role,current_database(),'CREATE,TEMPORARY')
+                    """, role=role).scalar_one())
+                    privileges.extend(execute(conn, """
+                        SELECT pg_catalog.has_schema_privilege(:role,n.oid,'CREATE')
+                        FROM pg_catalog.pg_namespace n ORDER BY n.nspname
+                    """, role=role).scalars().all())
+                role_names = dict(zip(('runtime', 'gateway', 'worker'), self.roles))
+                attributes = execute(conn, """
+                    SELECT rolname,rolsuper,rolinherit,rolcreaterole,rolcreatedb,rolcanlogin,
+                           rolreplication,rolbypassrls,rolconnlimit,rolvaliduntil,rolconfig
+                    FROM pg_catalog.pg_roles
+                    WHERE rolname IN (:runtime,:gateway,:worker) ORDER BY rolname
+                """, **role_names).all()
+                memberships = execute(conn, """
+                    WITH roles AS (
+                        SELECT oid FROM pg_catalog.pg_roles
+                        WHERE rolname IN (:runtime,:gateway,:worker)
+                    )
+                    SELECT m.* FROM pg_catalog.pg_auth_members m
+                    WHERE m.member IN (SELECT oid FROM roles) OR m.roleid IN (SELECT oid FROM roles)
+                    ORDER BY m.roleid,m.member,m.grantor
+                """, **role_names).all()
+                return acls, privileges, attributes, memberships
+
+        before = snapshot()
+        self.assertTrue(before[0])
+        self.assertFalse(any(before[1]))
+        self.assertEqual(3, len(before[2]))
+        self.assertEqual([], before[3])
+        with self.operator.engine.begin() as conn:
+            operator = verify_inventory(conn, **self.arguments)
+        self.assertEqual({'schema_revision': '0004_ingestion', 'functions': 68}, operator)
+        self.assertEqual(operator, self._check())
+        self.assertEqual(before, snapshot())
+
+    def test_ac_03_operator_check_still_requires_create(self):
+        """AC-IMP-007W-03: the runtime login cannot use the operator entry point."""
+        from kurafolio.persistence.errors import PersistenceError
+        from kurafolio.persistence.ingestion_migration import verify_inventory
+        with self.runtime.engine.begin() as conn:
+            with self.assertRaises(PersistenceError) as caught:
+                verify_inventory(conn, **self.arguments)
+        self.assertEqual('migration_role_required', str(caught.exception))
+
+    def test_ac_04_committed_catalog_drift_and_recovery(self):
+        """AC-IMP-007W-04: reject each committed drift and pass after its reversal."""
+        import psycopg
+        from psycopg import sql
+        from kurafolio.persistence.context import execute
+        from kurafolio.persistence.errors import PersistenceError
+        runtime, gateway, worker = self.roles
+        cases = [
+            ('public_execute', 'GRANT EXECUTE ON FUNCTION wl_ingestion._validate_minimal_v1(bytea) TO PUBLIC',
+             'REVOKE EXECUTE ON FUNCTION wl_ingestion._validate_minimal_v1(bytea) FROM PUBLIC', 'migration_target_invalid'),
+            ('search_path', 'ALTER FUNCTION wl_ingestion.read_plan_basis_v1(uuid,text,jsonb,bytea) RESET search_path',
+             'ALTER FUNCTION wl_ingestion.read_plan_basis_v1(uuid,text,jsonb,bytea) SET search_path=pg_catalog,pg_temp',
+             'migration_target_invalid'),
+            ('gateway_select', f'GRANT SELECT ON wl_pg.alembic_version TO "{gateway}"',
+             f'REVOKE SELECT ON wl_pg.alembic_version FROM "{gateway}"', 'migration_target_invalid'),
+            ('runtime_create', f'GRANT CREATE ON SCHEMA public TO "{runtime}"',
+             f'REVOKE CREATE ON SCHEMA public FROM "{runtime}"', 'migration_target_invalid'),
+            ('revision', "UPDATE wl_pg.alembic_version SET version_num='0003_source_lifecycle'",
+             "UPDATE wl_pg.alembic_version SET version_num='0004_ingestion'", 'schema_unsupported'),
+        ]
+        for name, change, revert, expected in cases:
+            with self.subTest(drift=name):
+                try:
+                    with self.operator.engine.begin() as conn:
+                        execute(conn, change)
+                    with self.assertRaises(PersistenceError) as caught:
+                        self._check()
+                    self.assertEqual(expected, str(caught.exception))
+                finally:
+                    with self.operator.engine.begin() as conn:
+                        execute(conn, revert)
+                self._assert_clean()
+        try:
+            with psycopg.connect(**self.admin, autocommit=True) as conn:
+                conn.execute(sql.SQL('GRANT {} TO {}').format(sql.Identifier(worker), sql.Identifier(runtime)))
+            with self.assertRaises(PersistenceError) as caught:
+                self._check()
+            self.assertEqual('migration_role_required', str(caught.exception))
+        finally:
+            with psycopg.connect(**self.admin, autocommit=True) as conn:
+                conn.execute(sql.SQL('REVOKE {} FROM {}').format(sql.Identifier(worker), sql.Identifier(runtime)))
+        self._assert_clean()
+
+    def test_ac_05_wrong_callers_are_sanitized(self):
+        """AC-IMP-007W-05: gateway/operator logins and a mismatched runtime name refuse."""
+        from kurafolio.persistence.errors import PersistenceError
+        for database, arguments in ((self.gateway, {}), (self.operator, {}),
+                                    (self.runtime, {'runtime_role': self.roles[1]})):
+            with self.subTest(database=database.schema_mode, wrong_name=bool(arguments)):
+                with self.assertRaises(PersistenceError) as caught:
+                    self._check(database, **arguments)
+                self.assertEqual('migration_role_required', str(caught.exception))
+                self.assertIsNone(caught.exception.__cause__)
+
+    def test_ac_07_existing_role_inventory_profile_boundary(self):
+        """AC-IMP-007W-07: sources gateway passes; its legacy runtime check refuses 0004."""
+        from types import SimpleNamespace
+        from kurafolio.persistence.identity import IdentityError, role_inventory
+        with self.gateway.engine.begin() as conn:
+            self.assertEqual(self.roles[1], role_inventory(SimpleNamespace(schema_mode='sources'),
+                                                          gateway=True, connection=conn))
+        with self.runtime.engine.begin() as conn:
+            with self.assertRaises(IdentityError):
+                role_inventory(SimpleNamespace(schema_mode='sources'), gateway=False, connection=conn)
+
+
+@unittest.skipUnless(importlib.util.find_spec('sqlalchemy'),
+                     'Optional PostgreSQL SQLAlchemy dependency is not installed')
+class IngestionRuntimeInventoryUnitTests(unittest.TestCase):
+    class Connection:
+        def __init__(self, answers):
+            self.answers = iter(answers)
+            self.sql = []
+
+        def execute(self, statement, parameters):
+            self.sql.append(statement.text)
+            answer = next(self.answers)
+            if isinstance(answer, Exception):
+                raise answer
+            return self.Result(answer)
+
+        class Result:
+            def __init__(self, value):
+                self.value = value
+
+            def scalar_one(self):
+                return self.value
+
+            def scalars(self):
+                return self
+
+            def all(self):
+                return self.value
+
+    arguments = dict(runtime_role='synthetic_runtime', gateway_role='synthetic_gateway',
+                     worker_role='synthetic_worker')
+    namespaces = [(name, 'synthetic_operator') for name in ('wl_pg', 'wl_identity', 'wl_sources', 'wl_ingestion')]
+
+    def test_ac_05_wrong_caller_reads_no_application_table(self):
+        """AC-IMP-007W-05: reject a mismatched caller before any application read."""
+        from kurafolio.persistence.errors import PersistenceError
+        from kurafolio.persistence.ingestion_migration import verify_runtime_inventory
+        conn = self.Connection([180000, 'synthetic_gateway'])
+        with self.assertRaises(PersistenceError) as caught:
+            verify_runtime_inventory(conn, **self.arguments)
+        self.assertEqual('migration_role_required', str(caught.exception))
+        self.assertEqual(2, len(conn.sql))
+        for statement in conn.sql:
+            self.assertFalse(any(name + '.' in statement for name in ('wl_pg', 'wl_identity', 'wl_sources', 'wl_ingestion')))
+
+    def test_ac_05_driver_error_is_sanitized(self):
+        """AC-IMP-007W-05: hide driver SQL, parameters and diagnostics on revision failure."""
+        import traceback
+        from sqlalchemy.exc import ProgrammingError
+        from kurafolio.persistence.errors import PersistenceError
+        from kurafolio.persistence.ingestion_migration import verify_runtime_inventory
+        conn = self.Connection([180000, 'synthetic_runtime', self.namespaces,
+                                ProgrammingError('private sql', {'private': 'role'}, Exception('private driver'))])
+        with self.assertRaises(PersistenceError) as caught:
+            verify_runtime_inventory(conn, **self.arguments)
+        error = caught.exception
+        self.assertEqual('migration_target_invalid', str(error))
+        self.assertIsNone(error.__cause__)
+        self.assertTrue(error.__suppress_context__)
+        self.assertNotIn('private', ''.join(traceback.format_exception(error)))
+
+    def test_ac_05_role_and_namespace_preconditions(self):
+        """AC-IMP-007W-05: validate role input and catalog ownership before revision reads."""
+        from kurafolio.persistence.errors import PersistenceError
+        from kurafolio.persistence.ingestion_migration import verify_runtime_inventory
+        cases = [([], dict(runtime_role='invalid role'), 'invalid_config'),
+                 ([170000], {}, 'schema_unsupported'),
+                 ([180000, 'synthetic_runtime', self.namespaces[:3]], {}, 'migration_target_invalid'),
+                 ([180000, 'synthetic_runtime', self.namespaces[:3] + [('wl_ingestion', 'another_owner')]],
+                  {}, 'migration_target_invalid'),
+                 ([180000, 'synthetic_runtime', self.namespaces],
+                  dict(worker_role='synthetic_operator'), 'migration_role_required'),
+                 ([180000, 'synthetic_runtime', self.namespaces],
+                  dict(worker_role='synthetic_gateway'), 'migration_role_required')]
+        for answers, arguments, expected in cases:
+            with self.subTest(expected=expected, answers=answers):
+                conn = self.Connection(answers)
+                with self.assertRaises(PersistenceError) as caught:
+                    verify_runtime_inventory(conn, **{**self.arguments, **arguments})
+                self.assertEqual(expected, str(caught.exception))
+                self.assertFalse(any('wl_pg.alembic_version' in query for query in conn.sql))
+
+    def test_ac_06_signature_has_no_owner_or_restored_mode(self):
+        """AC-IMP-007W-06: only the connection and three keyword-only role names are public."""
+        import inspect
+        from kurafolio.persistence.ingestion_migration import verify_runtime_inventory
+        parameters = inspect.signature(verify_runtime_inventory).parameters
+        self.assertEqual(['conn', 'runtime_role', 'gateway_role', 'worker_role'], list(parameters))
+        self.assertEqual(inspect.Parameter.POSITIONAL_OR_KEYWORD, parameters['conn'].kind)
+        for name in ('runtime_role', 'gateway_role', 'worker_role'):
+            self.assertEqual(inspect.Parameter.KEYWORD_ONLY, parameters[name].kind)
+            self.assertEqual(inspect.Parameter.empty, parameters[name].default)
+
+    def test_ac_08_runtime_readiness_documentation(self):
+        """AC-IMP-007W-08: document the runtime check and separate operator entry point."""
+        text = (Path(__file__).resolve().parents[1] / 'docs/web-v2-imports.md').read_text()
+        self.assertIn('`verify_runtime_inventory`', text)
+        self.assertIn('`verify_inventory` remains an operator check', text)
+
 
 @unittest.skipUnless(os.environ.get('KURAFOLIO_INGESTION_TEST') == '1',
                      'Opt-in isolated ingestion PostgreSQL provider acceptance')
@@ -3732,6 +4116,129 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
         "l.work_kind='normalize'),'raw',(SELECT pg_catalog.jsonb_build_array(used_count,lease_count) FROM wl_ingestion.quotas "
         "WHERE bucket='raw'))::text;")
 
+    def context_update(self, expression):
+        return ("SET LOCAL session_replication_role=replica;UPDATE wl_ingestion.members m "
+                "SET context_bytes=v.b,context_digest=pg_catalog.encode(pg_catalog.sha256(v.b),'hex') "
+                "FROM (SELECT " + expression + " AS b) v WHERE m.id=" + self.NEW_MEMBER +
+                "::uuid;SET LOCAL session_replication_role=origin;")
+
+    STORED = ("SELECT 'STORED '||pg_catalog.jsonb_build_object('hex',pg_catalog.encode(m.context_bytes,'hex'),"
+              "'digest',m.context_digest)::text FROM wl_ingestion.members m JOIN wl_ingestion.sets x "
+              "ON x.id=m.set_id WHERE x.state='RECEIVING' ORDER BY m.ordinal LIMIT 1;")
+
+    def test_bind_returns_the_stored_context_bytes_for_the_worker_frame(self):
+        """AC-IMP-007O-01; AC-IMP-007O-04: exact bytes and closed Handoff framing."""
+        from kurafolio.ingestion.codec import encode
+        from kurafolio.ingestion.contracts import IngestionError
+        from kurafolio.ingestion.runner_client import pack_input
+        raw = b'synthetic,raw\n'
+        token = 'ab' * 32
+        token_digest = hashlib.sha256(bytes.fromhex(token)).hexdigest()
+        plan, pin, seed, catalog = self.reserve_seed()
+        out = self.run_labelled(seed + self.reserve_call('reserve', catalog) +
+            self.reserve_call('bind', catalog, action='bind', raw_sha256="'" + hashlib.sha256(raw).hexdigest() + "'",
+                              raw_bytes=str(len(raw)), handoff_token_digest="'" + token_digest + "'") + self.STORED)
+        self.assertTrue(out['BIND']['ok'])
+        value = out['BIND']['value']
+        self.assertEqual(BIND_KEYS | {'context_unpadded_base64'}, set(value))
+        ctx = bytes.fromhex(out['STORED']['hex'])
+        self.assertGreater(len(ctx), 57)
+        encoded = value['context_unpadded_base64']
+        self.assertRegex(encoded, r'^[A-Za-z0-9+/]+$')
+        self.assertNotIn('\n', encoded)
+        self.assertNotIn('=', encoded)
+        self.assertEqual(base64.b64encode(ctx).decode().rstrip('='), encoded)
+        self.assertEqual(ctx, base64.b64decode(encoded + '=' * (-len(encoded) % 4), validate=True))
+        self.assertEqual(hashlib.sha256(ctx).hexdigest(), value['context_sha256'])
+        self.assertEqual(out['STORED']['digest'], value['context_sha256'])
+        self.assertEqual(len(ctx), value['context_bytes'])
+        for secret in (token, token_digest, raw.hex()):
+            self.assertNotIn(secret, json.dumps(out['BIND']))
+        self.assertNotIn('handoff_token', value)
+        metadata = {key: item for key, item in value.items() if key != 'context_unpadded_base64'}
+        metadata['handoff_token'] = token
+        frame = pack_input(metadata, ctx, raw, schema='Handoff')
+        self.assertTrue(frame.endswith(ctx + raw))
+        self.assertEqual(len(encode(metadata)), int.from_bytes(frame[:4], 'big'))
+        with self.assertRaises(IngestionError):
+            pack_input({**metadata, 'context_unpadded_base64': encoded}, ctx, raw, schema='Handoff')
+
+    def test_bind_returns_context_bytes_at_the_size_bounds(self):
+        """AC-IMP-007O-01; AC-IMP-007O-05: exact 1-byte through 1-MiB vectors."""
+        job = '90000000-0000-4000-8000-00000000a001'
+        large = ('{"job_id":"' + job + '","x":"' + 'a' * 1048520 + '"}').encode()
+        large_sql = ("pg_catalog.convert_to('{\"job_id\":\"" + job + "\",\"x\":\"'||"
+                     "pg_catalog.repeat('a',1048520)||'\"}','UTF8')")
+        cases = (
+            (b'7', 'Nw', '7902699be42c8a8e46fbbb4501726517e86b22c56a189f7625a6da49081b2451'),
+            (b'12', 'MTI', '6b51d431df5d7f141cbececcf79edf3dd861c3b4069f0b11661a3eefacbba918'),
+            (b'123', 'MTIz', 'a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3'),
+            (bytes.fromhex('22dfbf22'), 'It+/Ig', '96f88d3928c2796bc818c6fc1e7e77602e02d53cc796b5187cabab09ced06a07'),
+            (large, base64.b64encode(large).decode().rstrip('='),
+             'eefc21395b5b6c4f8b8b03b673c889e05029c574b1339d9d3020a0212a91bb43'))
+        for context, expected, digest in cases:
+            with self.subTest(size=len(context)):
+                expression = large_sql if len(context) == 1048576 else "pg_catalog.decode('" + context.hex() + "','hex')"
+                plan, pin, seed, catalog = self.reserve_seed()
+                out = self.run_labelled(seed + self.reserve_call('reserve', catalog) + self.context_update(expression) +
+                                        self.reserve_call('bind', catalog, action='bind'))
+                self.assertTrue(out['BIND']['ok'])
+                value = out['BIND']['value']
+                encoded = value['context_unpadded_base64']
+                self.assertEqual(expected, encoded)
+                self.assertEqual(len(context), value['context_bytes'])
+                self.assertEqual(digest, value['context_sha256'])
+                self.assertEqual(job if len(context) == 1048576 else None, value['job_id'])
+                self.assertEqual(context, base64.b64decode(encoded + '=' * (-len(encoded) % 4), validate=True))
+                if len(context) == 1048576:
+                    self.assertEqual(1398102, len(encoded))
+                    self.assertTrue(encoded.startswith('eyJqb2JfaWQiOiI5MDAwMDAw'))
+                    self.assertTrue(encoded.endswith('FhYWEifQ'))
+                    self.assertIsNotNone(re.fullmatch('[A-Za-z0-9+/]+', encoded))
+
+    def test_bind_and_reserve_match_the_pre_change_body_except_the_new_key(self):
+        """AC-IMP-007O-02: compare successful results and refusals with the old body."""
+        old = schema.RESERVE_DDL.replace(IMP_007O_ADDED, '', 1)
+        self.assertEqual(PRE_IMP_007O_RESERVE_SHA256, hashlib.sha256(old.encode()).hexdigest())
+        old = old.replace('CREATE FUNCTION ', 'CREATE OR REPLACE FUNCTION ', 1)
+        plan, pin, seed, catalog = self.reserve_seed()
+        deadline = ("SET LOCAL session_replication_role=replica;UPDATE wl_ingestion.members SET "
+                    "raw_deadline=pg_catalog.clock_timestamp()+interval '20 seconds' WHERE id=" + self.NEW_MEMBER +
+                    "::uuid;SET LOCAL session_replication_role=origin;")
+        out = self.run_labelled(seed + self.reserve_call('reserve', catalog) + deadline + 'SAVEPOINT imp007o;' +
+            self.reserve_call('new', catalog, action='bind') + self.reserve_call('newagain', catalog, action='bind') +
+            'ROLLBACK TO SAVEPOINT imp007o;' + old + self.reserve_call('old', catalog, action='bind') +
+            self.reserve_call('oldagain', catalog, action='bind'))
+        self.assertTrue(out['NEW']['ok'] and out['OLD']['ok'])
+        self.assertEqual(BIND_KEYS, set(out['OLD']['value']))
+        self.assertEqual(out['OLD']['value'],
+                         {key: value for key, value in out['NEW']['value'].items() if key != 'context_unpadded_base64'})
+        for label in ('NEWAGAIN', 'OLDAGAIN'):
+            self.assertEqual({'ok': False, 'code': 'import_conflict'}, out[label])
+        plan, pin, seed, catalog = self.reserve_seed()
+        calls = lambda prefix: (self.reserve_call(prefix + 'reserve', catalog) +
+            self.reserve_call(prefix + 'busy', catalog) +
+            self.reserve_call(prefix + 'fence', catalog, action='bind', fence="'2'") +
+            self.reserve_call(prefix + 'bad', catalog, action='bind', raw_sha256="'XYZ'"))
+        out = self.run_labelled(seed + 'SAVEPOINT imp007o;' + old + calls('old') +
+                               'ROLLBACK TO SAVEPOINT imp007o;' + calls('new'))
+        old_value, new_value = (out[label]['value'] for label in ('OLDRESERVE', 'NEWRESERVE'))
+        for value in (old_value, new_value):
+            self.assertEqual(RESERVE_KEYS, set(value))
+            self.assertEqual('reserve', value['action'])
+            self.assertEqual('1', value['fence'])
+            self.assertEqual(str(uuid.UUID(value['lease_id'])), value['lease_id'])
+            for key in ('raw_deadline', 'offer_expires_at'):
+                from kurafolio.ingestion.codec import validate
+                self.assertEqual(value[key], validate(value[key], 'Instant'))
+                self.assertEqual(6, value[key]['fractional_digits'])
+        self.assertNotEqual(old_value['lease_id'], new_value['lease_id'])
+        for key in ('action', 'set_id', 'member_id', 'fence'):
+            self.assertEqual(old_value[key], new_value[key])
+        for suffix, code in (('BUSY', 'import_busy'), ('FENCE', 'import_stale'), ('BAD', 'import_invalid')):
+            self.assertEqual({'ok': False, 'code': code}, out['OLD' + suffix])
+            self.assertEqual(out['OLD' + suffix], out['NEW' + suffix])
+
     def test_reserve_then_bind_opens_one_bounded_attempt_and_hands_off_metadata(self):
         plan, pin, seed, catalog = self.reserve_seed()
         context = ("SELECT 'CTX '||pg_catalog.jsonb_build_object('job',pg_catalog.convert_from(m.context_bytes,'UTF8')::jsonb->>'job_id',"
@@ -3753,6 +4260,7 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
         self.assertEqual(out['RSTATE'], out['RAGAIN'])
         self.assertEqual({'ok': False, 'code': 'import_stale'}, out['WRONGFENCE'])
         handoff = out['BIND']['value']
+        self.assertEqual(BIND_KEYS | {'context_unpadded_base64'}, set(handoff))
         self.assertTrue(out['BIND']['ok'], out['BIND'])
         self.assertEqual((1, out['CTX']['job'], '1', '5' * 64, 1234, out['CTX']['digest'], out['CTX']['length'], out['CTX']['realm']),
                          (handoff['version'], handoff['job_id'], handoff['fence'], handoff['raw_sha256'], handoff['raw_bytes'],
@@ -4640,6 +5148,162 @@ SELECT 'STAGE '||jsonb_build_array(octet_length(data),encode(sha256(data),'hex')
             'expected_set_revision': "'2'" if ready else "'1'", 'accepted_generation': "'0'",
             'mapping_generation': "'0'", 'control_generation': "'1'" if ready else "'0'", **pins,
         }, data="pg_catalog.decode('" + encoded.hex() + "','hex')")
+
+    def test_review_bundle_builder_from_live_prepare_basis(self):
+        """AC-IMP-007P-02: build from one live lease, prepare it and replay every required case."""
+        from copy import deepcopy
+        from kurafolio.ingestion.approval import validate_review_bundle
+        from kurafolio.ingestion.codec import digest, encode
+        from kurafolio.ingestion.review_bundle import build_review_bundle
+        from test_ingestion_review_bundle import CASES, oracle_basis
+        cases = ('first-use', 'native-first-use', 'branch-fresh_duplicate_only',
+                 'branch-new_equal_meaning_revision', 'branch-equal_value_explicit_correction',
+                 'branch-mapping_only_existing_issuer', 'snapshot-seed-t2',
+                 'snapshot-historical-t1', 'authority-only', 'mixed-set')
+        for case in cases:
+            for initial in (False, True) if case in ('first-use', 'native-first-use') else (False,):
+                with self.subTest(case=case, initial=initial):
+                    _, review, literal_plan, slots = oracle_basis(case, initial=initial)
+                    plan = deepcopy(ORACLE[CASES[case][0]])
+                    pins = plan['pinned_sources']
+                    base, seed, _ = self.accept_seed(installations=[p['installation_id'] for p in pins])
+                    # Reuse the identity/catalog bootstrap, then seed this literal set.
+                    seed = seed[:seed.index('INSERT INTO wl_ingestion.roots')]
+                    plan['expires_at'] = base['expires_at']
+                    seed += self._plan_seed(plan)
+                    baseline_name = CASES[case][3]
+                    if baseline_name:
+                        seed += self._accepted_basis_seed(baseline_name)
+                        baseline = ORACLE[baseline_name]
+                        for h in baseline['heads']:
+                            if h['kind'] == 'snapshot':
+                                seed += self.row('snapshot_heads', {**{k: plan[k] for k in ('tenant_id', 'portfolio_id')},
+                                    'key_digest': h['key_digest'], 'latest_revision_id': h['next_revision_id'],
+                                    'account_id': ORACLE['snapshot-history-effects.json']['head_preimage']['account_id'],
+                                    'account_version': next(m['target']['version'] for m in baseline['mappings'] if m['entity_kind'] == 'account'),
+                                    'fact_kind': 'holdings', 'scope_bytes': encode(ORACLE['snapshot-history-effects.json']['head_preimage']['instrument_scope']),
+                                    'complete_base_revision_id': h['complete_base_id']})
+                    if case == 'authority-only':
+                        pre = ORACLE['authority-only-prestate.json']
+                        peer = pre['peer_revision']
+                        scope = {k: plan[k] for k in ('tenant_id', 'portfolio_id')}
+                        peer_plan = deepcopy(ORACLE['plan-first-use.json'])
+                        peer_plan['pinned_sources'][0]['connection_id'] = pre['peer_connection_id']
+                        peer_plan['facts'] = [dict(peer_plan['facts'][0], accepted_revision_id=peer['id'], economic_group_id=peer['economic_group_id'])]
+                        peer_plan['heads'] = [dict(peer_plan['heads'][0], next_revision_id=peer['id'], key_digest=digest({
+                            'version': 1, **scope, 'economic_group_id': peer['economic_group_id']}))]
+                        peer_plan_id = 'd0000000-0000-4000-8000-0000000000d2'
+                        seed += self.row('accepted_plans', dict(scope, id=peer_plan_id,
+                            preview_id=peer_plan['preview_id'], codec='acceptance-plan-v1', canonical_bytes=encode(peer_plan),
+                            digest=digest(peer_plan), receipt_id='d0000000-0000-4000-8000-0000000000d3',
+                            created_at=self.Expression('clock_timestamp()')))
+                        seed += self.row('source_revisions', dict(scope, id=peer['id'], source_key=peer['source_key_digest'],
+                            source_revision=peer['source']['revision'], financial_digest=peer['financial_digest'],
+                            source_change='original', accepted_change='original', parent_id=None,
+                            input_id='f0000000-0000-4000-8000-000000000001', collection='records', local_id=0,
+                            typed_bytes=encode(peer['typed']), typed_digest=digest(peer['typed']), created_at=self.Expression('clock_timestamp()')))
+                        source_key = deepcopy(ORACLE['key-preimages.json']['vectors'][0]['preimage'])
+                        source_key['connection_id'] = pre['peer_connection_id']
+                        claim = {'version': 1, 'source': source_key, 'revision': peer['source']['revision']}
+                        seed += self.row('lineage', dict(scope, source_revision_id=peer['id'],
+                            input_id='f0000000-0000-4000-8000-000000000001', collection='records', local_id=0,
+                            source_claim_bytes=encode(claim), raw_digest=ORACLE['minimal-parser2.json']['provenance']['raw_sha256'],
+                            installation_id=ORACLE['minimal-parser2.json']['provenance']['installation_id'], evidence_digest=digest(peer['typed'])))
+                        seed += self.row('activity_heads', dict(scope, economic_group_id=peer['economic_group_id'], revision_id=peer['id'], active=True))
+                        prior = pre['prior_authority']
+                        seed += self.row('authority_links', dict(scope, id=pre['prior_link_id'], revision=1,
+                            left_revision_id=prior['left']['accepted_revision_id'], right_revision_id=prior['right']['accepted_revision_id'],
+                            decision_kind=prior['kind'], evidence_reference=prior['evidence_reference'],
+                            evidence_digest=digest(prior), plan_id=peer_plan_id))
+                    # Install every literal source pin into the synthetic catalog.
+                    availability = {'availability': [{'availability_generation': p['availability_generation'],
+                        'installation_id': p['installation_id'], 'status': 'ACTIVE'} for p in pins]}
+                    wrappers = [{'installation_id': p['installation_id'], 'profile_digest': p['wrapper_profile_digest']} for p in pins]
+                    raw_catalog, raw_wrappers = encode(availability), encode(wrappers)
+                    seed += ("UPDATE wl_sources.catalog_state SET bundle_bytes=decode('" + raw_catalog.hex() +
+                             "','hex'),digest='" + digest(availability) + "';")
+                    seed += ("UPDATE wl_ingestion.instance_state SET wrapper_catalog_bytes=decode('" + raw_wrappers.hex() +
+                             "','hex'),wrapper_catalog_digest='" + digest(wrappers) + "';")
+                    seed += "SET LOCAL session_replication_role=replica;DELETE FROM wl_sources.connection_lifecycle;DELETE FROM wl_sources.enablements;SET LOCAL session_replication_role=origin;"
+                    # Each synthetic installation has an independent enablement.
+                    for pin in pins:
+                        minimal = next(v for v in ORACLE.values() if isinstance(v, dict) and 'provenance' in v
+                                       and 'accounts' in v and digest(v) == next(i['stage_digest'] for i in plan['inputs'] if i['member_id'] == pin['member_id']))
+                        provider = minimal['provenance']['provider_id']
+                        plugin = 'synthetic.' + pin['installation_id'][:12]
+                        scope = "'" + plan['tenant_id'] + "','" + plan['portfolio_id'] + "'"
+                        seed += ("SET LOCAL session_replication_role=replica;"
+                            "INSERT INTO wl_sources.enablements SELECT " + scope + ",'" + plugin + "','FILE_IMPORT','" + provider +
+                            "','" + pin['installation_id'] + "',true,1," + pin['enablement_generation'] +
+                            ",clock_timestamp(),clock_timestamp() WHERE NOT EXISTS(SELECT 1 FROM wl_sources.enablements WHERE installation_id='" + pin['installation_id'] + "');"
+                            "INSERT INTO wl_pg.connections SELECT " + scope + ",'" + pin['connection_id'] + "','" + pin['connection_version'] +
+                            "','{}','" + provider + "','" + hashlib.sha256(provider.encode()).hexdigest() + "','FILE_IMPORT'," + pin['connection_generation'] +
+                            " WHERE NOT EXISTS(SELECT 1 FROM wl_pg.connections WHERE id='" + pin['connection_id'] + "');"
+                            "INSERT INTO wl_sources.connection_lifecycle SELECT " + scope + ",'" + pin['connection_id'] + "','" + pin['connection_version'] +
+                            "','" + plugin + "','" + provider + "','FILE_IMPORT','" + pin['installation_id'] + "','Synthetic',NULL,true,1,clock_timestamp(),clock_timestamp()"
+                            " WHERE NOT EXISTS(SELECT 1 FROM wl_sources.connection_lifecycle WHERE id='" + pin['connection_id'] + "');"
+                            "UPDATE wl_sources.connection_lifecycle SET installation_id='" + pin['installation_id'] + "' WHERE id='" + pin['connection_id'] + "';"
+                            "SET LOCAL session_replication_role=origin;")
+                    revision = review['set_revision'] if initial else str(int(review['set_revision']) - 1)
+                    state = 'NORMALIZING' if initial else 'RECONCILING'
+                    if initial:
+                        seed += 'DELETE FROM wl_ingestion.decisions;'
+                    else:
+                        seed += 'UPDATE wl_ingestion.decisions SET revision=' + revision + ';'
+                    seed += ("UPDATE wl_ingestion.sets SET state='" + state + "',revision=" + revision +
+                        ",realm_digest=(SELECT " + self.worker_realm() + " FROM wl_pg.instance_state st),"
+                        "prepare_session_digest=repeat('1',64),prepare_credential_version=1;"
+                        "UPDATE wl_ingestion.roots SET accepted_generation=" + review['accepted_generation'] +
+                        ',mapping_generation=' + review['mapping_generation'] + ',control_generation=' + review['control_generation'] + ';')
+                    seed += self.row('workers', {'id': self.WORKER, 'login_role': 'postgres', 'peer_identity': 'peer-a',
+                                                 'enabled': True, 'credential_epoch': 1}) + self.TRANSITION_TRIGGERS
+                    process = subprocess.Popen(['docker', 'exec', '-i', self.container, 'psql', '-X', '-q', '-A', '-t',
+                        '-U', 'postgres', '-d', 'postgres', '-v', 'ON_ERROR_STOP=1'], stdin=subprocess.PIPE,
+                        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                    def execute(script):
+                        process.stdin.write(script + "SELECT 'BUILDER_END';\n")
+                        process.stdin.flush()
+                        result = {}
+                        while True:
+                            line = process.stdout.readline().strip()
+                            if line == 'BUILDER_END':
+                                return result
+                            if not line and process.poll() is not None:
+                                self.fail('Synthetic PostgreSQL builder statement failed: ' + process.stderr.read())
+                            label, _, value = line.partition(' ')
+                            if label.isupper() and value.startswith(('{', '[')):
+                                result[label] = json.loads(value)
+                    try:
+                        out = execute('BEGIN;' + seed + self.plan_claim('claim', work_kind="'prepare'"))
+                        self.assertTrue(out['CLAIM']['ok'], out)
+                        self.assertIsNotNone(out['CLAIM']['value'].get('lease'), out)
+                        pages = []
+                        for resource in ('inputs', 'entities', 'mappings', 'revisions', 'heads', 'authorities', 'decisions', 'context'):
+                            cursor = 'NULL::jsonb'
+                            while True:
+                                result = execute(self.basis_call('basis', resource=resource, limit=7, cursor=cursor, set_id=repr(plan['set_id'])))['BASIS']
+                                self.assertTrue(result['ok'], result)
+                                page = result['value']
+                                pages.append(page)
+                                if page['next_cursor'] is None:
+                                    break
+                                cursor = "'" + json.dumps(page['next_cursor']).replace("'", "''") + "'::jsonb"
+                        bundle = build_review_bundle(pages, preview_id=review['id'], allocate_id=slots.__getitem__)
+                        stages = {r['id']: encode(r['minimal']) for page in pages if page['resource'] == 'inputs' for r in page['rows']}
+                        validate_review_bundle(encode(bundle), stages=stages)
+                        expected_pins = {'expected_set_revision': repr(revision), **{k: repr(review[k]) for k in (
+                            'accepted_generation', 'mapping_generation', 'control_generation')}}
+                        result = execute(self.prepare_preview_call('prepared', bundle, ready=not initial, **expected_pins) +
+                            self.prepare_preview_call('replay', bundle, ready=not initial, **expected_pins))
+                        self.assertTrue(result['PREPARED']['ok'], result)
+                        self.assertEqual('NEEDS_MAPPING' if initial else 'READY', result['PREPARED']['value']['state'])
+                        self.assertEqual(dict(result['PREPARED']['value'], outcome='already_prepared'), result['REPLAY']['value'])
+                        execute('ROLLBACK;')
+                    finally:
+                        if process.poll() is None:
+                            process.stdin.write('ROLLBACK;\\q\n')
+                            process.stdin.flush()
+                        process.communicate(timeout=10)
 
     def test_prepare_preview_checks_initial_and_ready_bundles_and_replays(self):
         from copy import deepcopy
