@@ -106,16 +106,16 @@ class FakeEngine:
                    overflow=False, exit_code=self.exit_code, oom_killed=self.oom,
                    killed=False, started_at='2026-11-24T00:00:00Z')
 
-    def inspect(self, engine_id):
+    def inspect(self, engine_id, *, timeout=None):
         if engine_id in self.removed:
             return None
         return {'ExitCode': self.exit_code, 'OOMKilled': self.oom,
                 'StartedAt': '2026-11-24T00:00:00Z'}
 
-    def kill(self, engine_id):
+    def kill(self, engine_id, *, timeout=None):
         self.killed.append(engine_id)
 
-    def remove(self, engine_id):
+    def remove(self, engine_id, *, timeout=None):
         self.removed.add(engine_id)
         return True
 
@@ -131,6 +131,16 @@ class Config:
     image_repository = 'kurafolio-source'
     server_tls = None
 
+
+class CancelBudgetTests(unittest.TestCase):
+    def test_ac_05_cancel_budget_fits_the_raw_deadline_margin(self):
+        """AC-IMP-007F-05: a bounded cancel leaves room for the finish call."""
+        from kurafolio.ingestion.launcher_engine import (CANCEL_INSPECT_TIMEOUT,
+                                                        CANCEL_KILL_TIMEOUT,
+                                                        CANCEL_REMOVE_TIMEOUT)
+        from kurafolio.ingestion.worker import RAW_SLACK
+        budget = CANCEL_KILL_TIMEOUT + CANCEL_REMOVE_TIMEOUT + CANCEL_INSPECT_TIMEOUT
+        self.assertLessEqual(budget, RAW_SLACK.total_seconds())
 
 class LauncherTests(unittest.TestCase):
     def setUp(self):
@@ -269,11 +279,11 @@ class LauncherTests(unittest.TestCase):
         class Unreachable(FakeEngine):
             failed = False
 
-            def remove(self, engine_id):
+            def remove(self, engine_id, *, timeout=None):
                 self.failed = True
                 return False
 
-            def inspect(self, engine_id):
+            def inspect(self, engine_id, *, timeout=None):
                 if self.failed:
                     raise EngineError('import_runner_unavailable')
                 return super().inspect(engine_id)

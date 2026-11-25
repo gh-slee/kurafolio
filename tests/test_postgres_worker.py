@@ -25,6 +25,7 @@ from unittest import mock
 from kurafolio.ingestion import worker as worker_module
 from kurafolio.ingestion.codec import digest as digest_body, encode, sha256, validate
 from kurafolio.ingestion.worker import ImportWorker
+from kurafolio.ingestion.launcher_journal import LauncherJournal
 from kurafolio.ingestion.worker_journal import WorkerJournal
 from kurafolio.ingestion.worker_sql import WorkerCallError, WorkerSQL
 from tests.test_ingestion_worker import FakeLauncher
@@ -101,6 +102,58 @@ def _crash_child(conninfo, journal_directory, realm, metadata, context, raw, pro
     with mock.patch.object(worker_module.discovery, 'admit_parser2', return_value=minimal):
         worker.handoff(metadata, context, raw)
         worker._executor.run()
+
+
+
+
+class _MappedEngine:
+    """DockerEngine with the reviewed fake digest mapped to one real image."""
+
+    def __new__(cls, image_id, reference=None):
+        from kurafolio.ingestion.launcher_engine import DockerEngine
+
+        class Engine(DockerEngine):
+            def image(self, value):
+                return image_id
+
+            def create(self, *, reference, labels, entry):
+                from kurafolio.ingestion.launcher_engine import DockerEngine as Base
+                return Base.create(self, reference=self.real_reference, labels=labels, entry=entry)
+
+        engine = Engine()
+        engine.real_reference = reference
+        return engine
+
+def _paused_worker_child(conninfo, marker, results, claim, admit, finish, token, minimal):
+    from kurafolio.persistence.config import PostgresConfig
+    from kurafolio.persistence.context import Database
+
+    database = Database(PostgresConfig(conninfo), schema_mode='sources')
+    sql = WorkerSQL(database, 'c7000000-0000-4000-8000-000000000001')
+    Path(marker).write_text(sql.call('claim_member_v1', claim, token=token)['outcome'])
+    os.kill(os.getpid(), signal.SIGSTOP)
+    codes = {}
+    for name, request in (('admit_stage_v1', admit), ('finish_member_v1', finish)):
+        try:
+            sql.call(name, request, payload=minimal if name == 'admit_stage_v1' else None,
+                     token=token)
+            codes[name] = 'ok'
+        except WorkerCallError as error:
+            codes[name] = error.code
+    Path(results).write_text(json.dumps(codes))
+
+
+def _launcher_child(config, start, context, raw, marker, entry, image_id, real_reference):
+    """Start one real container, publish its handle, then wait to be killed."""
+    from kurafolio.ingestion.launcher import Launcher
+
+    launcher = Launcher(config, _MappedEngine(image_id, real_reference))
+    launcher.entry = entry
+    status = launcher.start(start, context, raw)
+    Path(marker).write_text(json.dumps({'handle': status['handle'],
+                                        'job_id': status['job_id'],
+                                        'fence': status['fence']}))
+    time.sleep(300)
 
 
 class _Inline:
@@ -261,7 +314,7 @@ class WorkerPostgresTests(pg.IngestionAppendOnlyPostgresTests):
                                                            + ' WITH (FORCE);')))
         return database, name
 
-    def seed(self, database_name, *, count=1, login_role='postgres'):
+    def seed(self, database_name, *, count=1, login_role='postgres', bind=True):
         """Commit one bound native set and return its worker-visible context."""
         plan, pin, seed, catalog = self.create_seed()
         raw = ('synthetic,raw\n' + self.owner + '\n').encode()
@@ -283,9 +336,10 @@ class WorkerPostgresTests(pg.IngestionAppendOnlyPostgresTests):
         seed += self.gateway_statement('create_set_v1', 'create',
                                        self.create_payload(pin, count=count), catalog)
         seed += self.reserve_call('reserve', catalog)
-        seed += self.reserve_call('bind', catalog, action='bind',
-                                  raw_sha256="'" + sha256(raw) + "'", raw_bytes=str(len(raw)),
-                                  handoff_token_digest="'" + token_digest + "'")
+        if bind:
+            seed += self.reserve_call('bind', catalog, action='bind',
+                                      raw_sha256="'" + sha256(raw) + "'", raw_bytes=str(len(raw)),
+                                      handoff_token_digest="'" + token_digest + "'")
         self.run_sql(database_name, 'BEGIN;' + seed + 'COMMIT;')
         row = self.scalar(database_name, "SELECT pg_catalog.encode(m.context_bytes,'hex')||' '||"
             "m.id::text||' '||x.id::text FROM wl_ingestion.members m "
@@ -561,6 +615,382 @@ class WorkerPostgresTests(pg.IngestionAppendOnlyPostgresTests):
                         self.assertEqual(('failed', 1), (row[1], len(worker.journal.records())))
                     else:
                         self.assertEqual(('complete', 0), (row[1], len(worker.journal.records())))
+
+    def _terminal_purge(self, scenario):
+        expected_state = {'cancelled_reception': 'CANCELLED',
+                          'cancelled_after_launch': 'CANCELLED',
+                          'expired': 'EXPIRED', 'committed': 'COMMITTED'}[scenario]
+        database, name = self.fresh_database()
+        plan, pin, catalog, raw, context_bytes, member_id = self.seed(
+            name, bind=scenario != 'cancelled_reception')
+        context = json.loads(context_bytes)
+        realm = self.realm(name)
+        payload = b'{"synthetic":true}'
+        minimal = _minimal(context, sha256(raw), sha256(payload))
+        launcher = FakeLauncher(_metadata(context_bytes, raw, 'ab' * 32, realm,
+                                          plan['set_id'], member_id),
+                                payload=payload, payload_kind='parser_v2')
+        with tempfile.TemporaryDirectory(prefix='wl-imp-007f-journal-') as directory:
+            os.chmod(directory, 0o700)
+            worker = self.worker(database, directory, realm, launcher,
+                                 [self.profile(context)],
+                                 [(context['installation_id'], b'descriptor')])
+            if scenario != 'cancelled_reception':
+                with mock.patch.object(worker_module.discovery, 'admit_parser2',
+                                       return_value=minimal):
+                    worker.handoff(_metadata(context_bytes, raw, 'ab' * 32, realm,
+                                             plan['set_id'], member_id),
+                                   context_bytes, raw)
+                    worker._executor.run()
+            if scenario in ('cancelled_reception', 'cancelled_after_launch'):
+                self.run_sql(name, 'BEGIN;' + self.cancel_call(catalog) + 'COMMIT;')
+            elif scenario == 'expired':
+                self.run_sql(name, "BEGIN;SET LOCAL session_replication_role=replica;"
+                              "UPDATE wl_ingestion.sets SET state='EXPIRED',cleanup_state='pending',"
+                              "prepare_session_digest=NULL,prepare_credential_version=NULL "
+                              "WHERE id='" + plan['set_id'] + "';"
+                              "UPDATE wl_ingestion.members SET state='expired' "
+                              "WHERE set_id='" + plan['set_id'] + "';"
+                              "SET LOCAL session_replication_role=origin;COMMIT;")
+            else:
+                # A committed set names one ACCEPT receipt; the receipt and
+                # its accepted plan form a deferrable pair.
+                self.run_sql(name,
+                    "BEGIN;SET LOCAL session_replication_role=replica;"
+                    "INSERT INTO wl_ingestion.accepted_plans(tenant_id,portfolio_id,id,preview_id,"
+                    "codec,canonical_bytes,digest,receipt_id,created_at) "
+                    "SELECT tenant_id,portfolio_id,'d1000000-0000-4000-8000-000000000001',"
+                    "gen_random_uuid(),'acceptance-plan-v1',decode('7b7d','hex'),'"
+                    + sha256(b'{}') + "','e1000000-0000-4000-8000-000000000001',"
+                    "pg_catalog.clock_timestamp() FROM wl_ingestion.sets WHERE id='"
+                    + plan['set_id'] + "';"
+                    "INSERT INTO wl_ingestion.receipts(tenant_id,portfolio_id,id,incarnation,"
+                    "restore_epoch,operation_id,operation_kind,request_digest,preview_id,"
+                    "accepted_plan_id,plan_digest,result_bytes,created_at) "
+                    "SELECT tenant_id,portfolio_id,'e1000000-0000-4000-8000-000000000001',"
+                    "incarnation,restore_epoch,gen_random_uuid(),'ACCEPT','" + 'a' * 64
+                    + "',gen_random_uuid(),'d1000000-0000-4000-8000-000000000001','"
+                    + 'b' * 64 + "',decode('7b7d','hex'),pg_catalog.clock_timestamp() "
+                    "FROM wl_ingestion.sets WHERE id='" + plan['set_id'] + "';"
+                    "UPDATE wl_ingestion.sets SET state='COMMITTED',revision=revision+1,"
+                    "receipt_id='e1000000-0000-4000-8000-000000000001',"
+                    "cleanup_state='pending',prepare_session_digest=NULL,"
+                    "prepare_credential_version=NULL WHERE id='" + plan['set_id'] + "';"
+                    "UPDATE wl_ingestion.members SET state='committed' "
+                    "WHERE set_id='" + plan['set_id'] + "';"
+                    "SET LOCAL session_replication_role=origin;COMMIT;")
+            self.run_sql(name, "BEGIN;SET LOCAL session_replication_role=replica;"
+                          "UPDATE wl_ingestion.leases SET "
+                          "created_at=created_at-interval '3 minutes',"
+                          "expires_at=pg_catalog.clock_timestamp()-interval '1 second' "
+                          "WHERE set_id='" + plan['set_id'] + "' AND work_kind='normalize' "
+                          "AND state NOT IN ('finished');"
+                          "SET LOCAL session_replication_role=origin;COMMIT;")
+            worker._cleanup_once()
+            worker._cleanup_once()
+            remaining = len(worker.journal.records())
+        rows = self.query(database,
+            "SELECT x.state, x.cleanup_state, (SELECT count(*) FROM wl_ingestion.stages g "
+            "WHERE g.set_id=x.id), (SELECT count(*) FROM wl_ingestion.previews v "
+            "WHERE v.set_id=x.id), (SELECT reserved_bytes FROM wl_ingestion.quotas q "
+            "WHERE q.portfolio_id=x.portfolio_id AND q.bucket='storage') "
+            "FROM wl_ingestion.sets x WHERE x.id='" + plan['set_id'] + "'")[0]
+        self.assertEqual((expected_state, 'complete', 0, 0, 0), tuple(rows))
+        self.assertEqual(0, remaining)
+        self.assertEqual('no_work', worker.sql.call('claim_plan_v1',
+            {'version': 1, 'realm_digest': realm, 'credential_epoch': '1',
+             'work_kind': 'cleanup', 'claim_request_id': str(uuid.uuid4())},
+            token='ef' * 32)['outcome'])
+        self.assertEqual(0, int(self.scalar(name,
+            "SELECT reserved_bytes FROM wl_ingestion.quotas WHERE bucket='storage';")))
+
+    def test_ac_07_cancelled_reception_purges_and_releases_once(self):
+        """AC-IMP-007F-07: a set cancelled before its handoff is purged."""
+        self._terminal_purge('cancelled_reception')
+
+    def test_ac_07_cancelled_after_launch_purges_and_releases_once(self):
+        """AC-IMP-007F-07: a set cancelled after normalization is purged."""
+        self._terminal_purge('cancelled_after_launch')
+
+    def test_ac_07_expired_set_purges_and_releases_once(self):
+        """AC-IMP-007F-07: an expired set is purged and released once."""
+        self._terminal_purge('expired')
+
+    def test_ac_07_committed_set_purges_and_releases_once(self):
+        """AC-IMP-007F-07: a committed set is purged and released once."""
+        self._terminal_purge('committed')
+
+    def test_ac_05_a_paused_worker_cannot_publish_its_stale_admit_or_finish(self):
+        """AC-IMP-007F-05: a paused worker's late admit and finish are stale."""
+        database, name = self.fresh_database()
+        plan, pin, catalog, raw, context_bytes, member_id = self.seed(name)
+        context = json.loads(context_bytes)
+        realm = self.realm(name)
+        token = 'ab' * 32
+        minimal = _minimal(context, sha256(raw), sha256(b'{"synthetic":true}'))
+        claim = {'version': 1, 'realm_digest': realm, 'credential_epoch': '1',
+                 'job_id': context['job_id'], 'set_id': plan['set_id'],
+                 'member_id': member_id, 'work_kind': 'normalize', 'fence': '1',
+                 'request_id': str(uuid.uuid4()), 'raw_digest': sha256(raw),
+                 'context_digest': sha256(context_bytes)}
+        admit = {'version': 1, 'realm_digest': realm, 'credential_epoch': '1',
+                 'job_id': context['job_id'], 'set_id': plan['set_id'],
+                 'member_id': member_id, 'work_kind': 'normalize', 'fence': '1',
+                 'request_id': str(uuid.uuid4()), 'stage_digest': sha256(minimal),
+                 'raw_digest': sha256(raw), 'discovery_digest': sha256(b'{"synthetic":true}'),
+                 'payload_bytes': len(minimal)}
+        finish = {'version': 1, 'realm_digest': realm, 'credential_epoch': '1',
+                  'job_id': context['job_id'], 'set_id': plan['set_id'],
+                  'member_id': member_id, 'work_kind': 'normalize', 'fence': '1',
+                  'request_id': str(uuid.uuid4()), 'outcome': 'stage_admitted',
+                  'error_code': None, 'cleanup_proofs': []}
+        with tempfile.TemporaryDirectory(prefix='wl-imp-007f-paused-') as directory:
+            marker = Path(directory) / 'claimed'
+            results = Path(directory) / 'results.json'
+            child = multiprocessing.get_context('fork').Process(
+                target=_paused_worker_child,
+                args=(self.database_conninfo(name), marker, results, claim, admit, finish,
+                      token, minimal))
+            child.start()
+            self.addCleanup(lambda: child.is_alive() and child.kill())
+            deadline = time.monotonic() + 20
+            while not marker.exists():
+                if time.monotonic() >= deadline:
+                    self.fail('paused worker did not claim')
+                time.sleep(.05)
+            self.assertEqual('claimed', marker.read_text())
+            self.run_sql(name, "BEGIN;SET LOCAL session_replication_role=replica;"
+                          "UPDATE wl_ingestion.leases SET created_at=created_at-interval '3 minutes',"
+                          "expires_at=pg_catalog.clock_timestamp()-interval '1 second' "
+                          "WHERE work_kind='normalize' AND state='active';"
+                          "SET LOCAL session_replication_role=origin;COMMIT;")
+            os.kill(child.pid, signal.SIGCONT)
+            child.join(20)
+            self.assertEqual(0, child.exitcode)
+            self.assertEqual({'admit_stage_v1': 'import_stale',
+                              'finish_member_v1': 'import_stale'},
+                             json.loads(results.read_text()))
+        rows = self.query(database,
+            "SELECT (SELECT count(*) FROM wl_ingestion.stages g WHERE g.set_id='" + plan['set_id']
+            + "'), (SELECT state FROM wl_ingestion.members WHERE id='" + member_id
+            + "'), (SELECT state FROM wl_ingestion.sets WHERE id='" + plan['set_id'] + "')")[0]
+        self.assertEqual((0, 'normalizing', 'RECEIVING'), tuple(rows))
+
+    def test_ac_05_a_second_worker_at_the_new_fence_wins(self):
+        """AC-IMP-007F-05: a re-upload advances the fence and only it publishes."""
+        database, name = self.fresh_database()
+        plan, pin, catalog, raw, context_bytes, member_id = self.seed(name)
+        context = json.loads(context_bytes)
+        realm = self.realm(name)
+        token = 'ab' * 32
+        minimal = _minimal(context, sha256(raw), sha256(b'{"synthetic":true}'))
+        proof = validate({'job_id': context['job_id'], 'fence': '1', 'state': 'absent',
+                          'launcher_instance_id': self.INCARNATION,
+                          'proof_digest': '1' * 64,
+                          'checked_at': _instant(datetime.now(UTC))}, 'CleanupProof')
+        first = WorkerSQL(database, self.WORKER)
+        first.call('claim_member_v1', {'version': 1, 'realm_digest': realm,
+                   'credential_epoch': '1', 'job_id': context['job_id'],
+                   'set_id': plan['set_id'], 'member_id': member_id,
+                   'work_kind': 'normalize', 'fence': '1',
+                   'request_id': str(uuid.uuid4()), 'raw_digest': sha256(raw),
+                   'context_digest': sha256(context_bytes)}, token=token)
+        first.call('finish_member_v1', {'version': 1, 'realm_digest': realm,
+                   'credential_epoch': '1', 'job_id': context['job_id'],
+                   'set_id': plan['set_id'], 'member_id': member_id,
+                   'work_kind': 'normalize', 'fence': '1',
+                   'request_id': str(uuid.uuid4()), 'outcome': 'reupload_required',
+                   'error_code': 'import_runner_unavailable',
+                   'cleanup_proofs': [proof]}, token=token)
+        self.assertEqual('reupload_required', self.scalar(name,
+            "SELECT state FROM wl_ingestion.members WHERE id='" + member_id + "';"))
+        # The recovery path a new upload takes today: reserve, then bind fence 2.
+        result = self.sql_on(name, "BEGIN;" + self.reserve_call('reserve', catalog,
+            set_id="'" + plan['set_id'] + "'", member_id="'" + member_id + "'",
+            expected_set_revision="'1'") + "COMMIT;")
+        self.assertIn('"ok": true', result.stdout.decode())
+        self.run_sql(name, "BEGIN;" + self.reserve_call('bind', catalog, action='bind',
+            set_id="'" + plan['set_id'] + "'", member_id="'" + member_id + "'",
+            fence="(SELECT fence::text FROM wl_ingestion.members WHERE id='" + member_id + "')",
+            raw_sha256="'" + sha256(raw) + "'", raw_bytes=str(len(raw)),
+            handoff_token_digest="'" + sha256(bytes.fromhex(token)) + "'") + "COMMIT;")
+        self.assertEqual('2', self.scalar(name,
+            "SELECT fence::text FROM wl_ingestion.members WHERE id='" + member_id + "';"))
+        fresh = bytes.fromhex(self.scalar(name,
+            "SELECT pg_catalog.encode(context_bytes,'hex') FROM wl_ingestion.members "
+            "WHERE id='" + member_id + "';"))
+        value = json.loads(fresh)
+        fresh_minimal = _minimal(value, sha256(raw), sha256(b'{"synthetic":true}'))
+        second = WorkerSQL(database, self.WORKER)
+        ack = second.call('claim_member_v1', {'version': 1, 'realm_digest': realm,
+            'credential_epoch': '1', 'job_id': value['job_id'], 'set_id': plan['set_id'],
+            'member_id': member_id, 'work_kind': 'normalize', 'fence': '2',
+            'request_id': str(uuid.uuid4()), 'raw_digest': sha256(raw),
+            'context_digest': sha256(fresh)}, token=token)
+        self.assertEqual(('claimed', '2'), (ack['outcome'], ack['fence']))
+        second.call('admit_stage_v1', {'version': 1, 'realm_digest': realm,
+            'credential_epoch': '1', 'job_id': value['job_id'], 'set_id': plan['set_id'],
+            'member_id': member_id, 'work_kind': 'normalize', 'fence': '2',
+            'request_id': str(uuid.uuid4()), 'stage_digest': sha256(fresh_minimal),
+            'raw_digest': sha256(raw), 'discovery_digest': sha256(b'{"synthetic":true}'),
+            'payload_bytes': len(fresh_minimal)}, payload=fresh_minimal, token=token)
+        self.assertEqual('admitted', second.call('finish_member_v1', {
+            'version': 1, 'realm_digest': realm, 'credential_epoch': '1',
+            'job_id': value['job_id'], 'set_id': plan['set_id'], 'member_id': member_id,
+            'work_kind': 'normalize', 'fence': '2', 'request_id': str(uuid.uuid4()),
+            'outcome': 'stage_admitted', 'error_code': None,
+            'cleanup_proofs': []}, token=token)['state'])
+        for call, request in (('admit_stage_v1', {'version': 1, 'realm_digest': realm,
+                 'credential_epoch': '1', 'job_id': context['job_id'],
+                 'set_id': plan['set_id'], 'member_id': member_id,
+                 'work_kind': 'normalize', 'fence': '1', 'request_id': str(uuid.uuid4()),
+                 'stage_digest': sha256(minimal), 'raw_digest': sha256(raw),
+                 'discovery_digest': sha256(b'{"synthetic":true}'),
+                 'payload_bytes': len(minimal)}),
+                ('finish_member_v1', {'version': 1, 'realm_digest': realm,
+                 'credential_epoch': '1', 'job_id': context['job_id'],
+                 'set_id': plan['set_id'], 'member_id': member_id,
+                 'work_kind': 'normalize', 'fence': '1', 'request_id': str(uuid.uuid4()),
+                 'outcome': 'stage_admitted', 'error_code': None,
+                 'cleanup_proofs': []})):
+            with self.subTest(late=call):
+                with self.assertRaises(WorkerCallError) as caught:
+                    first.call(call, request,
+                               payload=minimal if call == 'admit_stage_v1' else None,
+                               token=token)
+                self.assertEqual('import_stale', caught.exception.code)
+        rows = self.query(database,
+            "SELECT (SELECT count(*) FROM wl_ingestion.stages g WHERE g.set_id='" + plan['set_id']
+            + "'), (SELECT state FROM wl_ingestion.members WHERE id='" + member_id
+            + "'), (SELECT state FROM wl_ingestion.sets WHERE id='" + plan['set_id'] + "')")[0]
+        self.assertEqual((1, 'admitted', 'NORMALIZING'), tuple(rows))
+
+    def test_ac_03_finish_confirmation_replays_but_a_new_request_is_stale(self):
+        """AC-IMP-007F-03: a confirmed finish replays once and only for its request."""
+        database, name = self.fresh_database()
+        plan, pin, catalog, raw, context_bytes, member_id = self.seed(name)
+        context = json.loads(context_bytes)
+        realm = self.realm(name)
+        minimal = _minimal(context, sha256(raw), sha256(b'{"synthetic":true}'))
+        sql = WorkerSQL(database, self.WORKER)
+        token = 'ab' * 32
+        sql.call('claim_member_v1', {'version': 1, 'realm_digest': realm, 'credential_epoch': '1',
+                 'job_id': context['job_id'], 'set_id': plan['set_id'],
+                 'member_id': member_id, 'work_kind': 'normalize', 'fence': '1',
+                 'request_id': str(uuid.uuid4()), 'raw_digest': sha256(raw),
+                 'context_digest': sha256(context_bytes)}, token=token)
+        sql.call('admit_stage_v1', {'version': 1, 'realm_digest': realm, 'credential_epoch': '1',
+                 'job_id': context['job_id'], 'set_id': plan['set_id'],
+                 'member_id': member_id, 'work_kind': 'normalize', 'fence': '1',
+                 'request_id': str(uuid.uuid4()), 'stage_digest': sha256(minimal),
+                 'raw_digest': sha256(raw), 'discovery_digest': sha256(b'{"synthetic":true}'),
+                 'payload_bytes': len(minimal)}, payload=minimal, token=token)
+        finish = {'version': 1, 'realm_digest': realm, 'credential_epoch': '1',
+                  'job_id': context['job_id'], 'set_id': plan['set_id'],
+                  'member_id': member_id, 'work_kind': 'normalize', 'fence': '1',
+                  'request_id': str(uuid.uuid4()), 'outcome': 'stage_admitted',
+                  'error_code': None, 'cleanup_proofs': []}
+        self.assertEqual('admitted', sql.call('finish_member_v1', finish, token=token)['state'])
+        first = sql.call('finish_member_v1', finish, token=token)
+        second = sql.call('finish_member_v1', finish, token=token)
+        self.assertEqual((first, second), (first, second))
+        with self.assertRaises(WorkerCallError) as caught:
+            sql.call('finish_member_v1', dict(finish, request_id=str(uuid.uuid4())), token=token)
+        self.assertEqual('import_stale', caught.exception.code)
+        self.assertEqual(1, int(self.scalar(name,
+            "SELECT count(*) FROM wl_ingestion.stages g WHERE g.set_id='" + plan['set_id'] + "';")))
+
+    def test_ac_03_launcher_kill_under_postgres_and_docker_reconciles(self):
+        """AC-IMP-007F-03: a killed launcher leaves no container and purges once."""
+        import subprocess
+        from types import SimpleNamespace
+        from kurafolio.ingestion.launcher import Launcher
+        from kurafolio.ingestion.launcher_engine import DockerEngine
+
+        digest = subprocess.check_output(
+            ['docker', 'image', 'inspect', '--format', '{{index .RepoDigests 0}}', self.IMAGE],
+            text=True).strip()
+        repository, _, _ = digest.partition('@sha256:')
+        database, name = self.fresh_database()
+        plan, pin, catalog, raw, context_bytes, member_id = self.seed(name)
+        context = json.loads(context_bytes)
+        realm = self.realm(name)
+        with tempfile.TemporaryDirectory(prefix='wl-imp-007f-launcher-') as launcher_root, \
+                tempfile.TemporaryDirectory(prefix='wl-imp-007f-worker-') as worker_directory:
+            os.chmod(launcher_root, 0o700)
+            os.chmod(worker_directory, 0o700)
+            journal = Path(launcher_root) / 'journal'
+            journal.mkdir(mode=0o700)
+            profiles = Path(launcher_root) / 'profiles.json'
+            profiles.write_text(json.dumps([self.profile(context)]))
+            os.chmod(profiles, 0o600)
+            config = SimpleNamespace(instance_id=self.INCARNATION, credential_epoch='1',
+                                     journal_directory=journal, image_repository=repository,
+                                     profiles_file=profiles, bind_address='127.0.0.1',
+                                     bind_port=0, server_tls=None)
+            instance = self.INCARNATION
+            self.addCleanup(lambda: subprocess.run(
+                ['sh', '-c', 'ids=$(docker ps -aq --filter label=kurafolio.launcher.instance='
+                 + instance + '); [ -z "$ids" ] || docker rm --force $ids >/dev/null'], check=False))
+            start = {'version': 1, 'operation': 'start', 'job_id': context['job_id'],
+                     'member_id': member_id, 'fence': '1', 'instance_id': self.INCARNATION,
+                     'realm_digest': realm, 'credential_epoch': '1',
+                     'installation_id': context['installation_id'],
+                     'image_digest': context['image_digest'],
+                     'wrapper_profile_digest': context['wrapper_profile_digest'],
+                     'format_version': context['format_version'],
+                     'context_sha256': sha256(context_bytes), 'context_bytes': len(context_bytes),
+                     'raw_sha256': sha256(raw), 'raw_bytes': len(raw),
+                     'deadline': _instant(datetime.now(UTC) + timedelta(seconds=120)),
+                     'nonce': secrets.token_hex(32)}
+            WorkerSQL(database, self.WORKER).call('claim_member_v1', {
+                'version': 1, 'realm_digest': realm, 'credential_epoch': '1',
+                'job_id': context['job_id'], 'set_id': plan['set_id'],
+                'member_id': member_id, 'work_kind': 'normalize', 'fence': '1',
+                'request_id': str(uuid.uuid4()), 'raw_digest': sha256(raw),
+                'context_digest': sha256(context_bytes)}, token='ab' * 32)
+            marker = Path(launcher_root) / 'started.json'
+            child = multiprocessing.get_context('fork').Process(
+                target=_launcher_child,
+                args=(config, start, context_bytes, raw, marker,
+                      ('/bin/sh', '-c', 'sleep 30'), context['image_digest'], digest))
+            child.start()
+            self.addCleanup(lambda: child.is_alive() and child.kill())
+            deadline = time.monotonic() + 30
+            while not marker.exists():
+                if time.monotonic() >= deadline:
+                    self.fail('launcher child did not start')
+                time.sleep(.1)
+            started = json.loads(marker.read_text())
+            record = LauncherJournal(journal).get(start['job_id'], '1')
+            self.assertEqual('started', record.state)
+            self.assertIsNotNone(DockerEngine().inspect(record.engine_id))
+            child.kill()
+            child.join(10)
+            self.assertEqual(-signal.SIGKILL, child.exitcode)
+            restarted = Launcher(config, _MappedEngine(context['image_digest'], digest))
+            self.assertIsNone(DockerEngine().inspect(record.engine_id))
+            recovered = LauncherJournal(journal).get(start['job_id'], '1')
+            self.assertEqual(('finished', 'cancelled', True),
+                             (recovered.state, recovered.outcome, recovered.cleanup_complete))
+            self.run_sql(name, 'BEGIN;' + self.cancel_call(catalog) + 'COMMIT;')
+            worker_journal = WorkerJournal(worker_directory)
+            worker_journal.record(plan['set_id'], start['job_id'], member_id, '1')
+            worker_journal.set_handle(start['job_id'], '1', started['handle'])
+            worker = self.worker(database, worker_directory, realm, restarted,
+                                 [self.profile(context)],
+                                 [(context['installation_id'], b'descriptor')])
+            worker._cleanup_once()
+            worker._cleanup_once()
+            remaining = len(worker.journal.records())
+            launcher_remaining = len(LauncherJournal(journal).records())
+        rows = self.query(database,
+            "SELECT x.state, x.cleanup_state, (SELECT reserved_bytes FROM wl_ingestion.quotas q "
+            "WHERE q.portfolio_id=x.portfolio_id AND q.bucket='storage') "
+            "FROM wl_ingestion.sets x WHERE x.id='" + plan['set_id'] + "'")[0]
+        self.assertEqual(('CANCELLED', 'complete', 0), tuple(rows))
+        self.assertEqual(0, remaining)
+        self.assertEqual(0, launcher_remaining)
 
     def test_ac_06_real_launcher_wall_limit_finishes_rejected(self):
         """AC-IMP-007F-06: a real launcher limit ends with a rejected member."""

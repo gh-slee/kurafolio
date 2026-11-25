@@ -756,6 +756,34 @@ class NormalizeTests(unittest.TestCase):
         self.assertLessEqual(self.clock.now(), deadline - timedelta(seconds=5))
         self.assertEqual(1, len(worker.journal.records()))
 
+    def test_ac_03_keeper_then_the_deadline_row_finishes_inside_the_margin(self):
+        """AC-IMP-007F-03: renewals and the proof wait meet the deadline row."""
+        deadline = self.clock.now() + timedelta(seconds=40)
+        self.metadata = handoff_metadata(self.context, self.raw, self.job, self.set_id,
+                                         self.member, deadline=deadline)
+        launcher = FakeLauncher(self.metadata, cleanup=('cleanup_pending', False))
+        worker = self._worker(launcher)
+        self.assertEqual('owned', worker.handoff(self.metadata, self.context, self.raw)['outcome'])
+        attempt = list(worker._attempts.values())[0]
+
+        def wait(seconds):
+            self.clock.sleep(seconds)
+            return self.clock.now() >= deadline - timedelta(seconds=6)
+
+        keeper = LeaseKeeper(self.sql, worker._attempts, realm_digest=REALM,
+                             credential_epoch='1', clock=self.clock.now, wait=wait)
+        keeper._run()
+        self.assertGreaterEqual(len([call for call in self.sql.calls
+                                     if call[0] == 'renew_member_v1']), 3)
+        self.assertGreater(attempt.next_renew, deadline - timedelta(seconds=6))
+        self.clock.value = deadline - timedelta(seconds=5)
+        worker._executor.run()
+        finish = [call[1] for call in self.sql.calls if call[0] == 'finish_member_v1'][0]
+        self.assertEqual('reupload_required', finish['outcome'])
+        self.assertEqual('pending', finish['cleanup_proofs'][0]['state'])
+        self.assertLessEqual(self.clock.now(), deadline - timedelta(seconds=5))
+        self.assertEqual(1, len(worker.journal.records()))
+
     def test_ac_03_duplicate_handoff_is_owned_once(self):
         launcher = FakeLauncher(self.metadata)
         worker = self._worker(launcher)
@@ -927,7 +955,11 @@ class CleanupTests(unittest.TestCase):
         class Launcher:
             handle = self.handle
 
+            def __init__(self):
+                self.controls = []
+
             def control(self, request):
+                self.controls.append(request)
                 return status_value(self.handle, request['job_id'], request['fence'],
                                     state='cleanup_pending', outcome='ok', cleanup=False), None
 
@@ -937,7 +969,9 @@ class CleanupTests(unittest.TestCase):
         cleanup = [call[1] for call in self.sql.calls if call[0] == 'cleanup_set_v1'][0]
         self.assertEqual(['pending'], [proof['state'] for proof in cleanup['cleanup_proofs']])
         self.assertEqual(1, len(worker.journal.records()))
-        self.assertEqual('cancel', worker.launcher.controls[0]['operation']) if hasattr(worker.launcher, 'controls') else None
+        self.assertEqual(self.handle, worker.journal.records()[0].handle)
+        self.assertEqual('cancel', worker.launcher.controls[0]['operation'])
+        self.assertNotIn('forget', [control['operation'] for control in worker.launcher.controls])
 
 
 if __name__ == '__main__':

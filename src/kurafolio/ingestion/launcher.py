@@ -25,7 +25,8 @@ import time
 from .codec import digest, encode, sha256, validate
 from .contracts import (ERROR_STATUS, IngestionError, MAX_CONTEXT, MAX_CONTROL,
                         MAX_MINIMAL, MAX_RAW)
-from .launcher_engine import ENTRY, EngineError, PROFILE, DockerEngine
+from .launcher_engine import (CANCEL_INSPECT_TIMEOUT, CANCEL_KILL_TIMEOUT,
+                              CANCEL_REMOVE_TIMEOUT, ENTRY, EngineError, PROFILE, DockerEngine)
 from .launcher_journal import JournalError, LauncherJournal, Record
 from .runner_client import PeerTLS, pack_input, pack_result, unpack_input, unpack_result
 from .worker_config import ConfigError, read_profiles_file
@@ -377,11 +378,11 @@ class Launcher:
         attempt.cancelled = True
         if engine_id is not None:
             try:
-                self.engine.kill(engine_id)
+                self.engine.kill(engine_id, timeout=CANCEL_KILL_TIMEOUT)
             except EngineError:
                 pass
-            self.engine.remove(engine_id)
-            removed = self.engine.inspect(engine_id) is None
+            self.engine.remove(engine_id, timeout=CANCEL_REMOVE_TIMEOUT)
+            removed = self.engine.inspect(engine_id, timeout=CANCEL_INSPECT_TIMEOUT) is None
             self._finish(attempt, 'finished' if removed else 'cleanup_pending',
                          attempt.record.outcome or 'cancelled', cleanup_complete=removed)
         else:

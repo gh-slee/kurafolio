@@ -36,6 +36,10 @@ EXECUTION_LIMIT = 10
 REAP_TIMEOUT = 5
 JOIN_TIMEOUT = 2
 REMOVE_TIMEOUT = 5
+# A cancel runs inside the worker's 5 s margin before raw_deadline.
+CANCEL_KILL_TIMEOUT = 1.0
+CANCEL_REMOVE_TIMEOUT = 1.0
+CANCEL_INSPECT_TIMEOUT = 1.5
 
 
 class EngineError(RuntimeError):
@@ -208,10 +212,10 @@ class DockerEngine:
             self._sleep(.01)
         raise EngineError('import_runner_unavailable')
 
-    def inspect(self, engine_id):
+    def inspect(self, engine_id, *, timeout=SETUP_TIMEOUT):
         if _ENGINE.fullmatch(engine_id) is None:
             raise EngineError('import_invalid')
-        result = self._run(['inspect', engine_id], timeout=SETUP_TIMEOUT)
+        result = self._run(['inspect', engine_id], timeout=timeout)
         if result.returncode:
             detail = result.stderr.decode('utf-8', 'replace').lower()
             if 'no such object' in detail or 'no such container' in detail:
@@ -234,15 +238,15 @@ class DockerEngine:
         except (ValueError, IndexError, TypeError):
             raise EngineError('import_runner_unavailable') from None
 
-    def kill(self, engine_id):
+    def kill(self, engine_id, *, timeout=REAP_TIMEOUT):
         if _ENGINE.fullmatch(engine_id) is None:
             raise EngineError('import_invalid')
-        self._run(['kill', engine_id], timeout=REAP_TIMEOUT)
+        self._run(['kill', engine_id], timeout=timeout)
 
-    def remove(self, engine_id):
+    def remove(self, engine_id, *, timeout=REMOVE_TIMEOUT):
         if _ENGINE.fullmatch(engine_id) is None:
             raise EngineError('import_invalid')
-        result = self._run(['rm', '--force', engine_id], timeout=REMOVE_TIMEOUT)
+        result = self._run(['rm', '--force', engine_id], timeout=timeout)
         return result.returncode == 0
 
     def find(self, instance_id, nonce_digest):
