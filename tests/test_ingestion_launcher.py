@@ -6,10 +6,12 @@ cleanup) and the refusal rows, with a fake engine and no Docker.
 """
 from __future__ import annotations
 
+import http.client
 import json
 import os
 from pathlib import Path
 import secrets
+import ssl
 import tempfile
 import time
 import unittest
@@ -20,7 +22,8 @@ from kurafolio.ingestion.contracts import IngestionError
 from kurafolio.ingestion.launcher import Launcher, LauncherConfig
 from kurafolio.ingestion.launcher_engine import ENTRY, PROFILE, Run
 from kurafolio.ingestion.launcher_journal import LauncherJournal, Record
-from kurafolio.ingestion.runner_client import PeerTLS, pack_result, unpack_result
+from kurafolio.ingestion.runner_client import PeerTLS, pack_input, pack_result, unpack_result
+from tests.test_ingestion_worker import make_peers
 
 INSTANCE = '70000000-0000-4000-8000-000000000002'
 IMAGE = '83125eb1979a26b9249616951138ab5afc27bd21a215bb5b4612b235acd3c34f'
@@ -289,6 +292,64 @@ class LauncherTests(unittest.TestCase):
                     self.control(launcher, meta, None if 'handle' in changes else attempt.handle,
                                  **changes)
                 self.assertEqual(code, refused.exception.code)
+
+    def test_ac_08_private_endpoint_refuses_wrong_peers_and_bad_frames(self):
+        directory = Path(self.directory.name) / 'peers'
+        directory.mkdir(mode=0o700)
+        peers = make_peers(directory, ['worker', 'api', 'launcher'])
+        ca, cert, key, _ = peers['launcher']
+        server = PeerTLS(ca, cert, key, peers['worker'][3], INSTANCE, 'worker')
+        config = Config()
+        config.journal_directory = self.journal_directory
+        config.profiles_file = self.profiles
+        config.server_tls = server
+        config.bind_port = 0
+        engine = FakeEngine()
+        launcher = Launcher(config, engine)
+        address = launcher.start_server()
+        self.addCleanup(launcher.stop)
+        port = address[1]
+
+        def client(role):
+            context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH, cafile=str(peers[role][0]))
+            context.check_hostname = False
+            context.minimum_version = context.maximum_version = ssl.TLSVersion.TLSv1_3
+            context.load_cert_chain(str(peers[role][1]), str(peers[role][2]))
+            return http.client.HTTPSConnection('127.0.0.1', port, context=context, timeout=5)
+
+        def post(role, path, body):
+            connection = client(role)
+            try:
+                connection.request('POST', path, body=body,
+                                   headers={'Content-Type': 'application/octet-stream',
+                                            'Content-Length': str(len(body))})
+                response = connection.getresponse()
+                return response.status, response.read()
+            finally:
+                connection.close()
+
+        value = context()
+        raw = b'synthetic,raw\n'
+        meta = metadata(value, raw)
+        engine.frame = child_frame(meta)
+        status, body = post('worker', '/internal/v1/jobs', pack_input(meta, value, raw, schema='LaunchStart'))
+        self.assertEqual(200, status)
+        status_value = json.loads(body)
+        self.assertEqual((meta['job_id'], meta['fence']), (status_value['job_id'], status_value['fence']))
+        with self.assertRaises((OSError, ssl.SSLError, ConnectionError)):
+            post('api', '/internal/v1/jobs', pack_input(meta, value, raw, schema='LaunchStart'))
+        status, body = post('worker', '/internal/v1/jobs', b'\x00\x00\x00\x01{')
+        self.assertEqual((422, {'code': 'import_invalid'}), (status, json.loads(body)))
+        self.assertEqual(1, len(engine.created))
+        control = {'version': 1, 'operation': 'forget', 'instance_id': INSTANCE,
+                   'realm_digest': REALM, 'credential_epoch': '1', 'job_id': meta['job_id'],
+                   'member_id': meta['member_id'], 'fence': meta['fence'],
+                   'handle': 'f' * 64, 'include_result': False}
+        status, body = post('worker', '/internal/v1/control', encode(control))
+        self.assertEqual((401, {'code': 'authentication_required'}), (status, json.loads(body)))
+        control['handle'] = status_value['handle']
+        status, body = post('worker', '/internal/v1/control', encode(control))
+        self.assertEqual((409, {'code': 'import_conflict'}), (status, json.loads(body)))
 
     def test_ac_02_child_refuses_unreviewed_frames(self):
         from kurafolio.ingestion.runner_child import run as child_run
