@@ -8,6 +8,8 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
+PG_EXTRAS = all(importlib.util.find_spec(name) is not None for name in ('psycopg','sqlalchemy'))
+
 ID = '10000000-0000-4000-8000-000000000001'
 OTHER = '10000000-0000-4000-8000-000000000002'
 INSTANT = {'tag': 'instant', 'token': '2026-11-23T20:00:00+00:00', 'zone': None, 'fractional_digits': 0}
@@ -203,14 +205,18 @@ class ImportHttpTests(unittest.TestCase):
         self.assertEqual(asyncio.run(run('/api/v2/import-sets')),429)
         self.assertEqual(asyncio.run(run('/api/v2/import-sets/'+ID+'/members/'+ID+'/raw')),404)
 
-    def test_ac_09_contract_error_map_and_profile_revision(self):
+    def test_ac_09_contract_error_map(self):
         """AC-IMP-007E-09."""
         from kurafolio.ingestion.contracts import ERROR_STATUS
+        wire = json.loads((Path(__file__).resolve().parents[1]/'docs/specs/imp-007-r7/wire-contracts.json').read_text())
+        self.assertEqual(dict(ERROR_STATUS),wire['error_status'])
+
+    @unittest.skipUnless(PG_EXTRAS, 'Optional PostgreSQL libraries required for profile revision checks')
+    def test_ac_01_profile_revision(self):
+        """AC-IMP-007E-01."""
         from kurafolio.persistence import ingestion_schema
         from kurafolio.persistence.context import Database
         from kurafolio.persistence.config import PostgresConfig
-        wire = json.loads((Path(__file__).resolve().parents[1]/'docs/specs/imp-007-r7/wire-contracts.json').read_text())
-        self.assertEqual(dict(ERROR_STATUS),wire['error_status'])
         database = Database(PostgresConfig('host=localhost port=5432 dbname=synthetic user=synthetic password=synthetic sslmode=disable'),schema_mode='ingestion')
         self.addCleanup(database.close)
         self.assertEqual(database.revision,ingestion_schema.REVISION)
@@ -244,6 +250,7 @@ class ImportHttpTests(unittest.TestCase):
              patch('kurafolio.persistence.source_migration.verify_inventory') as verify:
             self.assertTrue(auth.ready());verify.assert_called_once()
 
+    @unittest.skipUnless(PG_EXTRAS, 'Optional PostgreSQL libraries required for configuration checks')
     def test_ac_01_worker_role_configuration_and_cli(self):
         """AC-IMP-007E-01."""
         from kurafolio.web_v2.config import Settings

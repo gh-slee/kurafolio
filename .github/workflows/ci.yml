@@ -281,6 +281,10 @@ jobs:
         run: PYTHONPATH=src python scripts/run_gated_tests.py --expect-skipped 0 -- discover -s tests -p 'test_postgres_migration.py'
       - name: Verify authenticated ingestion HTTP routes and signed pagination
         run: PYTHONPATH=src python scripts/run_gated_tests.py --expect-skipped 0 -- discover -s tests -p 'test_postgres_import_routes.py'
+      - name: Verify ingestion wire, profile configuration and transaction faults
+        run: |
+          PYTHONPATH=src python scripts/run_gated_tests.py --expect-skipped 0 -- discover -s tests -p 'test_web_v2_import*.py'
+          PYTHONPATH=src python scripts/run_gated_tests.py --expect-skipped 0 -- discover -s tests -p 'test_ingestion_store.py'
 
   postgres-identity:
     needs: changes
