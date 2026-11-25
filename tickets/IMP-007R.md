@@ -2,7 +2,7 @@
 id: IMP-007R
 title: Sweep a lapsed normalize attempt into reupload_required
 priority: P0
-status: in_progress
+status: done
 type: feature
 parent: IMP-007
 depends_on: []
@@ -14,10 +14,10 @@ gate: owner
 gate_approval: "owner 2026-11-23, Gate A on the amended text (hash 5eebf8c6…): Approve Gate A"
 review: independent
 branch: ticket/imp-007r-sweep-a-lapsed-normalize-attempt-into-re
-pr: 
+pr: https://github.com/gh-slee/kurafolio/pull/114
 spec: docs/specs/imp-007-r7/spec.md
 spec_approved: sha256:5eebf8c637dd7d798e6d72bda1280f64e4cab3507c733fa4ae3fcc441bedc724
-updated: 2026-11-24
+updated: 2026-11-25
 ---
 
 # IMP-007R: Sweep a lapsed normalize attempt into reupload_required
@@ -83,7 +83,7 @@ If the import worker dies while it normalizes a file, its lease lapses and nothi
 - [x] AC-IMP-007R-05: Two concurrent sweeps, and a sweep racing a late `finish_member_v1`, `cancel_set_v1` or set expiry, give exactly one effect, and the raw quota is returned at most once.
 - [x] AC-IMP-007R-06: An attempt that stored a stage before it lapsed is swept to `reupload_required` and its stage row is deleted; no accepted fact, mapping, decision, preview or stage of another attempt changes; a later upload of the same file in that member reaches `admitted`; and deleting a stage of a live set in any other way is still refused.
 - [x] AC-IMP-007R-07: The frozen r7 inventory, the oracle inventory, both expected structure digests and every DTO are unchanged; no function, grant or inventory row is added and `ingestion_schema.WORKER` is unchanged; only the text of `claim_plan_v1` and `_transition_v1` changes, and `tests/test_postgres_migration.py` passes against a real `0004` install.
-- [ ] AC-IMP-007R-08: The pull request records the evidence that no database outside disposable tests ran `operator migrate-ingestion` at `0004`, or the owner's decision to use a new revision.
+- [x] AC-IMP-007R-08: The pull request records the evidence that no database outside disposable tests ran `operator migrate-ingestion` at `0004`, or the owner's decision to use a new revision.
 - [x] AC-IMP-007R-09: Opt-in real-PostgreSQL tests cover AC-01 to AC-06 and AC-11.
 - [x] AC-IMP-007R-10: `docs/web-v2-imports.md` describes the sweep, that it runs inside `claim_plan_v1` and so needs a running worker, and that a slot without proof stays held until cleanup unless the worker process that holds the attempt's token gets a late proof (IMP-007Q), replacing the "cancel or expiry is the recovery" text where it becomes untrue.
 - [x] AC-IMP-007R-11: A `claim_plan_v1` call with `work_kind: "cleanup"` sweeps lapsed attempts, as a `prepare` call does; one call sweeps no more than the fixed bound and later calls sweep the rest; a call refused by `_guard_worker_v1`, or run outside READ COMMITTED, sweeps nothing; and the sweep's changes stand when the call answers `no_work`, `already_claimed` or a refusal code.
@@ -395,12 +395,14 @@ Only the owner answers. The planner recommends an option for each.
 
 ## Handoff
 
-- State: Local developer implementation and self-tests complete. Full suite: 1,463 run, 270 expected opt-in skips, no failures/errors. Separate opt-in PostgreSQL gate: 164 run, zero skips/failures/errors, including all eight new gated methods. Static DDL tests: 19 passed. Independent QA and Architect review, PR and branch CI are NOT RUN; status remains in_progress.
-- Next step: Require a successful candidate receipt matching HEAD, then obtain the owner's approval for the exact push and PR scope. Run `review IMP-007R` in Claude Code for fresh-context QA and Architect review before owner review. AC-08's PR record remains outstanding until publication.
-- Verify: `KURAFOLIO_INGESTION_TEST=1 PYTHONPATH=src .venv/bin/python scripts/run_gated_tests.py --expect-skipped 0 -- discover -s tests -p 'test_postgres_migration.py'`
-- Evidence: ignored `work/imp-007r/` holds baseline/final hashes, full-suite and PostgreSQL logs, privacy checks and the draft PR body. Candidate receipts live under ignored `work/pr-images/`; use only a receipt whose HEAD matches the current commit.
-- Gotchas: Sweep changes survive refusal answers. Bound raw slots remain held without proof. PostgreSQL tests need the locked PG dependencies and isolated synthetic resources. The build base includes one additional IMP-007P gated test, so the foundation job expects 141 skips (140 ingestion plus one runtime-image test), preserving the plan's increment of eight. No gated section, DTO, oracle, structure digest, grant, predecessor provider or other function body changed.
-- Open questions: None. This Codex builder cannot start the required Claude reviewer. No push, PR, operational migration or runtime update has occurred.
+- State: Developer review repairs complete locally for draft PR #114. The ticket is done for the implementation status gate, with its PR URL recorded. The independent review at 9ec02ea requested changes; the builder has addressed them, but the repair has not been independently re-reviewed. Keep the PR draft until that review is resolved, then the owner reviews last.
+- Review: [Independent QA and Architect findings](https://github.com/gh-slee/kurafolio/pull/114#issuecomment-7169775227). SQL and architecture passed inspection; AC-09 failed because the accepted-data preservation test was empty. The reviewer ran 19 static tests and seven real-PostgreSQL methods, relied on push CI for runtime inventory, and did not rerun the full suite, image or privacy checks. The published comment does not state the reviewer's model.
+- Repairs: Populate every protected table, require nonempty digest arrays, prove the other set is live READY with admitted members and stage/decision/preview rows, and explicitly refuse deletion of its stage. Check LIMIT 8 in the rendered sweep, not a substituted template. Record AC-08 and current PR/CI/review evidence. Production SQL, the approved spec and Build plan are unchanged.
+- Verify: Targeted repair checks passed: 19 static DDL tests and the repaired real-PostgreSQL AC-06/09 method, zero skips. Prior evidence at 9ec02ea remains scoped to that head: full suite 1,463 run/270 expected skips; real PostgreSQL 164 run/zero skips. All nine push CI jobs passed; PR CI failed only the ticket status/empty-PR-field gate, after its tests and report demos passed. The full suite was not repeated for test-data/assertion and metadata changes.
+- Next step: Require the final clean commit's candidate receipt and privacy checks, obtain approval for that exact push and PR-body update, then ask Claude Code to verify this repair before owner review. No additional push, PR update, merge or runtime switch is authorized by this handoff.
+- Evidence: Ignored `work/imp-007r/` holds the review source, targeted repair logs, prior verification and proposed complete PR body. Candidate receipts live under ignored `work/pr-images/`; use only the receipt matching HEAD.
+- Gotchas: Bound raw slots stay held without proof. The foundation job expects 141 skips (140 ingestion plus one runtime-image test). No gated section, DTO, oracle, structure digest, grant, predecessor provider or production function changed in this repair.
+- Open questions: No design question. Independent repair re-review remains outstanding; do not treat developer tests as its acceptance.
 
 ## Log
 
@@ -417,3 +419,5 @@ Only the owner answers. The planner recommends an option for each.
 - 2026-11-24 codex/gpt-6.1-sol: implemented only the prescribed claim and stage-trigger insertions, acceptance tests, CI skip-count adjustment and import documentation. Both stripped function hashes and the remaining function DDL hash match the baseline. Focused static tests: 19 passed; new PostgreSQL acceptance: eight methods passed, zero skips. Developer test-fixture repairs retained in ignored logs; production SQL followed the plan without changes to semantics. Full suites and candidate image gate pending.
 
 - 2026-11-24 codex/gpt-6.1-sol: completed local verification. Full suite: 1,463 run in 739.684 s, 270 expected skips, no failures/errors. Real PostgreSQL: 164 run in 106.442 s, zero skips/failures/errors. Static checks: 19 passed; opt-in-off module: 164 run with 140 expected skips. Approved spec unchanged; language, publication worktree/index/reachable-history and forbidden-path diff checks passed. Tags/releases are empty, migrations end at 0004, and no runtime profile serves 0004. Implementer codex/gpt-6.1-sol; reviewing model NOT RUN (required Claude reviewer unavailable); review repair rounds 0; nothing missing from the spec or Build plan. Candidate image check is required against the final evidence commit before requesting publication approval. No publication, deployment or financial operation performed.
+
+- 2026-11-25 codex/gpt-6.1-sol: addressed review repair round 1 from [the independent QA and Architect review at 9ec02ea](https://github.com/gh-slee/kurafolio/pull/114#issuecomment-7169775227). The original verdict was changes requested: SQL/architecture accepted, AC-09 failed on empty accepted-data coverage, and ticket/PR bookkeeping and the rendered-bound assertion needed repair. Added accepted effects and the existing authority-peer fixture, required every protected digest array to be nonempty, and added the explicit live READY-stage delete refusal; the LIMIT assertion now inspects rendered CLAIM_PLAN_DDL. Targeted tests: 19 static passed; repaired real-PostgreSQL AC-06/09 method passed in 3.251 s with zero skips. Set status done and pr to #114 for the CI implementation gate, checked AC-08 and refreshed Handoff. Implementer codex/gpt-6.1-sol; reviewer Claude Code (model not stated in posted evidence); review repair rounds 1; nothing missing from the spec or Build plan. Changes addressed by builder, not independently re-reviewed. Final candidate/privacy evidence and concrete publication approval remain required; no new push, PR update or runtime switch performed.

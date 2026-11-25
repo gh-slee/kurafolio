@@ -332,7 +332,7 @@ class IngestionStorageDDLTests(unittest.TestCase):
                   ddl.index("'outcome','no_work'"), ddl.index('-- IMP-007R: a refusal'),
                   ddl.rindex("EXCEPTION WHEN SQLSTATE '22023'")]
         self.assertEqual(sorted(points), points)
-        self.assertIn('LIMIT 8', schema._NORMALIZE_SWEEP_PRELUDE.replace('SWEEP_LIMIT', '8'))
+        self.assertIn('LIMIT 8);', ddl[points[2]:points[3]])
         for body in (ddl, schema.TRANSITION_DDL):
             self.assertIsNone(re.search(r'RAISE\s+(NOTICE|LOG|WARNING|INFO|DEBUG)', body))
 
@@ -6024,7 +6024,25 @@ SELECT 'STAGE '||jsonb_build_array(octet_length(data),encode(sha256(data),'hex')
 
     def test_sweep_deletes_only_the_swept_attempts_stage(self):
         """AC-IMP-007R-06; AC-IMP-007R-09: transient stage removal and re-upload."""
-        _, _, seed, catalog = self.finish_seed(count=2)
+        from kurafolio.ingestion.codec import digest, encode
+        plan, _, seed, catalog = self.finish_seed(count=2)
+        # Write retained accepted facts through the existing effects function, while
+        # keeping accept_seed's literal READY set for the live-stage refusal below.
+        # Caller-owned receipt/set bookkeeping remains outside this rolled-back helper.
+        seed += 'SELECT ' + self.effects_call(plan, 'd3000000-0000-4000-8000-000000000001') + ';'
+        prestate = ORACLE['authority-only-prestate.json']
+        peer = prestate['peer_revision']
+        typed = encode(peer['typed'])
+        scope = "'" + plan['tenant_id'] + "','" + plan['portfolio_id'] + "'"
+        seed += ("INSERT INTO wl_ingestion.source_revisions(tenant_id,portfolio_id,id,source_key,source_revision,"
+            "financial_digest,source_change,accepted_change,parent_id,input_id,collection,local_id,typed_bytes,typed_digest,"
+            "created_at) SELECT " + scope + ",'" + peer['id'] + "','" + peer['source_key_digest'] + "','r1','" +
+            peer['financial_digest'] + "','original','original',NULL,a.id,'records','0',decode('" + typed.hex() +
+            "','hex'),'" + digest(peer['typed']) + "','2026-02-02T13:00:00+00:00' FROM wl_ingestion.accepted_inputs a;"
+            "INSERT INTO wl_ingestion.authority_links SELECT " + scope + ",'" + prestate['prior_link_id'] + "',1,'" +
+            prestate['prior_authority']['left']['accepted_revision_id'] + "','" + peer['id'] + "','independent','" +
+            prestate['prior_authority']['evidence_reference'] + "','" + digest(prestate['prior_authority']) +
+            "',p.id FROM wl_ingestion.accepted_plans p;")
         protected = self.protected_sweep_digest
         rejects = ''.join(self.rejects('DELETE FROM wl_ingestion.' + table +
                          (" WHERE member_id<>" + self.LEASE_MEMBER + "::uuid" if table == 'stages' else ''))
@@ -6045,13 +6063,25 @@ SELECT 'STAGE '||jsonb_build_array(octet_length(data),encode(sha256(data),'hex')
                        "SET LOCAL session_replication_role=replica;DELETE FROM wl_ingestion.stages WHERE member_id=" +
                        self.LEASE_MEMBER + "::uuid;SET LOCAL session_replication_role=origin;")
         token_digest = "'" + hashlib.sha256(bytes.fromhex(self.WORKER_TOKEN)).hexdigest() + "'"
-        out = self.run_labelled(seed + self.lapse() + proof + older + protected('BEFORE') +
-            self.plan_claim('sweep') + self.FINISH_STATE + protected('AFTER') + rejects + old_refusal + release +
+        ready = ("SELECT 'READY '||jsonb_build_array(x.state,"
+                 "(SELECT count(*) FROM wl_ingestion.members m WHERE m.set_id=x.id AND m.state='admitted'),"
+                 "(SELECT count(*) FROM wl_ingestion.stages s WHERE s.set_id=x.id),"
+                 "(SELECT count(*) FROM wl_ingestion.decisions d WHERE d.set_id=x.id),"
+                 "(SELECT count(*) FROM wl_ingestion.previews p WHERE p.set_id=x.id))::text "
+                 "FROM wl_ingestion.sets x WHERE x.id='" + plan['set_id'] + "';")
+        refuse_ready_stage = self.rejects("DELETE FROM wl_ingestion.stages WHERE set_id='" + plan['set_id'] + "'::uuid")
+        out = self.run_labelled(seed + self.lapse() + proof + older + ready + protected('BEFORE') +
+            self.plan_claim('sweep') + self.FINISH_STATE + protected('AFTER') + refuse_ready_stage + rejects + old_refusal + release +
             self.reserve_call('again', catalog) + self.reserve_call('bind2', catalog, action='bind', handoff_token_digest=token_digest) +
             self.lease_call('claim_member_v1', 'claim2', fence="'2'", request_id="'c0000000-0000-4000-8000-000000000012'") +
             self.admit_call('admit2', fence="'2'", request_id="'c0000000-0000-4000-8000-000000000016'") +
             self.finish_call('finish2', fence="'2'", cleanup_proofs=self.proofs('absent').replace("'fence','1'", "'fence','2'"),
                              request_id="'c0000000-0000-4000-8000-000000000017'"))
+        self.assertEqual('READY', out['READY'][0])
+        self.assertTrue(all(count > 0 for count in out['READY'][1:]), out['READY'])
+        # An empty accepted table cannot make the preservation comparison pass.
+        for table, rows in out['BEFORE'].items():
+            self.assertGreater(len(rows), 0, table)
         self.assertEqual(out['BEFORE'], out['AFTER'])
         self.assertEqual(['reupload_required', 'import_reupload_required', False, 1], out['FSTATE']['members'][0])
         self.assertTrue(out['AGAIN']['ok'], out['AGAIN'])
