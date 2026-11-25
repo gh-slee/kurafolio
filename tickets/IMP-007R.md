@@ -369,8 +369,8 @@ Revert the commit. There is no data migration and no table, column, index, grant
 - [x] Owner answers Decisions needed item 5 (2026-11-23: (a), amend); amended wording applied.
 - [x] Owner gives Gate A on the amended text (2026-11-23, sha256:5eebf8c637dd7d798e6d72bda1280f64e4cab3507c733fa4ae3fcc441bedc724).
 - [x] Owner answers Decisions needed item 6 (2026-11-23: no `0004` database or backup outside disposable tests).
-- [ ] Sweep in `claim_plan_v1` and the stage-delete exception in `_transition_v1`, as insertions; both structure digests and `oracle.json` unchanged (Build plan).
-- [ ] Real-PostgreSQL tests for each acceptance ID; `0004` evidence; docs.
+- [x] Sweep in `claim_plan_v1` and the stage-delete exception in `_transition_v1`, as insertions; both structure digests and `oracle.json` unchanged (Build plan).
+- [x] Real-PostgreSQL tests for each acceptance ID; `0004` evidence; docs.
 
 ## Decisions needed
 
@@ -395,11 +395,11 @@ Only the owner answers. The planner recommends an option for each.
 
 ## Handoff
 
-- State: Claimed by codex/gpt-6.1-sol on 2026-11-24; approved spec and merged Build plan verified. Baseline SQL hashes match the plan.
-- Next step: Run the existing PostgreSQL baseline, then implement the prescribed insertions and acceptance tests.
-- Verify: `KURAFOLIO_INGESTION_TEST=1 PYTHONPATH=src .venv/bin/python -m unittest tests.test_postgres_migration -v`
-- Gotchas: Sweep changes must survive refusal answers. Keep raw slots held without proof. Use only isolated synthetic PostgreSQL resources.
-- Open questions: None. Independent QA and Architect review have not run; this Codex builder cannot start the required Claude reviewer.
+- State: Developer implementation complete on the ticket worktree. Nineteen static tests and all eight new gated PostgreSQL methods passed in focused runs, including six overlapping transaction scenarios and installed-body rollback detection. Required full suites are running; no independent review, PR or CI yet.
+- Next step: Finish full-suite validation, inspect the final diff, commit the reviewed scope and run the candidate image gate. Obtain concrete owner approval before any push.
+- Verify: `KURAFOLIO_INGESTION_TEST=1 PYTHONPATH=src .venv/bin/python scripts/run_gated_tests.py --expect-skipped 0 -- discover -s tests -p 'test_postgres_migration.py'`
+- Gotchas: Sweep changes survive refusal answers. Bound raw slots remain held without proof. PostgreSQL tests require the locked PG dependencies and isolated synthetic resources. The build base includes one additional IMP-007P gated test, so the foundation job expects 141 skips (140 ingestion plus one runtime-image test), preserving the plan's increment of eight.
+- Open questions: None. Independent QA and Architect review are NOT RUN; this Codex builder cannot start the required Claude reviewer.
 
 ## Log
 
@@ -412,3 +412,5 @@ Only the owner answers. The planner recommends an option for each.
 - 2026-11-23 claude-code/opus-5.5: recorded the owner's answer to Decisions needed item 6 in plan pull request https://github.com/gh-slee/kurafolio/pull/112. Asked "Has any database outside disposable tests run `operator migrate-ingestion` at `0004`, or been backed up with `backup-ingestion`: no, none has, or yes, one has?", the owner replied "No, none has". The in-place `0004` change goes ahead; the builder cites this line as the AC-08 evidence. Updated Build plan step "Before you claim" 1 to match. Gated sections and Gate A fields unchanged (sha256:5eebf8c637dd7d798e6d72bda1280f64e4cab3507c733fa4ae3fcc441bedc724). No owner items remain open.
 
 - 2026-11-24 codex/gpt-6.1-sol: claimed the approved build from origin/main at f146fc9; spec hash 5eebf8c637dd7d798e6d72bda1280f64e4cab3507c733fa4ae3fcc441bedc724 matches. Decisions 5 and 6 are resolved. AC-08 owner evidence: Decisions item 6 records the owner's 2026-11-23 answer, "No, none has", for databases and backups outside disposable tests. No push or PR publication authorized.
+
+- 2026-11-24 codex/gpt-6.1-sol: implemented only the prescribed claim and stage-trigger insertions, acceptance tests, CI skip-count adjustment and import documentation. Both stripped function hashes and the remaining function DDL hash match the baseline. Focused static tests: 19 passed; new PostgreSQL acceptance: eight methods passed, zero skips. Developer test-fixture repairs retained in ignored logs; production SQL followed the plan without changes to semantics. Full suites and candidate image gate pending.
