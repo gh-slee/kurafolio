@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 import http.client
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -503,6 +504,8 @@ class WorkerConfigTests(unittest.TestCase):
         value.update(changes)
         return self._write('worker.json', json.dumps(value))
 
+    @unittest.skipUnless(importlib.util.find_spec('psycopg'),
+                         'psycopg is installed only with the PostgreSQL requirements')
     def test_ac_08_closed_configuration_loads_from_files(self):
         config = load(self._config())
         self.assertEqual((REALM, '1', INSTANCE), (config.realm_digest, config.credential_epoch,
