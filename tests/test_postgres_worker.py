@@ -10,9 +10,11 @@ from __future__ import annotations
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 import json
+import multiprocessing
 import os
 from pathlib import Path
 import secrets
+import signal
 import socket
 import tempfile
 import time
@@ -21,7 +23,7 @@ import uuid
 from unittest import mock
 
 from kurafolio.ingestion import worker as worker_module
-from kurafolio.ingestion.codec import encode, sha256, validate
+from kurafolio.ingestion.codec import digest as digest_body, encode, sha256, validate
 from kurafolio.ingestion.worker import ImportWorker
 from kurafolio.ingestion.worker_journal import WorkerJournal
 from kurafolio.ingestion.worker_sql import WorkerCallError, WorkerSQL
@@ -66,6 +68,39 @@ def _minimal(context, raw_sha, discovery_sha):
     provenance['evidence_at'] = {'tag': 'instant', 'token': context['parser_context']['evidence_at'],
                                  'zone': None, 'fractional_digits': 0}
     return encode(validate(document, 'Minimal'))
+
+
+def _crash_child(conninfo, journal_directory, realm, metadata, context, raw, profile,
+                 descriptor, minimal, step):
+    import os
+    from kurafolio.persistence.config import PostgresConfig
+    from kurafolio.persistence.context import Database
+
+    class CrashSQL(WorkerSQL):
+        def call(self, name, request, payload=None, *, token):
+            value = super().call(name, request, payload, token=token)
+            if name == step:
+                os.kill(os.getpid(), signal.SIGKILL)
+            return value
+
+    database = Database(PostgresConfig(conninfo), schema_mode='sources')
+    launcher = FakeLauncher(metadata, payload=b'{"synthetic":true}', payload_kind='parser_v2')
+    config = _Config(journal_directory, realm, '70000000-0000-4000-8000-000000000002')
+    worker = ImportWorker(config, sql=CrashSQL(database, 'c7000000-0000-4000-8000-000000000001'),
+                          launcher=launcher, profiles=[profile], descriptors=[descriptor])
+    worker._executor = _Inline()
+    if step == 'handle':
+        original = worker.journal.set_handle
+        def set_handle(*args):
+            original(*args)
+            os.kill(os.getpid(), signal.SIGKILL)
+        worker.journal.set_handle = set_handle
+    if step == 'result':
+        worker._admit = lambda *args: os.kill(os.getpid(), signal.SIGKILL)
+    from unittest import mock
+    with mock.patch.object(worker_module.discovery, 'admit_parser2', return_value=minimal):
+        worker.handoff(metadata, context, raw)
+        worker._executor.run()
 
 
 class _Inline:
@@ -260,6 +295,10 @@ class WorkerPostgresTests(pg.IngestionAppendOnlyPostgresTests):
         context_hex, member_id, set_id = row.split()
         plan['set_id'] = set_id
         return plan, pin, catalog, raw, bytes.fromhex(context_hex), member_id
+
+    def database_conninfo(self, name):
+        from psycopg.conninfo import make_conninfo
+        return make_conninfo(**dict(self.connection, dbname=name))
 
     def role_database(self, name):
         from kurafolio.persistence.config import PostgresConfig
@@ -459,6 +498,128 @@ class WorkerPostgresTests(pg.IngestionAppendOnlyPostgresTests):
                                  [(context['installation_id'], b'descriptor')])
             worker._cleanup_once()
             self.assertEqual(1, len(worker.journal.records()))
+
+    def test_ac_03_sigkill_at_each_normalize_step_is_recoverable(self):
+        """AC-IMP-007F-03: SIGKILL leaves only the documented recoverable states."""
+        for step in ('claim_member_v1', 'handle', 'result', 'admit_stage_v1', 'finish_member_v1'):
+            with self.subTest(step=step):
+                database, name = self.fresh_database()
+                plan, pin, catalog, raw, context_bytes, member_id = self.seed(name)
+                context = json.loads(context_bytes)
+                realm = self.realm(name)
+                payload = b'{"synthetic":true}'
+                minimal = _minimal(context, sha256(raw), sha256(payload))
+                with tempfile.TemporaryDirectory(prefix='wl-imp-007f-crash-') as directory:
+                    os.chmod(directory, 0o700)
+                    process = multiprocessing.get_context('fork').Process(
+                        target=_crash_child,
+                        args=(self.database_conninfo(name), directory, realm,
+                              _metadata(context_bytes, raw, 'ab' * 32, realm,
+                                        plan['set_id'], member_id),
+                              context_bytes, raw, self.profile(context),
+                              (context['installation_id'], b'descriptor'), minimal, step))
+                    process.start()
+                    process.join(20)
+                    self.assertEqual(-signal.SIGKILL, process.exitcode)
+                    records = WorkerJournal(directory).records()
+                    if step == 'finish_member_v1':
+                        state = self.query(database,
+                            "SELECT x.state, m.state FROM wl_ingestion.sets x JOIN wl_ingestion.members m "
+                            "ON m.set_id=x.id WHERE x.id='" + plan['set_id'] + "'")[0]
+                        self.assertEqual(('NORMALIZING', 'admitted'), tuple(state))
+                        continue
+                    # The old producer cannot finish after its fence lapses.
+                    self.run_sql(name, "BEGIN;SET LOCAL session_replication_role=replica;"
+                                      "UPDATE wl_ingestion.leases SET created_at=created_at-interval '2 minutes',"
+                                      "expires_at=pg_catalog.clock_timestamp()-interval '1 second' "
+                                      "WHERE work_kind='normalize';"
+                                      "SET LOCAL session_replication_role=origin;COMMIT;")
+                    finish = {'version': 1, 'realm_digest': realm, 'credential_epoch': '1',
+                              'job_id': context['job_id'], 'set_id': plan['set_id'],
+                              'member_id': member_id, 'work_kind': 'normalize', 'fence': '1',
+                              'request_id': str(uuid.uuid4()), 'outcome': 'stage_admitted',
+                              'error_code': None, 'cleanup_proofs': []}
+                    with self.assertRaises(WorkerCallError) as caught:
+                        WorkerSQL(database, self.WORKER).call('finish_member_v1', finish,
+                                                              token='ab' * 32)
+                    self.assertIn(caught.exception.code, {'import_stale', 'import_expired'})
+                    self.run_sql(name, 'BEGIN;' + self.cancel_call(catalog) + 'COMMIT;')
+                    launcher = FakeLauncher(_metadata(context_bytes, raw, 'ab' * 32, realm,
+                                                      plan['set_id'], member_id),
+                                            payload=payload, payload_kind='parser_v2')
+                    if records:
+                        launcher.handle = records[0].handle or secrets.token_hex(32)
+                    worker = self.worker(database, directory, realm, launcher,
+                                         [self.profile(context)],
+                                         [(context['installation_id'], b'descriptor')])
+                    worker._cleanup_once()
+                    row = self.query(database,
+                        "SELECT x.state, x.cleanup_state FROM wl_ingestion.sets x WHERE x.id='"
+                        + plan['set_id'] + "'")[0]
+                    self.assertEqual('CANCELLED', row[0])
+                    if step == 'claim_member_v1':
+                        self.assertEqual(('failed', 1), (row[1], len(worker.journal.records())))
+                    else:
+                        self.assertEqual(('complete', 0), (row[1], len(worker.journal.records())))
+
+    def test_ac_06_real_launcher_wall_limit_finishes_rejected(self):
+        """AC-IMP-007F-06: a real launcher limit ends with a rejected member."""
+        import subprocess
+        from types import SimpleNamespace
+        from kurafolio.ingestion.launcher import Launcher
+        from kurafolio.ingestion.launcher_engine import ENTRY, DockerEngine
+
+        digest = subprocess.check_output(
+            ['docker', 'image', 'inspect', '--format', '{{index .RepoDigests 0}}', self.IMAGE],
+            text=True).strip()
+        repository, _, image_digest = digest.partition('@sha256:')
+        database, name = self.fresh_database()
+        plan, pin, catalog, raw, context_bytes, member_id = self.seed(name)
+        context = json.loads(context_bytes)
+        realm = self.realm(name)
+        class TestEngine(DockerEngine):
+            def __init__(self, reference):
+                super().__init__()
+                self.reference = reference
+
+            def image(self, reference):
+                return context['image_digest']
+
+            def create(self, *, reference, labels, entry=ENTRY):
+                return super().create(reference=self.reference, labels=labels, entry=entry)
+
+        with tempfile.TemporaryDirectory(prefix='wl-imp-007f-launcher-') as launcher_directory, \
+                tempfile.TemporaryDirectory(prefix='wl-imp-007f-worker-') as worker_directory:
+            os.chmod(launcher_directory, 0o700)
+            os.chmod(worker_directory, 0o700)
+            journal = Path(launcher_directory) / 'journal'
+            journal.mkdir(mode=0o700)
+            profiles = Path(launcher_directory) / 'profiles.json'
+            profiles.write_text(json.dumps([self.profile(context)]))
+            os.chmod(profiles, 0o600)
+            config = SimpleNamespace(instance_id=self.INCARNATION, credential_epoch='1',
+                                     journal_directory=journal,
+                                     image_repository=repository, profiles_file=profiles,
+                                     bind_address='127.0.0.1', bind_port=0, server_tls=None)
+            launcher = Launcher(config, TestEngine(digest))
+            launcher.entry = ('/bin/sh', '-c', 'sleep 20')
+            self.addCleanup(launcher.stop)
+            deadline = _instant(datetime.now(UTC) + timedelta(seconds=40))
+            metadata = _metadata(context_bytes, raw, 'ab' * 32, realm, plan['set_id'],
+                                 member_id)
+            metadata = validate({**metadata, 'raw_deadline': deadline}, 'Handoff')
+            worker = self.worker(database, worker_directory, realm, launcher,
+                                 [self.profile(context)],
+                                 [(context['installation_id'], b'descriptor')])
+            with mock.patch.object(worker_module.discovery, 'admit_parser2',
+                                   side_effect=AssertionError('child must not admit')):
+                worker.handoff(metadata, context_bytes, raw)
+                worker._executor.run()
+        state = self.query(database,
+            "SELECT x.state, m.state, m.error_code FROM wl_ingestion.sets x "
+            "JOIN wl_ingestion.members m ON m.set_id=x.id WHERE x.id='"
+            + plan['set_id'] + "'")[0]
+        self.assertEqual(('REJECTED', 'rejected', 'import_limit'), tuple(state))
 
     def test_ac_05_expired_normalize_lease_refuses_late_admit_and_finish(self):
         """AC-IMP-007F-05: a lapsed lease makes both worker calls import_stale."""

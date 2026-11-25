@@ -157,6 +157,7 @@ class Launcher:
         self._lock = threading.RLock()
         self._attempts = {}
         self._server = None
+        self.entry = ENTRY
         self._reference = {profile['image_digest']: config.image_repository + '@sha256:'
                            + profile['image_digest'] for profile in self.profiles}
         for reference in set(self._reference.values()):
@@ -242,7 +243,7 @@ class Launcher:
                   ('kurafolio.launcher.nonce', record.nonce_digest),
                   ('kurafolio.launcher.fence', metadata['fence']))
         try:
-            engine_id = self.engine.create(reference=reference, labels=labels)
+            engine_id = self.engine.create(reference=reference, labels=labels, entry=self.entry)
         except EngineError:
             self.journal.remove(record.job_id, record.fence)
             with self._lock:
