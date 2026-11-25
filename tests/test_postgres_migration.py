@@ -5149,6 +5149,162 @@ SELECT 'STAGE '||jsonb_build_array(octet_length(data),encode(sha256(data),'hex')
             'mapping_generation': "'0'", 'control_generation': "'1'" if ready else "'0'", **pins,
         }, data="pg_catalog.decode('" + encoded.hex() + "','hex')")
 
+    def test_review_bundle_builder_from_live_prepare_basis(self):
+        """AC-IMP-007P-02: build from one live lease, prepare it and replay every required case."""
+        from copy import deepcopy
+        from kurafolio.ingestion.approval import validate_review_bundle
+        from kurafolio.ingestion.codec import digest, encode
+        from kurafolio.ingestion.review_bundle import build_review_bundle
+        from test_ingestion_review_bundle import CASES, oracle_basis
+        cases = ('first-use', 'native-first-use', 'branch-fresh_duplicate_only',
+                 'branch-new_equal_meaning_revision', 'branch-equal_value_explicit_correction',
+                 'branch-mapping_only_existing_issuer', 'snapshot-seed-t2',
+                 'snapshot-historical-t1', 'authority-only', 'mixed-set')
+        for case in cases:
+            for initial in (False, True) if case in ('first-use', 'native-first-use') else (False,):
+                with self.subTest(case=case, initial=initial):
+                    _, review, literal_plan, slots = oracle_basis(case, initial=initial)
+                    plan = deepcopy(ORACLE[CASES[case][0]])
+                    pins = plan['pinned_sources']
+                    base, seed, _ = self.accept_seed(installations=[p['installation_id'] for p in pins])
+                    # Reuse the identity/catalog bootstrap, then seed this literal set.
+                    seed = seed[:seed.index('INSERT INTO wl_ingestion.roots')]
+                    plan['expires_at'] = base['expires_at']
+                    seed += self._plan_seed(plan)
+                    baseline_name = CASES[case][3]
+                    if baseline_name:
+                        seed += self._accepted_basis_seed(baseline_name)
+                        baseline = ORACLE[baseline_name]
+                        for h in baseline['heads']:
+                            if h['kind'] == 'snapshot':
+                                seed += self.row('snapshot_heads', {**{k: plan[k] for k in ('tenant_id', 'portfolio_id')},
+                                    'key_digest': h['key_digest'], 'latest_revision_id': h['next_revision_id'],
+                                    'account_id': ORACLE['snapshot-history-effects.json']['head_preimage']['account_id'],
+                                    'account_version': next(m['target']['version'] for m in baseline['mappings'] if m['entity_kind'] == 'account'),
+                                    'fact_kind': 'holdings', 'scope_bytes': encode(ORACLE['snapshot-history-effects.json']['head_preimage']['instrument_scope']),
+                                    'complete_base_revision_id': h['complete_base_id']})
+                    if case == 'authority-only':
+                        pre = ORACLE['authority-only-prestate.json']
+                        peer = pre['peer_revision']
+                        scope = {k: plan[k] for k in ('tenant_id', 'portfolio_id')}
+                        peer_plan = deepcopy(ORACLE['plan-first-use.json'])
+                        peer_plan['pinned_sources'][0]['connection_id'] = pre['peer_connection_id']
+                        peer_plan['facts'] = [dict(peer_plan['facts'][0], accepted_revision_id=peer['id'], economic_group_id=peer['economic_group_id'])]
+                        peer_plan['heads'] = [dict(peer_plan['heads'][0], next_revision_id=peer['id'], key_digest=digest({
+                            'version': 1, **scope, 'economic_group_id': peer['economic_group_id']}))]
+                        peer_plan_id = 'd0000000-0000-4000-8000-0000000000d2'
+                        seed += self.row('accepted_plans', dict(scope, id=peer_plan_id,
+                            preview_id=peer_plan['preview_id'], codec='acceptance-plan-v1', canonical_bytes=encode(peer_plan),
+                            digest=digest(peer_plan), receipt_id='d0000000-0000-4000-8000-0000000000d3',
+                            created_at=self.Expression('clock_timestamp()')))
+                        seed += self.row('source_revisions', dict(scope, id=peer['id'], source_key=peer['source_key_digest'],
+                            source_revision=peer['source']['revision'], financial_digest=peer['financial_digest'],
+                            source_change='original', accepted_change='original', parent_id=None,
+                            input_id='f0000000-0000-4000-8000-000000000001', collection='records', local_id=0,
+                            typed_bytes=encode(peer['typed']), typed_digest=digest(peer['typed']), created_at=self.Expression('clock_timestamp()')))
+                        source_key = deepcopy(ORACLE['key-preimages.json']['vectors'][0]['preimage'])
+                        source_key['connection_id'] = pre['peer_connection_id']
+                        claim = {'version': 1, 'source': source_key, 'revision': peer['source']['revision']}
+                        seed += self.row('lineage', dict(scope, source_revision_id=peer['id'],
+                            input_id='f0000000-0000-4000-8000-000000000001', collection='records', local_id=0,
+                            source_claim_bytes=encode(claim), raw_digest=ORACLE['minimal-parser2.json']['provenance']['raw_sha256'],
+                            installation_id=ORACLE['minimal-parser2.json']['provenance']['installation_id'], evidence_digest=digest(peer['typed'])))
+                        seed += self.row('activity_heads', dict(scope, economic_group_id=peer['economic_group_id'], revision_id=peer['id'], active=True))
+                        prior = pre['prior_authority']
+                        seed += self.row('authority_links', dict(scope, id=pre['prior_link_id'], revision=1,
+                            left_revision_id=prior['left']['accepted_revision_id'], right_revision_id=prior['right']['accepted_revision_id'],
+                            decision_kind=prior['kind'], evidence_reference=prior['evidence_reference'],
+                            evidence_digest=digest(prior), plan_id=peer_plan_id))
+                    # Install every literal source pin into the synthetic catalog.
+                    availability = {'availability': [{'availability_generation': p['availability_generation'],
+                        'installation_id': p['installation_id'], 'status': 'ACTIVE'} for p in pins]}
+                    wrappers = [{'installation_id': p['installation_id'], 'profile_digest': p['wrapper_profile_digest']} for p in pins]
+                    raw_catalog, raw_wrappers = encode(availability), encode(wrappers)
+                    seed += ("UPDATE wl_sources.catalog_state SET bundle_bytes=decode('" + raw_catalog.hex() +
+                             "','hex'),digest='" + digest(availability) + "';")
+                    seed += ("UPDATE wl_ingestion.instance_state SET wrapper_catalog_bytes=decode('" + raw_wrappers.hex() +
+                             "','hex'),wrapper_catalog_digest='" + digest(wrappers) + "';")
+                    seed += "SET LOCAL session_replication_role=replica;DELETE FROM wl_sources.connection_lifecycle;DELETE FROM wl_sources.enablements;SET LOCAL session_replication_role=origin;"
+                    # Each synthetic installation has an independent enablement.
+                    for pin in pins:
+                        minimal = next(v for v in ORACLE.values() if isinstance(v, dict) and 'provenance' in v
+                                       and 'accounts' in v and digest(v) == next(i['stage_digest'] for i in plan['inputs'] if i['member_id'] == pin['member_id']))
+                        provider = minimal['provenance']['provider_id']
+                        plugin = 'synthetic.' + pin['installation_id'][:12]
+                        scope = "'" + plan['tenant_id'] + "','" + plan['portfolio_id'] + "'"
+                        seed += ("SET LOCAL session_replication_role=replica;"
+                            "INSERT INTO wl_sources.enablements SELECT " + scope + ",'" + plugin + "','FILE_IMPORT','" + provider +
+                            "','" + pin['installation_id'] + "',true,1," + pin['enablement_generation'] +
+                            ",clock_timestamp(),clock_timestamp() WHERE NOT EXISTS(SELECT 1 FROM wl_sources.enablements WHERE installation_id='" + pin['installation_id'] + "');"
+                            "INSERT INTO wl_pg.connections SELECT " + scope + ",'" + pin['connection_id'] + "','" + pin['connection_version'] +
+                            "','{}','" + provider + "','" + hashlib.sha256(provider.encode()).hexdigest() + "','FILE_IMPORT'," + pin['connection_generation'] +
+                            " WHERE NOT EXISTS(SELECT 1 FROM wl_pg.connections WHERE id='" + pin['connection_id'] + "');"
+                            "INSERT INTO wl_sources.connection_lifecycle SELECT " + scope + ",'" + pin['connection_id'] + "','" + pin['connection_version'] +
+                            "','" + plugin + "','" + provider + "','FILE_IMPORT','" + pin['installation_id'] + "','Synthetic',NULL,true,1,clock_timestamp(),clock_timestamp()"
+                            " WHERE NOT EXISTS(SELECT 1 FROM wl_sources.connection_lifecycle WHERE id='" + pin['connection_id'] + "');"
+                            "UPDATE wl_sources.connection_lifecycle SET installation_id='" + pin['installation_id'] + "' WHERE id='" + pin['connection_id'] + "';"
+                            "SET LOCAL session_replication_role=origin;")
+                    revision = review['set_revision'] if initial else str(int(review['set_revision']) - 1)
+                    state = 'NORMALIZING' if initial else 'RECONCILING'
+                    if initial:
+                        seed += 'DELETE FROM wl_ingestion.decisions;'
+                    else:
+                        seed += 'UPDATE wl_ingestion.decisions SET revision=' + revision + ';'
+                    seed += ("UPDATE wl_ingestion.sets SET state='" + state + "',revision=" + revision +
+                        ",realm_digest=(SELECT " + self.worker_realm() + " FROM wl_pg.instance_state st),"
+                        "prepare_session_digest=repeat('1',64),prepare_credential_version=1;"
+                        "UPDATE wl_ingestion.roots SET accepted_generation=" + review['accepted_generation'] +
+                        ',mapping_generation=' + review['mapping_generation'] + ',control_generation=' + review['control_generation'] + ';')
+                    seed += self.row('workers', {'id': self.WORKER, 'login_role': 'postgres', 'peer_identity': 'peer-a',
+                                                 'enabled': True, 'credential_epoch': 1}) + self.TRANSITION_TRIGGERS
+                    process = subprocess.Popen(['docker', 'exec', '-i', self.container, 'psql', '-X', '-q', '-A', '-t',
+                        '-U', 'postgres', '-d', 'postgres', '-v', 'ON_ERROR_STOP=1'], stdin=subprocess.PIPE,
+                        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                    def execute(script):
+                        process.stdin.write(script + "SELECT 'BUILDER_END';\n")
+                        process.stdin.flush()
+                        result = {}
+                        while True:
+                            line = process.stdout.readline().strip()
+                            if line == 'BUILDER_END':
+                                return result
+                            if not line and process.poll() is not None:
+                                self.fail('Synthetic PostgreSQL builder statement failed: ' + process.stderr.read())
+                            label, _, value = line.partition(' ')
+                            if label.isupper() and value.startswith(('{', '[')):
+                                result[label] = json.loads(value)
+                    try:
+                        out = execute('BEGIN;' + seed + self.plan_claim('claim', work_kind="'prepare'"))
+                        self.assertTrue(out['CLAIM']['ok'], out)
+                        self.assertIsNotNone(out['CLAIM']['value'].get('lease'), out)
+                        pages = []
+                        for resource in ('inputs', 'entities', 'mappings', 'revisions', 'heads', 'authorities', 'decisions', 'context'):
+                            cursor = 'NULL::jsonb'
+                            while True:
+                                result = execute(self.basis_call('basis', resource=resource, limit=7, cursor=cursor, set_id=repr(plan['set_id'])))['BASIS']
+                                self.assertTrue(result['ok'], result)
+                                page = result['value']
+                                pages.append(page)
+                                if page['next_cursor'] is None:
+                                    break
+                                cursor = "'" + json.dumps(page['next_cursor']).replace("'", "''") + "'::jsonb"
+                        bundle = build_review_bundle(pages, preview_id=review['id'], allocate_id=slots.__getitem__)
+                        stages = {r['id']: encode(r['minimal']) for page in pages if page['resource'] == 'inputs' for r in page['rows']}
+                        validate_review_bundle(encode(bundle), stages=stages)
+                        expected_pins = {'expected_set_revision': repr(revision), **{k: repr(review[k]) for k in (
+                            'accepted_generation', 'mapping_generation', 'control_generation')}}
+                        result = execute(self.prepare_preview_call('prepared', bundle, ready=not initial, **expected_pins) +
+                            self.prepare_preview_call('replay', bundle, ready=not initial, **expected_pins))
+                        self.assertTrue(result['PREPARED']['ok'], result)
+                        self.assertEqual('NEEDS_MAPPING' if initial else 'READY', result['PREPARED']['value']['state'])
+                        self.assertEqual(dict(result['PREPARED']['value'], outcome='already_prepared'), result['REPLAY']['value'])
+                        execute('ROLLBACK;')
+                    finally:
+                        if process.poll() is None:
+                            process.stdin.write('ROLLBACK;\\q\n')
+                            process.stdin.flush()
+                        process.communicate(timeout=10)
+
     def test_prepare_preview_checks_initial_and_ready_bundles_and_replays(self):
         from copy import deepcopy
         from kurafolio.ingestion.codec import digest, validate
