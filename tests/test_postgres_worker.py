@@ -23,6 +23,7 @@ import uuid
 from unittest import mock
 
 from kurafolio.ingestion import worker as worker_module
+from kurafolio.ingestion import runner_client
 from kurafolio.ingestion.codec import digest as digest_body, encode, sha256, validate
 from kurafolio.ingestion.worker import ImportWorker
 from kurafolio.ingestion.launcher_engine import ENTRY, DockerEngine
@@ -322,9 +323,10 @@ class WorkerPostgresTests(pg.IngestionAppendOnlyPostgresTests):
                                                            + ' WITH (FORCE);')))
         return database, name
 
-    def seed(self, database_name, *, count=1, login_role=None, bind=True):
+    def seed(self, database_name, *, count=1, login_role=None, bind=True,
+             projection='parser2-minimal-v1'):
         """Commit one bound native set and return its worker-visible context."""
-        plan, pin, seed, catalog = self.create_seed()
+        plan, pin, seed, catalog = self.create_seed(projection=projection)
         raw = ('synthetic,raw\n' + self.owner + '\n').encode()
         token_digest = sha256(bytes.fromhex('ab' * 32))
         # The set is committed here, so the deferred installation FK is checked
@@ -477,7 +479,7 @@ class WorkerPostgresTests(pg.IngestionAppendOnlyPostgresTests):
                 ack = worker.handoff(_metadata(context_bytes, raw, 'ab' * 32, realm, plan['set_id'], member_id), context_bytes, raw)
                 self.assertEqual('owned', ack['outcome'])
                 worker._executor.run()
-            remaining = len(worker.journal.records())
+            self.assertEqual([], worker.journal.records())
             state = self.query(database,
                 "SELECT x.state, x.cleanup_state, (SELECT count(*) FROM wl_ingestion.members m "
                 "WHERE m.set_id=x.id AND m.state='admitted'), "
@@ -586,6 +588,149 @@ class WorkerPostgresTests(pg.IngestionAppendOnlyPostgresTests):
         self.assertEqual(('CANCELLED', 'complete', 0), tuple(state))
         self.assertEqual((0, 2), (int(after[0]), int(after[1])))
         self.assertEqual(0, remaining)
+
+    def _wealthsimple_member(self, name, child_image):
+        """Rebuild a seeded member for the real Wealthsimple child."""
+        from kurafolio import source_v2 as parser
+        from kurafolio.data_sources.compatibility_v1 import builtin_descriptors
+        from kurafolio.data_sources.contract_v1 import installation_id, primitive
+        from kurafolio.ingestion.codec import digest, encode
+        from kurafolio.ingestion.launcher import Launcher
+        from pathlib import Path
+
+        image_digest = child_image.removeprefix('sha256:')
+        descriptors = builtin_descriptors(package_distribution='kurafolio',
+            package_version='0.1.0', artifact_sha256='1' * 64,
+            execution_image_digest=image_digest,
+            entry_point_target='kurafolio.ingestion.runner_child:main')
+        descriptor = next(item for item in descriptors if item.provider_id == 'wealthsimple')
+        install = installation_id(descriptor)
+        profile = {'version': 1, 'installation_id': install, 'image_digest': image_digest,
+            'wrapper_sha256': '3' * 64, 'distribution': 'kurafolio',
+            'entry_point': 'kurafolio.ingestion.runner_child:main',
+            'projection': 'parser2-minimal-v1',
+            'format_versions': ['wealthsimple-holdings-footer-v1'],
+            'identity_policy': 'snapshot_semantic'}
+        profile['profile_digest'] = digest(profile)
+        plan, pin, catalog, _, old_context, member_id = self.seed(name)
+        old = json.loads(old_context)
+        binding = parser.ParseContext(
+            datetime.fromisoformat('2026-02-02T13:00:00+00:00'),
+            '70000000-0000-4000-8000-000000000001', format_selection='wealthsimple-holdings-footer-v1')
+        context = encode({'version': 1, 'job_id': old['job_id'], 'member_id': member_id,
+            'fence': '1', 'installation_id': install, 'image_digest': image_digest,
+            'wrapper_profile_digest': profile['profile_digest'],
+            'format_version': 'wealthsimple-holdings-footer-v1', 'payload_kind': 'parser_v2',
+            'parser_context': primitive(binding)})
+        raw = (Path(__file__).resolve().parents[1]
+               / 'examples/data/wealthsimple-holdings.csv').read_bytes()
+        wrappers = encode([profile])
+        availability = encode({'availability': [{'availability_generation': '1',
+            'installation_id': install, 'status': 'ACTIVE'}]})
+        self.run_sql(name, "BEGIN;SET LOCAL session_replication_role=replica;"
+            "INSERT INTO wl_sources.synthetic_worker_installation_ids VALUES('" + install + "');"
+            "UPDATE wl_sources.enablements SET installation_id='" + install + "';"
+            "UPDATE wl_sources.connection_lifecycle SET installation_id='" + install + "';"
+            "UPDATE wl_ingestion.instance_state SET wrapper_catalog_bytes=decode('" + wrappers.hex()
+            + "','hex'),wrapper_catalog_digest='" + sha256(wrappers) + "';"
+            "UPDATE wl_sources.catalog_state SET bundle_bytes=decode('" + availability.hex()
+            + "','hex'),digest='" + sha256(availability) + "';"
+            "UPDATE wl_ingestion.members SET installation_id='" + install
+            + "',wrapper_profile_digest='" + profile['profile_digest']
+            + "',format_version='wealthsimple-holdings-footer-v1',context_bytes=decode('"
+            + context.hex() + "','hex'),context_digest='" + sha256(context)
+            + "',raw_digest='" + sha256(raw) + "',raw_bytes=" + str(len(raw))
+            + " WHERE id='" + member_id + "';"
+            "SET LOCAL session_replication_role=origin;COMMIT;")
+        return plan, catalog, context, raw, member_id, profile, install, primitive(descriptor)
+
+    def test_ac_02_real_child_reaches_stage_admitted_through_the_worker(self):
+        """AC-IMP-007F-02: real worker, launcher and child admit one member."""
+        import subprocess
+        from types import SimpleNamespace
+        from kurafolio.ingestion.launcher import Launcher
+
+        child_image = os.environ.get('KURAFOLIO_LAUNCHER_CHILD_IMAGE', '')
+        if not child_image:
+            self.skipTest('KURAFOLIO_LAUNCHER_CHILD_IMAGE is required')
+        database, name = self.fresh_database()
+        plan, catalog, context_bytes, raw, member_id, profile, install, descriptor = \
+            self._wealthsimple_member(name, child_image)
+        context = json.loads(context_bytes)
+        realm = self.realm(name)
+        with tempfile.TemporaryDirectory(prefix='wl-imp-007f-launcher-') as root, \
+                tempfile.TemporaryDirectory(prefix='wl-imp-007f-worker-') as worker_dir:
+            os.chmod(root, 0o700)
+            os.chmod(worker_dir, 0o700)
+            journal = Path(root) / 'journal'; journal.mkdir(mode=0o700)
+            profiles = Path(root) / 'profiles.json'
+            profiles.write_text(json.dumps([profile])); os.chmod(profiles, 0o600)
+            config = SimpleNamespace(instance_id=self.INCARNATION, credential_epoch='1',
+                journal_directory=journal, image_repository='kurafolio-child',
+                profiles_file=profiles, bind_address='127.0.0.1', bind_port=0,
+                server_tls=None)
+            launcher = Launcher(config, _MappedEngine(child_image, child_image))
+            self.addCleanup(launcher.stop)
+            worker = self.worker(database, worker_dir, realm, launcher, [profile],
+                                 [(install, descriptor)])
+            metadata = _metadata(context_bytes, raw, 'ab' * 32, realm,
+                                 plan['set_id'], member_id)
+            worker.handoff(metadata, context_bytes, raw)
+            worker._executor.run()
+            remaining_journal = len(worker.journal.records())
+        rows = self.query(database,
+            "SELECT m.state, x.state, (SELECT count(*) FROM wl_ingestion.stages g "
+            "WHERE g.set_id=x.id), (SELECT raw_slot FROM wl_ingestion.leases l "
+            "WHERE l.set_id=x.id AND l.work_kind='normalize'), m.error_code "
+            "FROM wl_ingestion.sets x JOIN wl_ingestion.members m ON m.set_id=x.id "
+            "WHERE x.id='" + plan['set_id'] + "'")[0]
+        self.assertEqual(('admitted', 'NORMALIZING', 1, 'released', None), tuple(rows))
+        self.assertEqual(0, remaining_journal)
+        remaining = subprocess.run(['docker', 'ps', '--all', '--quiet', '--filter',
+            'label=kurafolio.launcher.instance=' + self.INCARNATION],
+            capture_output=True, text=True, check=True).stdout.strip()
+        self.assertEqual('', remaining)
+
+    def test_ac_10_native_context_is_rejected_before_any_launch(self):
+        """AC-IMP-007F-10: a native member is rejected before LaunchStart."""
+        from unittest import mock
+        database, name = self.fresh_database()
+        plan, pin, catalog, raw, context_bytes, member_id = self.seed(
+            name, projection='domain1-minimal-v1')
+        context = json.loads(context_bytes)
+        self.assertEqual('native_discovery_v1', context['payload_kind'])
+        realm = self.realm(name)
+        launcher = FakeLauncher(_metadata(context_bytes, raw, 'ab' * 32, realm,
+                                          plan['set_id'], member_id))
+        with tempfile.TemporaryDirectory(prefix='wl-imp-007f-journal-') as directory:
+            os.chmod(directory, 0o700)
+            worker = self.worker(database, directory, realm, launcher, [], [])
+            with mock.patch.object(worker_module.discovery, 'admit_native',
+                                   side_effect=AssertionError('native admission must not run')):
+                worker.handoff(_metadata(context_bytes, raw, 'ab' * 32, realm,
+                                         plan['set_id'], member_id), context_bytes, raw)
+                worker._executor.run()
+            self.assertEqual([], launcher.starts)
+            self.assertEqual([], launcher.controls)
+            first = self.query(database,
+                "SELECT x.state, x.cleanup_state, m.state, m.error_code, "
+                "(SELECT reserved_bytes FROM wl_ingestion.quotas q "
+                "WHERE q.portfolio_id=x.portfolio_id AND q.bucket='storage'), "
+                "(SELECT raw_slot FROM wl_ingestion.leases l WHERE l.set_id=x.id "
+                "AND l.work_kind='normalize') FROM wl_ingestion.sets x "
+                "JOIN wl_ingestion.members m ON m.set_id=x.id WHERE x.id='"
+                + plan['set_id'] + "'")[0]
+            self.assertEqual(('REJECTED', 'pending', 'rejected', 'import_evidence_unsupported'),
+                             tuple(first)[:4])
+            self.assertGreater(int(first[4]), 0)
+            self.assertEqual('held', first[5])
+            worker._cleanup_once()
+            worker._cleanup_once()
+            second = self.query(database,
+                "SELECT x.cleanup_state, (SELECT reserved_bytes FROM wl_ingestion.quotas q "
+                "WHERE q.portfolio_id=x.portfolio_id AND q.bucket='storage') "
+                "FROM wl_ingestion.sets x WHERE x.id='" + plan['set_id'] + "'")[0]
+            self.assertEqual(('failed', int(first[4])), (second[0], int(second[1])))
 
     def test_ac_03_record_without_handle_keeps_cleanup_pending(self):
         """AC-IMP-007F-03: a record without a handle yields no proof."""

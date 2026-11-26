@@ -398,23 +398,11 @@ class LauncherTests(unittest.TestCase):
             worker_module.main(['--help'])
         self.assertEqual(0, worker_exit.exception.code)
 
-    def test_ac_02_child_dispatches_a_native_registration_by_provider(self):
-        """AC-IMP-007F-02: native context selects its fixed provider adapter."""
-        from types import SimpleNamespace
-        from unittest import mock
+    def test_ac_02_child_refuses_a_native_context_and_has_no_native_hook(self):
+        """AC-IMP-007F-02/10: the child refuses native work before any adapter."""
         from kurafolio.ingestion.runner_child import run as child_run
-        from kurafolio.ingestion.runner_client import pack_input, unpack_result
+        from kurafolio.ingestion.runner_client import pack_input
 
-        class Adapter:
-            info = SimpleNamespace(export_versions=('native-v1',))
-
-            def normalize_native(self, raw, *, context):
-                self.seen = (raw, context['provider_id'])
-                return b'{}'
-
-        adapter = Adapter()
-        registration = SimpleNamespace(provider=SimpleNamespace(provider_id='synthetic.native'),
-                                       adapter=adapter)
         value = validate({'version': 1, 'job_id': str(uuid.uuid4()),
                           'member_id': str(uuid.uuid4()), 'fence': '1',
                           'installation_id': INSTALL, 'wrapper_profile_digest': PROFILE_DIGEST,
@@ -440,14 +428,15 @@ class LauncherTests(unittest.TestCase):
                          'deadline': {'tag': 'instant', 'token': '2099-01-01T00:00:00+00:00',
                                       'zone': None, 'fractional_digits': 0},
                          'nonce': secrets.token_hex(32)}, 'LaunchStart')
-        with mock.patch('kurafolio.source_builtin.registrations', return_value=(registration,)):
-            frame = child_run(pack_input(meta, context_bytes, raw, schema='LaunchStart'))
-        header, payload = unpack_result(frame, {'job_id': value['job_id'],
-            'member_id': value['member_id'], 'fence': '1', 'installation_id': INSTALL,
-            'image_digest': IMAGE, 'wrapper_profile_digest': PROFILE_DIGEST,
-            'raw_sha256': sha256(raw), 'context_sha256': sha256(context_bytes),
-            'payload_kind': 'native_discovery_v1'}, child=True)
-        self.assertEqual((b'{}', 'synthetic.native'), (payload, adapter.seen[1]))
+        with self.assertRaises(IngestionError):
+            child_run(pack_input(meta, context_bytes, raw, schema='LaunchStart'))
+        source = (Path(__file__).resolve().parents[1]
+                  / 'src/kurafolio/ingestion/runner_child.py').read_text()
+        for forbidden in ('normalize_native', 'installation_ids', 'NativeChildContext',
+                          'from .', 'payload_kind =='):
+            self.assertNotIn(forbidden, source)
+        self.assertEqual(1, source.count('sys.path'))
+        self.assertIn("sys.path[0:0] = ['/app/src']", source)
 
     def test_ac_02_child_refuses_unreviewed_frames(self):
         from kurafolio.ingestion.runner_child import run as child_run

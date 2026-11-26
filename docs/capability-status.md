@@ -59,8 +59,10 @@ and head guards, the single accepted write `_effects_v1` and the authenticated
 confirm function `accept_preview_v1`, with opt-in PostgreSQL tests. The dedicated
 import worker and the trusted launcher are implemented with their unit, opt-in
 PostgreSQL and Docker Desktop containment tests, but no instance is activated and
-no upload route reaches them yet. They are not an operational import service: no
-migration provider or grant installs them. Authenticated routes, live native
-admission/preparation integration, instance activation and recovery acceptance
-remain unfinished. No new financial booking, browser workflow or workspace
+no upload route reaches them yet. The worker runs parser2 members only; native
+members are rejected with `import_evidence_unsupported` before launch until
+native discovery in the child lands in IMP-007Z. They are not an operational
+import service: no migration provider or grant installs them. Authenticated
+routes, native discovery, instance activation and recovery acceptance remain
+unfinished. No new financial booking, browser workflow or workspace
 migration is activated.

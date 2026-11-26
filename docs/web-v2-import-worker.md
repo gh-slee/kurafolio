@@ -18,10 +18,12 @@ docker compose -f compose.ingestion.yaml up -d import-launcher import-worker
 docker compose -f compose.ingestion.yaml stop import-launcher import-worker
 ```
 
-The reviewed image is built from `Dockerfile.ingestion` on an exact source
-image; it adds the Docker CLI from `docker:29.6.1-cli@sha256:862099ada15c6690...`
-(the multi-architecture manifest list covers amd64 and arm64) and creates both
-journal directories owned by UID 10001. On 2026-11-25, `docker compose -f compose.ingestion.yaml up -d`
+The launcher and worker image is built from `Dockerfile.ingestion` on an exact
+source image; it adds the Docker CLI from
+`docker:29.6.1-cli@sha256:862099ada15c6690...` (the multi-architecture manifest
+list covers amd64 and arm64) and creates both journal directories owned by UID
+10001. The child image is the source-only image built from `Dockerfile` by
+`scripts/check_pr_image.py`; `Dockerfile.ingestion` is not a child image. On 2026-11-25, `docker compose -f compose.ingestion.yaml up -d`
 started `import-launcher` and `import-worker` with synthetic configuration and
 `stop` completed in 1 s; the worker logged its expected synthetic database
 errors because no database was mounted.
@@ -127,10 +129,14 @@ engine arguments.
 | Docker socket absent | verified (2026-11-24, engine 29.6.1, `test_ac_02_effective_profile_and_environment`) | not tested |
 | Output limits | verified (2026-11-24, engine 29.6.1, `test_ac_06_resource_and_output_limits`) | not tested |
 | Wall clock 10 s | verified (2026-11-24, engine 29.6.1, `test_ac_06_resource_and_output_limits`) | not tested |
+| Real child, default entry point | verified (2026-11-26, engine 29.6.1, `test_ac_02_real_child_parses_the_two_public_examples`: both public examples, admission counts and exact HostConfig; PostgreSQL row `test_ac_02_real_child_reaches_stage_admitted_through_the_worker`) | not tested |
 
 `launcher check` prints the HostConfig of a container it creates but never starts.
 Those rows are configuration-only and are not counted as verified here; only the
 runtime probes above are. Rows marked "not tested" have no effective probe yet.
+
+Native-discovery members are rejected with `import_evidence_unsupported` before
+any launch until native discovery lands in the child (IMP-007Z).
 
 Native Linux CI has not run this matrix in this session. Docker Desktop runs the
 containers in a Linux VM; this evidence is not host-root or native-macOS sandbox

@@ -524,8 +524,12 @@ examples, exact native activity/metadata/snapshot vectors, profile-token and
 lifecycle negatives, framed bytes, raw ASGI messages and disposable local TLS certificates.
 By default, the storage test above checks generated structure without installing a database.
 They do not certify authenticated routes, a complete PostgreSQL migration or
-Linux child containment. Real database and container checks must use disposable
-synthetic resources and report their own executed evidence.
+Linux child containment. The dedicated import worker runs parser2 members only:
+a member whose context is `native_discovery_v1` is finished `rejected` with
+`import_evidence_unsupported` before any container starts, and its received
+bytes are dropped. Native discovery in the child is IMP-007Z. Real database and
+container checks must use disposable synthetic resources and report their own
+executed evidence.
 
 An optional storage-fragment check starts its own PostgreSQL 18 Linux container,
 with no network or published port, a temporary private bootstrap secret and

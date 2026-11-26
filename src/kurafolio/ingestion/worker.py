@@ -324,8 +324,11 @@ class ImportWorker:
         try:
             try:
                 context_value = self._context(attempt)
-            except IngestionError:
-                outcome, code = 'rejected', 'import_stale'
+            except IngestionError as error:
+                outcome = 'rejected'
+                code = ('import_evidence_unsupported'
+                        if getattr(error, 'code', None) == 'import_evidence_unsupported'
+                        else 'import_stale')
             else:
                 try:
                     status = self.launcher.start(self._start_metadata(attempt, context_value),
@@ -390,6 +393,8 @@ class ImportWorker:
         for name in ('job_id', 'member_id', 'fence'):
             if value[name] != getattr(attempt, name):
                 raise IngestionError('import_stale')
+        if primitive['payload_kind'] != 'parser_v2':
+            raise IngestionError('import_evidence_unsupported')
         return {'primitive': primitive, **value}
 
     def _start_metadata(self, attempt, context_value):
@@ -475,14 +480,12 @@ class ImportWorker:
                    and item['profile_digest'] == context_value['wrapper_profile_digest']]
         descriptor = [item for item in self._descriptors
                       if item[0] == context_value['installation_id']]
-        if len(profile) != 1 or len(descriptor) != 1:
+        if (len(profile) != 1 or len(descriptor) != 1
+                or profile[0]['projection'] != 'parser2-minimal-v1'):
             raise IngestionError('import_evidence_unsupported')
         profile, (_, descriptor_bytes) = profile[0], descriptor[0]
-        raw = bytes(hold.raw)
-        context = bytes(hold.context)
-        if profile['projection'] == 'parser2-minimal-v1':
-            return discovery.admit_parser2(raw, payload, context, descriptor_bytes, profile)
-        return discovery.admit_native(raw, payload, context, descriptor_bytes, profile)
+        return discovery.admit_parser2(bytes(hold.raw), payload, bytes(hold.context),
+                                       descriptor_bytes, profile)
 
     @staticmethod
     def _outcome(reason):

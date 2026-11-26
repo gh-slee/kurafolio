@@ -43,8 +43,7 @@ jobs:
     needs: changes
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
-    # The full synthetic suite takes about 25 minutes on ubuntu-latest.
-    timeout-minutes: 40
+    timeout-minutes: 25
     env:
       PYTHONUTF8: "1"
       PYTHONDONTWRITEBYTECODE: "1"
@@ -232,7 +231,7 @@ jobs:
       # Skips: the 140 ingestion tests (job postgres-ingestion) and the
       # runtime-image test (next step).
       - name: Verify real SQL precision, privileges, races, jobs and double empty restore
-        run: PYTHONPATH=src python scripts/run_gated_tests.py --expect-skipped 152 -- discover -s tests -p 'test_postgres_*.py'
+        run: PYTHONPATH=src python scripts/run_gated_tests.py --expect-skipped 154 -- discover -s tests -p 'test_postgres_*.py'
       - name: Build the explicit source-only PG runtime profile
         run: |
           python scripts/docker_context.py --output work/pg-runtime-context
@@ -278,6 +277,10 @@ jobs:
         run: |
           image="$(PYTHONPATH=src:tests python -c 'from test_postgres_migration import IngestionAppendOnlyPostgresTests as T; print(T.IMAGE)')"
           docker pull "$image"
+      - name: Build the source-only candidate child image
+        run: |
+          python scripts/check_pr_image.py > work/pr-image.json
+          python -c 'import json;print("KURAFOLIO_LAUNCHER_CHILD_IMAGE="+json.load(open("work/pr-image.json"))["image_id"])' >> "$GITHUB_ENV"
       - name: Verify real ingestion SQL fragments, exactly-once booking, fencing and cleanup
         run: PYTHONPATH=src python scripts/run_gated_tests.py --expect-skipped 0 -- discover -s tests -p 'test_postgres_migration.py'
       - name: Verify the dedicated import worker against real PostgreSQL

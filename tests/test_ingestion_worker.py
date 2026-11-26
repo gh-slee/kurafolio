@@ -42,7 +42,7 @@ IMAGE = 'c' * 64
 _PROFILE_BODY = {'version': 1, 'installation_id': INSTALL, 'image_digest': IMAGE,
                  'distribution': 'synthetic-wheel',
                  'entry_point': 'kurafolio.ingestion.runner_child:main',
-                 'wrapper_sha256': '1' * 64, 'projection': 'domain1-minimal-v1',
+                 'wrapper_sha256': '1' * 64, 'projection': 'parser2-minimal-v1',
                  'format_versions': ['v1'], 'identity_policy': 'provider_scoped_stable'}
 PROFILE = digest(_PROFILE_BODY)
 FENCE = '1'
@@ -99,6 +99,19 @@ def instant(value):
 
 def later(**kwargs):
     return datetime.now(UTC) + timedelta(**kwargs)
+
+
+def parser2_context(job, member, fence=FENCE):
+    return encode(validate({
+        'version': 1, 'job_id': job, 'member_id': member, 'fence': fence,
+        'installation_id': INSTALL, 'wrapper_profile_digest': PROFILE,
+        'format_version': 'v1', 'image_digest': IMAGE, 'payload_kind': 'parser_v2',
+        'parser_context': {'account_alias': None,
+                           'evidence_at': '2026-02-02T13:00:00+00:00',
+                           'format_selection': 'v1', 'revisions': [],
+                           'scope_revisions': [],
+                           'source_reference': str(uuid.uuid4()),
+                           'source_timezone': None}}, 'ParserChildContext'))
 
 
 def native_context(job, member, fence=FENCE):
@@ -228,7 +241,7 @@ class FakeLauncher:
     """The stage-1 launcher protocol, answering from a scripted sequence."""
 
     def __init__(self, metadata, payload=b'minimal', *, cleanup=('finished', True), child='ok',
-                 payload_kind='native_discovery_v1'):
+                 payload_kind='parser_v2'):
         self.metadata = metadata
         self.payload = payload
         self.cleanup = cleanup
@@ -667,7 +680,7 @@ class NormalizeTests(unittest.TestCase):
         self.addCleanup(self.directory.cleanup)
         os.chmod(self.directory.name, 0o700)
         self.job, self.set_id, self.member = (str(uuid.uuid4()) for _ in range(3))
-        self.context = native_context(self.job, self.member)
+        self.context = parser2_context(self.job, self.member)
         self.raw = b'synthetic raw bytes'
         self.metadata = handoff_metadata(self.context, self.raw, self.job, self.set_id, self.member)
         self.clock = FakeClock()
@@ -686,7 +699,7 @@ class NormalizeTests(unittest.TestCase):
     def test_ac_03_normalize_admits_stage_then_finishes_with_an_absent_proof(self):
         launcher = FakeLauncher(self.metadata)
         worker = self._worker(launcher)
-        with mock.patch.object(worker_module.discovery, 'admit_native', return_value=b'minimal'):
+        with mock.patch.object(worker_module.discovery, 'admit_parser2', return_value=b'minimal'):
             ack = worker.handoff(self.metadata, self.context, self.raw)
             worker._executor.run()
         self.assertEqual('owned', ack['outcome'])
@@ -719,6 +732,37 @@ class NormalizeTests(unittest.TestCase):
         self.assertEqual([], finish['cleanup_proofs'])
         self.assertEqual([], launcher.starts)
 
+    def test_ac_10_native_context_is_rejected_before_any_launch(self):
+        """AC-IMP-007F-10: native discovery is refused before LaunchStart."""
+        job, member = str(uuid.uuid4()), str(uuid.uuid4())
+        context = native_context(job, member)
+        raw = b'synthetic raw bytes'
+        metadata = handoff_metadata(context, raw, job, str(uuid.uuid4()), member)
+        launcher = FakeLauncher(metadata)
+        config = FakeConfig(self.directory.name)
+        worker = ImportWorker(config, sql=self.sql, launcher=launcher, sleep=self.clock.sleep,
+                              profiles=[], descriptors=[])
+        worker._executor = InlineExecutor()
+        holds = []
+
+        class Capture(RawHold):
+            def __init__(self, raw, context, deadline):
+                super().__init__(raw, context, deadline)
+                holds.append(self)
+
+        with mock.patch.object(worker_module, 'RawHold', Capture):
+            with mock.patch.object(worker_module.discovery, 'admit_parser2',
+                                   side_effect=AssertionError('native admission must not run')):
+                worker.handoff(metadata, context, raw)
+                worker._executor.run()
+        finish = [call[1] for call in self.sql.calls if call[0] == 'finish_member_v1'][0]
+        self.assertEqual(('rejected', 'import_evidence_unsupported', []),
+                         (finish['outcome'], finish['error_code'], finish['cleanup_proofs']))
+        self.assertEqual([], launcher.starts)
+        self.assertEqual([], launcher.controls)
+        self.assertEqual(bytearray(), holds[0].raw)
+        self.assertEqual(bytearray(), holds[0].context)
+
     def test_ac_03_output_limits_reject_the_member_and_keep_an_absent_proof(self):
         launcher = FakeLauncher(self.metadata, child='output_limit')
         worker = self._worker(launcher)
@@ -733,7 +777,7 @@ class NormalizeTests(unittest.TestCase):
     def test_ac_03_pending_cleanup_proof_keeps_the_journal_and_slot(self):
         launcher = FakeLauncher(self.metadata, cleanup=('cleanup_pending', False))
         worker = self._worker(launcher)
-        with mock.patch.object(worker_module.discovery, 'admit_native', return_value=b'minimal'):
+        with mock.patch.object(worker_module.discovery, 'admit_parser2', return_value=b'minimal'):
             worker.handoff(self.metadata, self.context, self.raw)
             worker._executor.run()
         finish = [call[1] for call in self.sql.calls if call[0] == 'finish_member_v1'][0]
@@ -748,7 +792,7 @@ class NormalizeTests(unittest.TestCase):
                                          self.member, deadline=deadline)
         launcher = FakeLauncher(self.metadata, cleanup=('cleanup_pending', False))
         worker = self._worker(launcher)
-        with mock.patch.object(worker_module.discovery, 'admit_native', return_value=b'minimal'):
+        with mock.patch.object(worker_module.discovery, 'admit_parser2', return_value=b'minimal'):
             worker.handoff(self.metadata, self.context, self.raw)
             worker._executor.run()
         finish = [call[1] for call in self.sql.calls if call[0] == 'finish_member_v1'][0]
@@ -787,7 +831,7 @@ class NormalizeTests(unittest.TestCase):
     def test_ac_03_duplicate_handoff_is_owned_once(self):
         launcher = FakeLauncher(self.metadata)
         worker = self._worker(launcher)
-        with mock.patch.object(worker_module.discovery, 'admit_native', return_value=b'minimal'):
+        with mock.patch.object(worker_module.discovery, 'admit_parser2', return_value=b'minimal'):
             self.assertEqual('owned', worker.handoff(self.metadata, self.context, self.raw)['outcome'])
             second = worker.handoff(self.metadata, self.context, self.raw)
             self.assertEqual(('already_owned', True), (second['outcome'], second['input_owned']))
@@ -815,7 +859,7 @@ class NormalizeTests(unittest.TestCase):
     def test_ac_01_every_normalize_request_carries_the_claimed_fence(self):
         launcher = FakeLauncher(self.metadata)
         worker = self._worker(launcher)
-        with mock.patch.object(worker_module.discovery, 'admit_native', return_value=b'minimal'):
+        with mock.patch.object(worker_module.discovery, 'admit_parser2', return_value=b'minimal'):
             worker.handoff(self.metadata, self.context, self.raw)
             worker._executor.run()
         after_claim = [(name, request) for name, request, _, _ in self.sql.calls
@@ -836,7 +880,7 @@ class NormalizeTests(unittest.TestCase):
                 holds.append(self)
 
         with mock.patch.object(worker_module, 'RawHold', Capture):
-            with mock.patch.object(worker_module.discovery, 'admit_native', return_value=b'minimal'):
+            with mock.patch.object(worker_module.discovery, 'admit_parser2', return_value=b'minimal'):
                 worker.handoff(self.metadata, self.context, self.raw)
                 worker._executor.run()
         self.assertEqual(1, len(holds))

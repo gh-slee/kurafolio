@@ -7,16 +7,27 @@ A skipped test is not acceptance.
 """
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 import json
 import os
 from pathlib import Path
+from types import SimpleNamespace
 import subprocess
 import tempfile
 import time
 import unittest
 import uuid
 
-from kurafolio.ingestion.launcher_engine import ENVIRONMENT, PROFILE, DockerEngine
+from kurafolio import source_v2 as parser
+from kurafolio.data_sources.compatibility_v1 import builtin_descriptors
+from kurafolio.data_sources.contract_v1 import installation_id, primitive
+from kurafolio.ingestion.codec import decode, digest, encode, sha256, validate
+from kurafolio.ingestion.discovery import admit_parser2
+from kurafolio.ingestion.launcher import Launcher
+from kurafolio.ingestion.launcher_engine import ENTRY, ENVIRONMENT, PROFILE, DockerEngine
+from kurafolio.ingestion.runner_client import unpack_result
+from kurafolio.source_builtin import registrations
 
 ENABLED = os.environ.get('KURAFOLIO_LAUNCHER_TEST') == '1'
 
@@ -112,6 +123,25 @@ def docker(*args, timeout=60):
     return result.stdout
 
 
+class _ChildEngine(DockerEngine):
+    """The real engine, with the local child image ID mapped to its digest.
+
+    Built images have no registry RepoDigest, so only the digest lookup is
+    adapted; create, start, inspect and remove stay the production calls.
+    """
+
+    def __init__(self, image):
+        super().__init__()
+        self._image = image
+
+    def image(self, reference):
+        return self._image
+
+    def create(self, *, reference, labels, entry=ENTRY):
+        # A local candidate has no registry reference; start it by image ID.
+        return super().create(reference=self._image, labels=labels, entry=entry)
+
+
 @unittest.skipUnless(ENABLED, 'Explicit real launcher containment required')
 class LauncherContainmentTests(unittest.TestCase):
     """AC-IMP-007F-02, AC-IMP-007F-03 and AC-IMP-007F-06 on a real engine."""
@@ -169,6 +199,162 @@ class LauncherContainmentTests(unittest.TestCase):
         self.assertFalse(host.get('Binds'))
         self.assertEqual(host['Tmpfs'],
                          {'/tmp': 'rw,noexec,nosuid,nodev,size=33554432,uid=10001,gid=10001'})
+
+    def test_ac_02_real_child_parses_the_two_public_examples(self):
+        """AC-IMP-007F-02: the default entry point parses both examples."""
+        image = os.environ.get('KURAFOLIO_LAUNCHER_CHILD_IMAGE', '')
+        if not image:
+            self.skipTest('KURAFOLIO_LAUNCHER_CHILD_IMAGE is required')
+        self.assertRegex(image, r'^sha256:[0-9a-f]{64}$')
+        image_digest = image.removeprefix('sha256:')
+        expected = json.loads((Path(__file__).resolve().parents[1]
+                               / 'tests/fixtures/ingestion/oracle.json').read_text())
+        inputs = {item['path']: item for item in expected['builtin-inputs.json']['inputs']}
+        descriptors = builtin_descriptors(package_distribution='kurafolio',
+            package_version='0.1.0', artifact_sha256='1' * 64,
+            execution_image_digest=image_digest,
+            entry_point_target='kurafolio.ingestion.runner_child:main')
+        with tempfile.TemporaryDirectory(prefix='wl-imp-007f-child-') as directory:
+            root = Path(directory)
+            os.chmod(root, 0o700)
+            journal = root / 'journal'; journal.mkdir(mode=0o700)
+            profiles = root / 'profiles.json'
+            cases = (('wealthsimple', 'wealthsimple-holdings-footer-v1',
+                      'wealthsimple-holdings.csv', 'wealthsimple_expected'),
+                     ('bullbitcoin', 'bullbitcoin-orders-utc-v1',
+                      'bull-orders.csv', 'bull_expected'))
+            stored = []
+            for provider, version, filename, key in cases:
+                descriptor = next(item for item in descriptors
+                                  if item.provider_id == provider)
+                adapter = next(item.adapter for item in registrations()
+                               if item.adapter.info.provider_id == provider)
+                binding = parser.ParseContext(
+                    datetime.fromisoformat('2026-02-02T13:00:00+00:00'),
+                    '70000000-0000-4000-8000-000000000001',
+                    account_alias='demo-exchange' if provider == 'bullbitcoin' else None,
+                    format_selection=version)
+                profile = {'version': 1, 'installation_id': installation_id(descriptor),
+                    'image_digest': image_digest, 'wrapper_sha256': '3' * 64,
+                    'distribution': 'kurafolio',
+                    'entry_point': 'kurafolio.ingestion.runner_child:main',
+                    'projection': 'parser2-minimal-v1', 'format_versions': [version],
+                    'identity_policy': ('provider_scoped_stable' if provider == 'bullbitcoin'
+                                        else 'snapshot_semantic')}
+                profile['profile_digest'] = digest(profile)
+                stored.append(profile)
+                job_id, member_id = str(uuid.uuid4()), str(uuid.uuid4())
+                context = encode({'version': 1, 'job_id': job_id,
+                    'member_id': member_id, 'fence': '1',
+                    'installation_id': installation_id(descriptor), 'image_digest': image_digest,
+                    'wrapper_profile_digest': profile['profile_digest'],
+                    'format_version': version, 'payload_kind': 'parser_v2',
+                    'parser_context': primitive(binding)})
+                profiles.write_text(json.dumps(stored))
+                os.chmod(profiles, 0o600)
+                raw = (Path(__file__).resolve().parents[1]
+                       / 'examples/data' / filename).read_bytes()
+                self.assertEqual(inputs['examples/data/' + filename]['sha256'], sha256(raw))
+                self.assertEqual(inputs['examples/data/' + filename]['bytes'], len(raw))
+                config = SimpleNamespace(instance_id='70000000-0000-4000-8000-000000000002',
+                    credential_epoch='1', journal_directory=journal,
+                    image_repository='kurafolio-child', profiles_file=profiles,
+                    bind_address='127.0.0.1', bind_port=0, server_tls=None)
+                engine = _ChildEngine(image)
+                launcher = Launcher(config, engine)
+                meta = validate({'version': 1, 'operation': 'start',
+                    'job_id': job_id, 'member_id': member_id,
+                    'fence': '1', 'instance_id': config.instance_id,
+                    'realm_digest': 'a' * 64, 'credential_epoch': '1',
+                    'installation_id': installation_id(descriptor), 'image_digest': image_digest,
+                    'wrapper_profile_digest': profile['profile_digest'],
+                    'format_version': version, 'context_sha256': sha256(context),
+                    'context_bytes': len(context), 'raw_sha256': sha256(raw),
+                    'raw_bytes': len(raw),
+                    'deadline': {'tag': 'instant',
+                                 'token': (datetime.now(timezone.utc)
+                                           + timedelta(seconds=60)).isoformat(timespec='seconds'),
+                                 'zone': None, 'fractional_digits': 0},
+                    'nonce': uuid.uuid4().hex * 2}, 'LaunchStart')
+                self.addCleanup(launcher.stop)
+                status = launcher.start(meta, context, raw)
+                handle = status['handle']
+                request = {'version': 1, 'operation': 'status',
+                    'instance_id': config.instance_id, 'realm_digest': 'a' * 64,
+                    'credential_epoch': '1', 'job_id': meta['job_id'],
+                    'member_id': meta['member_id'], 'fence': '1', 'handle': handle,
+                    'include_result': True}
+                deadline = time.monotonic() + 30
+                frame = None
+                while time.monotonic() < deadline:
+                    status, frame = launcher.control(validate(request, 'LaunchControl'))
+                    if status['state'] == 'result_ready' and frame is not None:
+                        break
+                    if status['state'] == 'failed':
+                        self.fail(f'{provider} child failed: {status["outcome"]}')
+                    time.sleep(.2)
+                self.assertIsNotNone(frame)
+                header, payload = unpack_result(frame, {
+                    'job_id': meta['job_id'], 'member_id': meta['member_id'],
+                    'fence': '1', 'installation_id': installation_id(descriptor),
+                    'image_digest': image_digest,
+                    'wrapper_profile_digest': profile['profile_digest'],
+                    'raw_sha256': sha256(raw), 'context_sha256': sha256(context),
+                    'payload_kind': 'parser_v2', 'handle': handle})
+                self.assertEqual('parser_v2', header['payload_kind'])
+                minimal = decode(admit_parser2(raw, payload, context,
+                                               primitive(descriptor), profile), 'Minimal')
+                self._assert_child_counts(key, minimal,
+                                          expected['builtin-inputs.json'][key])
+                record = launcher.journal.get(meta['job_id'], '1')
+                inspected = engine.configuration(record.engine_id)
+                host = inspected['HostConfig']
+                self.assertTrue(host['ReadonlyRootfs'])
+                self.assertEqual(('none', 'none'), (host['NetworkMode'], host['IpcMode']))
+                self.assertEqual(['ALL'], host['CapDrop'])
+                self.assertEqual(16, host['PidsLimit'])
+                self.assertEqual('10001:10001', inspected['Config']['User'])
+                self.assertFalse(host.get('Binds'))
+                launcher.control(validate({**request, 'operation': 'cancel',
+                                           'include_result': False}, 'LaunchControl'))
+                self.assertIsNone(engine.inspect(record.engine_id))
+                launcher.control(validate({**request, 'operation': 'forget',
+                                           'include_result': False}, 'LaunchControl'))
+            self.assertEqual([], launcher.journal.records())
+            remaining = docker('ps', '--all', '--quiet', '--filter',
+                               'label=kurafolio.launcher.instance=' + config.instance_id)
+            self.assertEqual(b'', remaining)
+
+    def _assert_child_counts(self, key, minimal, expected):
+        if key == 'wealthsimple_expected':
+            self.assertEqual(expected['accounts'], len(minimal['accounts']))
+            self.assertEqual(expected['positions'], len(minimal['records']))
+            self.assertEqual(expected['membership'], minimal['membership']['status'])
+            self.assertTrue(all(item['status'] == expected['coverage']
+                                for item in minimal['coverage']))
+            values = {'CAD': Decimal(0), 'USD': Decimal(0)}
+            for row in minimal['records']:
+                values[row['market_value']['currency']] += Decimal(
+                    row['market_value']['amount'])
+            self.assertEqual(Decimal(expected['cad_native_positions_sum']), values['CAD'])
+            self.assertEqual(Decimal(expected['usd_native_positions_sum']), values['USD'])
+        else:
+            self.assertEqual(expected['accounts'], len(minimal['accounts']))
+            buys = [row for row in minimal['records'] if row['kind'] == 'BUY']
+            self.assertEqual(expected['completed_buys'], len(buys))
+            totals = {'BTC': Decimal(0), 'LBTC': Decimal(0)}
+            for row in buys:
+                for leg in row['legs']:
+                    if leg['role'] == 'ACQUISITION':
+                        symbol = minimal['assets'][int(leg['asset_local_id'])]['symbol']
+                        totals[symbol] += Decimal(leg['quantity'])
+            self.assertEqual(Decimal(expected['btc']), totals['BTC'])
+            self.assertEqual(Decimal(expected['lbtc']), totals['LBTC'])
+            self.assertEqual(Decimal(expected['purchase_cost_cad']),
+                sum(Decimal(row['acquisition_cost_cad']['amount']) for row in buys))
+            funding = [row for row in minimal['records'] if row['kind'] == 'FUNDING']
+            self.assertEqual(Decimal(expected['funding_cad']),
+                sum(Decimal(row['cash_flow']['cash_amount']['amount']) for row in funding))
 
     def test_ac_06_network_and_filesystem_denials(self):
         _, run = self.run_probe('network')
