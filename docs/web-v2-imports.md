@@ -258,7 +258,7 @@ for tracking and reports. Existing Web/CLI workspaces remain on SQLite.
   payload for the API to sign. The import list and preview routes sign those
   payloads with a dedicated derived key and verify incoming cursors before reads.
   The private `_guard_worker_v1(worker, token, request)` helper is the first
-  check of every worker function. Worker identity is the actual database login:
+  check of every SQL worker function. Worker identity is the actual database login:
   the registry row named by the worker UUID must belong to `session_user` and be
   enabled. The request's credential epoch must equal the registry's, and its
   realm digest must equal the current realm digest. The installed profile version
@@ -304,7 +304,7 @@ for tracking and reports. Existing Web/CLI workspaces remain on SQLite.
   native namespace, cancel-then-purge release, reservation rollback on every
   refusal, missing or ambiguous workers, re-upload fencing and the returned context
   bytes at 1 byte and 1 MiB. No upload route or raw transport calls them yet.
-  The worker functions `claim_member_v1` and `renew_member_v1` handle normalize
+  The SQL worker functions `claim_member_v1` and `renew_member_v1` handle normalize
   leases; the prepare and cleanup kinds return `import_invalid` here. Both take no bytes and call `_guard_worker_v1` first.
   Scope comes only from the stored set row, and locks follow the reserve order.
   The lease must be the member's one live normalize lease at the requested fence,

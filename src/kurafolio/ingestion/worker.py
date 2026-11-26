@@ -387,8 +387,13 @@ class ImportWorker:
             self._slots.release()
 
     def _context(self, attempt):
-        from ..data_sources.contract_v1 import load_json
-        primitive = load_json(bytes(attempt.hold.context), limit=MAX_CONTEXT)
+        from ..data_sources.contract_v1 import ContractError, load_json
+        try:
+            primitive = load_json(bytes(attempt.hold.context), limit=MAX_CONTEXT)
+        except (ContractError, ValueError, TypeError):
+            raise IngestionError('import_stale') from None
+        if type(primitive) is not dict:
+            raise IngestionError('import_stale')
         kind = primitive.get('payload_kind')
         schema = {'parser_v2': 'ParserChildContext',
                   'native_discovery_v1': 'NativeChildContext'}.get(kind)

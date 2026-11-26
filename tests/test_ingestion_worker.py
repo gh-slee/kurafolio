@@ -763,6 +763,27 @@ class NormalizeTests(unittest.TestCase):
         self.assertEqual(bytearray(), holds[0].raw)
         self.assertEqual(bytearray(), holds[0].context)
 
+    def test_ac_10_malformed_context_uses_the_rejection_path(self):
+        """AC-IMP-007F-10: a missing kind or non-object context cannot skip finish."""
+        for context, code in ((encode({'version': 1, 'payload_kind': 'mystery'}), 'import_evidence_unsupported'),
+                              (encode([1]), 'import_evidence_unsupported')):
+            with self.subTest(code=code):
+                job, member = str(uuid.uuid4()), str(uuid.uuid4())
+                raw = b'synthetic raw bytes'
+                metadata = handoff_metadata(context, raw, job, str(uuid.uuid4()), member)
+                launcher = FakeLauncher(metadata)
+                worker = ImportWorker(FakeConfig(self.directory.name), sql=self.sql,
+                                      launcher=launcher, sleep=self.clock.sleep,
+                                      profiles=[], descriptors=[])
+                worker._executor = InlineExecutor()
+                worker.handoff(metadata, context, raw)
+                worker._executor.run()
+                finish = [call[1] for call in self.sql.calls
+                          if call[0] == 'finish_member_v1'][0]
+                self.assertEqual(('rejected', code),
+                                 (finish['outcome'], finish['error_code']))
+                self.assertEqual([], launcher.starts)
+
     def test_ac_03_output_limits_reject_the_member_and_keep_an_absent_proof(self):
         launcher = FakeLauncher(self.metadata, child='output_limit')
         worker = self._worker(launcher)
