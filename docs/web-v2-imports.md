@@ -390,6 +390,23 @@ for tracking and reports. Existing Web/CLI workspaces remain on SQLite.
   before claim, expiry before claim, a slot already released by finish, pending
   and failed proofs, oldest-first selection, backoff, replay and every refusal
   leaving the lease and slot unchanged. No worker process calls them yet.
+  Every `claim_plan_v1` call that passes the worker guard and the READ COMMITTED
+  check first sweeps up to eight normalize attempts whose lease and 120-second
+  raw deadline have both passed, oldest lease deadline first. The set must be
+  live and before its expiry. Each swept member becomes `reupload_required` with
+  `import_reupload_required`, its lease becomes `expired`, and any stage that
+  attempt stored is deleted so the same file can be uploaded again. The set and
+  its revision, other members and accepted data stay unchanged. These changes
+  stand whatever the claim then answers, including a refusal. The sweep runs
+  inside `claim_plan_v1`, so it needs a running worker; no worker process calls
+  this function yet (IMP-007F).
+  A never-bound attempt's raw slot returns once 120 seconds have passed since
+  reserve. A bound attempt has no proof, so its slot stays held and the user's
+  next reserve returns `import_busy` until `cleanup_set_v1` proves the slot after
+  cancel or expiry. The planned late-proof release (IMP-007Q) can free it sooner
+  only from the worker process that still holds the attempt's handoff token.
+  After a worker restart, that slot returns only at set cleanup. Opt-in PostgreSQL
+  tests cover the sweep's bound, fencing, slot handling, races and stage guard.
   The `prepare` branch of `claim_plan_v1` verifies the session that completed
   the last admitted upload or submitted the current decision. It also checks
   every admitted stage and its source pins. It records the set revision and

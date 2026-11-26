@@ -2,7 +2,7 @@
 id: IMP-007R
 title: Sweep a lapsed normalize attempt into reupload_required
 priority: P0
-status: ready
+status: done
 type: feature
 parent: IMP-007
 depends_on: []
@@ -13,11 +13,11 @@ agent_tier: frontier
 gate: owner
 gate_approval: "owner 2026-11-23, Gate A on the amended text (hash 5eebf8c6…): Approve Gate A"
 review: independent
-branch: 
-pr: 
+branch: ticket/imp-007r-sweep-a-lapsed-normalize-attempt-into-re
+pr: https://github.com/gh-slee/kurafolio/pull/114
 spec: docs/specs/imp-007-r7/spec.md
 spec_approved: sha256:5eebf8c637dd7d798e6d72bda1280f64e4cab3507c733fa4ae3fcc441bedc724
-updated: 2026-11-23
+updated: 2026-11-25
 ---
 
 # IMP-007R: Sweep a lapsed normalize attempt into reupload_required
@@ -76,17 +76,17 @@ If the import worker dies while it normalizes a file, its lease lapses and nothi
 
 ## Acceptance criteria
 
-- [ ] AC-IMP-007R-01: A lapsed attempt in a live set, for a member in `receiving` and one in `normalizing`, is swept: the lease is `expired`, the member is `reupload_required` with `import_reupload_required`, and the set's state and revision are unchanged.
-- [ ] AC-IMP-007R-02: The sweep leaves untouched an attempt whose lease is still live, one whose raw deadline has not passed, one closed by `finish_member_v1`, and one whose set is terminal; a test covers each.
-- [ ] AC-IMP-007R-03: After the sweep, `renew_member_v1`, `admit_stage_v1` and `finish_member_v1` with the old fence and token return `import_stale` and change nothing, and the next `reserve_member_v1` for the member issues fence + 1.
-- [ ] AC-IMP-007R-04: A swept attempt that was never bound releases its raw slot once, 120 seconds after reserve. A swept bound attempt keeps `raw_slot = held` with no proof and no quota change, and the same user's next reserve returns `import_busy`; after the set is cancelled, `cleanup_set_v1` with an all-`absent` proof releases the slot exactly once.
-- [ ] AC-IMP-007R-05: Two concurrent sweeps, and a sweep racing a late `finish_member_v1`, `cancel_set_v1` or set expiry, give exactly one effect, and the raw quota is returned at most once.
-- [ ] AC-IMP-007R-06: An attempt that stored a stage before it lapsed is swept to `reupload_required` and its stage row is deleted; no accepted fact, mapping, decision, preview or stage of another attempt changes; a later upload of the same file in that member reaches `admitted`; and deleting a stage of a live set in any other way is still refused.
-- [ ] AC-IMP-007R-07: The frozen r7 inventory, the oracle inventory, both expected structure digests and every DTO are unchanged; no function, grant or inventory row is added and `ingestion_schema.WORKER` is unchanged; only the text of `claim_plan_v1` and `_transition_v1` changes, and `tests/test_postgres_migration.py` passes against a real `0004` install.
-- [ ] AC-IMP-007R-08: The pull request records the evidence that no database outside disposable tests ran `operator migrate-ingestion` at `0004`, or the owner's decision to use a new revision.
-- [ ] AC-IMP-007R-09: Opt-in real-PostgreSQL tests cover AC-01 to AC-06 and AC-11.
-- [ ] AC-IMP-007R-10: `docs/web-v2-imports.md` describes the sweep, that it runs inside `claim_plan_v1` and so needs a running worker, and that a slot without proof stays held until cleanup unless the worker process that holds the attempt's token gets a late proof (IMP-007Q), replacing the "cancel or expiry is the recovery" text where it becomes untrue.
-- [ ] AC-IMP-007R-11: A `claim_plan_v1` call with `work_kind: "cleanup"` sweeps lapsed attempts, as a `prepare` call does; one call sweeps no more than the fixed bound and later calls sweep the rest; a call refused by `_guard_worker_v1`, or run outside READ COMMITTED, sweeps nothing; and the sweep's changes stand when the call answers `no_work`, `already_claimed` or a refusal code.
+- [x] AC-IMP-007R-01: A lapsed attempt in a live set, for a member in `receiving` and one in `normalizing`, is swept: the lease is `expired`, the member is `reupload_required` with `import_reupload_required`, and the set's state and revision are unchanged.
+- [x] AC-IMP-007R-02: The sweep leaves untouched an attempt whose lease is still live, one whose raw deadline has not passed, one closed by `finish_member_v1`, and one whose set is terminal; a test covers each.
+- [x] AC-IMP-007R-03: After the sweep, `renew_member_v1`, `admit_stage_v1` and `finish_member_v1` with the old fence and token return `import_stale` and change nothing, and the next `reserve_member_v1` for the member issues fence + 1.
+- [x] AC-IMP-007R-04: A swept attempt that was never bound releases its raw slot once, 120 seconds after reserve. A swept bound attempt keeps `raw_slot = held` with no proof and no quota change, and the same user's next reserve returns `import_busy`; after the set is cancelled, `cleanup_set_v1` with an all-`absent` proof releases the slot exactly once.
+- [x] AC-IMP-007R-05: Two concurrent sweeps, and a sweep racing a late `finish_member_v1`, `cancel_set_v1` or set expiry, give exactly one effect, and the raw quota is returned at most once.
+- [x] AC-IMP-007R-06: An attempt that stored a stage before it lapsed is swept to `reupload_required` and its stage row is deleted; no accepted fact, mapping, decision, preview or stage of another attempt changes; a later upload of the same file in that member reaches `admitted`; and deleting a stage of a live set in any other way is still refused.
+- [x] AC-IMP-007R-07: The frozen r7 inventory, the oracle inventory, both expected structure digests and every DTO are unchanged; no function, grant or inventory row is added and `ingestion_schema.WORKER` is unchanged; only the text of `claim_plan_v1` and `_transition_v1` changes, and `tests/test_postgres_migration.py` passes against a real `0004` install.
+- [x] AC-IMP-007R-08: The pull request records the evidence that no database outside disposable tests ran `operator migrate-ingestion` at `0004`, or the owner's decision to use a new revision.
+- [x] AC-IMP-007R-09: Opt-in real-PostgreSQL tests cover AC-01 to AC-06 and AC-11.
+- [x] AC-IMP-007R-10: `docs/web-v2-imports.md` describes the sweep, that it runs inside `claim_plan_v1` and so needs a running worker, and that a slot without proof stays held until cleanup unless the worker process that holds the attempt's token gets a late proof (IMP-007Q), replacing the "cancel or expiry is the recovery" text where it becomes untrue.
+- [x] AC-IMP-007R-11: A `claim_plan_v1` call with `work_kind: "cleanup"` sweeps lapsed attempts, as a `prepare` call does; one call sweeps no more than the fixed bound and later calls sweep the rest; a call refused by `_guard_worker_v1`, or run outside READ COMMITTED, sweeps nothing; and the sweep's changes stand when the call answers `no_work`, `already_claimed` or a refusal code.
 
 ## Build plan
 
@@ -369,8 +369,8 @@ Revert the commit. There is no data migration and no table, column, index, grant
 - [x] Owner answers Decisions needed item 5 (2026-11-23: (a), amend); amended wording applied.
 - [x] Owner gives Gate A on the amended text (2026-11-23, sha256:5eebf8c637dd7d798e6d72bda1280f64e4cab3507c733fa4ae3fcc441bedc724).
 - [x] Owner answers Decisions needed item 6 (2026-11-23: no `0004` database or backup outside disposable tests).
-- [ ] Sweep in `claim_plan_v1` and the stage-delete exception in `_transition_v1`, as insertions; both structure digests and `oracle.json` unchanged (Build plan).
-- [ ] Real-PostgreSQL tests for each acceptance ID; `0004` evidence; docs.
+- [x] Sweep in `claim_plan_v1` and the stage-delete exception in `_transition_v1`, as insertions; both structure digests and `oracle.json` unchanged (Build plan).
+- [x] Real-PostgreSQL tests for each acceptance ID; `0004` evidence; docs.
 
 ## Decisions needed
 
@@ -395,11 +395,11 @@ Only the owner answers. The planner recommends an option for each.
 
 ## Handoff
 
-- State: Filed on 2026-11-20; backlog. Decisions 1 to 3 were resolved on 2026-11-21; waiting for Gate A and a Build plan. Builds before, after or between IMP-007O, IMP-007Q, IMP-007T and IMP-007W, one at a time on the `ingestion-schema-sql` lock.
-- Next step: The owner gives Gate A; the planner then writes the Build plan from the merged SQL.
-- Verify: `KURAFOLIO_INGESTION_TEST=1 PYTHONPATH=src .venv/bin/python -m unittest tests.test_postgres_migration -v`
-- Gotchas: Never release a slot without proof that the attempt has no live child or raw buffer. A lapsed lease can expire before its raw deadline; the sweep waits for both. A refusal raised as an exception inside `claim_plan_v1` must not roll back the sweep.
-- Open questions: Gate A (Decisions needed item 4).
+- State: Draft PR #114 records implementation complete. The independent QA and Architect re-review passed at `f1379b5` and found no blockers. The owner's review is next after the Log and PR description are synchronized.
+- Review: [Initial QA and Architect review at `9ec02ea`](https://github.com/gh-slee/kurafolio/pull/114#issuecomment-7169775227) accepted the SQL and architecture and requested stronger test evidence. [Independent re-review at `f1379b5`](https://github.com/gh-slee/kurafolio/pull/114#issuecomment-7170738373) passed AC-01 through AC-11. It verified that each of the 13 protected tables held data and that deleting a row changed that table's digest. It also confirmed the live READY-stage refusal and the rendered `LIMIT 8` assertion.
+- Verify: The re-review ran 19 static tests and seven real-PostgreSQL methods. It did not rerun the full local suite, candidate image or privacy checks. [PR CI at `f1379b5`](https://github.com/gh-slee/kurafolio/actions/runs/45670389642) passed all nine jobs, including the formerly pending `python-312-linux` and `parser-sdk-packages`. In the parallel push run, `python-312-linux` was cancelled and the other eight jobs passed.
+- Next step: Validate the final Log and Handoff commit and synchronize the draft PR description after publication approval. The owner reviews the PR and decides when to mark it ready and merge.
+- Gotchas: Bound raw slots stay held without proof. The foundation job expects 141 skips (140 ingestion plus one runtime-image test). The AC-08 owner answer is quoted in the 2026-11-23 Log.
 
 ## Log
 
@@ -410,3 +410,13 @@ Only the owner answers. The planner recommends an option for each.
 - 2026-11-23 claude-code/opus-5.5: recorded the owner's choice on Decisions needed item 5 in plan pull request https://github.com/gh-slee/kurafolio/pull/112. Asked "For item 5, should the spec wording be amended with a new Gate A (a)?", with (a) described as "Amend the text and give a new Gate A. The exact replacement wording is in the ticket.", the owner replied "Yes, amend (a)". Gated change: the last sentence of the Requirements bullet on DTOs and inventory now says the frozen r7 inventory, `oracle.json` and both expected structure digests stay as they are because neither covers function bodies, and AC-07 says the same and passes against a real `0004` install. Spec hash sha256:8b2ab2f1293f7e513e1415f7c6531ae33fe4d3503a03a8aa3018a748e7af2952 becomes sha256:5eebf8c637dd7d798e6d72bda1280f64e4cab3507c733fa4ae3fcc441bedc724. Gate A on the amended text not recorded: the owner chose to amend but has not approved this exact text and hash. `gate_approval` and `spec_approved` unchanged; item 6 still open.
 - 2026-11-23 claude-code/opus-5.5: recorded Gate A on the amended text in plan pull request https://github.com/gh-slee/kurafolio/pull/112. Asked "Do you give Gate A on IMP-007R at this hash, or do you want the wording changed first?" after being shown the amended Requirements sentence, the amended AC-IMP-007R-07 and sha256:5eebf8c637dd7d798e6d72bda1280f64e4cab3507c733fa4ae3fcc441bedc724, the owner replied "Approve Gate A". `tickets.py spec` computed exactly that hash before recording. `gate_approval` set to "owner 2026-11-23, Gate A on the amended text (hash 5eebf8c6…): Approve Gate A"; `spec_approved` set to sha256:5eebf8c637dd7d798e6d72bda1280f64e4cab3507c733fa4ae3fcc441bedc724; status stays ready. Decisions needed item 6 (the `0004` confirmation) is still open and blocks the build.
 - 2026-11-23 claude-code/opus-5.5: recorded the owner's answer to Decisions needed item 6 in plan pull request https://github.com/gh-slee/kurafolio/pull/112. Asked "Has any database outside disposable tests run `operator migrate-ingestion` at `0004`, or been backed up with `backup-ingestion`: no, none has, or yes, one has?", the owner replied "No, none has". The in-place `0004` change goes ahead; the builder cites this line as the AC-08 evidence. Updated Build plan step "Before you claim" 1 to match. Gated sections and Gate A fields unchanged (sha256:5eebf8c637dd7d798e6d72bda1280f64e4cab3507c733fa4ae3fcc441bedc724). No owner items remain open.
+
+- 2026-11-24 codex/gpt-6.1-sol: claimed the approved build from origin/main at f146fc9; spec hash 5eebf8c637dd7d798e6d72bda1280f64e4cab3507c733fa4ae3fcc441bedc724 matches. Decisions 5 and 6 are resolved. AC-08 owner evidence: Decisions item 6 records the owner's 2026-11-23 answer, "No, none has", for databases and backups outside disposable tests. No push or PR publication authorized.
+
+- 2026-11-24 codex/gpt-6.1-sol: implemented only the prescribed claim and stage-trigger insertions, acceptance tests, CI skip-count adjustment and import documentation. Both stripped function hashes and the remaining function DDL hash match the baseline. Focused static tests: 19 passed; new PostgreSQL acceptance: eight methods passed, zero skips. Developer test-fixture repairs retained in ignored logs; production SQL followed the plan without changes to semantics. Full suites and candidate image gate pending.
+
+- 2026-11-24 codex/gpt-6.1-sol: completed local verification. Full suite: 1,463 run in 739.684 s, 270 expected skips, no failures/errors. Real PostgreSQL: 164 run in 106.442 s, zero skips/failures/errors. Static checks: 19 passed; opt-in-off module: 164 run with 140 expected skips. Approved spec unchanged; language, publication worktree/index/reachable-history and forbidden-path diff checks passed. Tags/releases are empty, migrations end at 0004, and no runtime profile serves 0004. Implementer codex/gpt-6.1-sol; reviewing model NOT RUN (required Claude reviewer unavailable); review repair rounds 0; nothing missing from the spec or Build plan. Candidate image check is required against the final evidence commit before requesting publication approval. No publication, deployment or financial operation performed.
+
+- 2026-11-25 codex/gpt-6.1-sol: addressed review repair round 1 from [the independent QA and Architect review at 9ec02ea](https://github.com/gh-slee/kurafolio/pull/114#issuecomment-7169775227). The original verdict was changes requested: SQL/architecture accepted, AC-09 failed on empty accepted-data coverage, and ticket/PR bookkeeping and the rendered-bound assertion needed repair. Added accepted effects and the existing authority-peer fixture, required every protected digest array to be nonempty, and added the explicit live READY-stage delete refusal; the LIMIT assertion now inspects rendered CLAIM_PLAN_DDL. Targeted tests: 19 static passed; repaired real-PostgreSQL AC-06/09 method passed in 3.251 s with zero skips. Set status done and pr to #114 for the CI implementation gate, checked AC-08 and refreshed Handoff. Implementer codex/gpt-6.1-sol; reviewer Claude Code (model not stated in posted evidence); review repair rounds 1; nothing missing from the spec or Build plan. Changes addressed by builder, not independently re-reviewed. Final candidate/privacy evidence and concrete publication approval remain required; no new push, PR update or runtime switch performed.
+
+- 2026-11-25 codex/gpt-6.2-sol: recorded the [independent re-review at `f1379b5`](https://github.com/gh-slee/kurafolio/pull/114#issuecomment-7170738373). Outcome: implementer and repair builder `codex/gpt-6.1-sol`, independent reviewer Claude Code (configured `claude-code/opus-5.5`), one review repair round, nothing missing from the spec or Build plan. All acceptance criteria passed. The owner reviews next.

@@ -144,7 +144,7 @@ for example by a 5-hour or weekly usage limit.
 
 ```bash
 python3 scripts/tickets.py resume IMP-007A     # ticket from its branch, claim, git state
-python3 scripts/tickets.py takeover IMP-007A --agent codex/gpt-6.1-sol --worktree --reason "previous agent hit usage limit"
+python3 scripts/tickets.py takeover IMP-007A --agent codex/gpt-6.2-sol --worktree --reason "previous agent hit usage limit"
 ```
 
 Before you take over, confirm that no process is still writing in that worktree. Then:
@@ -370,7 +370,7 @@ evidence, are deleted with it, so move anything you still need first. Run
 
 Agent names use `tool/model`. Use the board names in
 [AGENTS.md](../AGENTS.md#models-and-roles), for example `claude-code/sonnet-5.5`,
-`codex/gpt-6.1-sol` or `opencode/deepseek-flash`. The board uses them to show who is working.
+`codex/gpt-6.2-sol` or `opencode/deepseek-flash`. The board uses them to show who is working.
 When the owner names another model for a request
 ([Owner model override](../AGENTS.md#owner-model-override)), use the actual
 `tool/model`, for example `claude-code/opus-5.5`, and quote the request in the Log.
