@@ -438,6 +438,38 @@ class LauncherTests(unittest.TestCase):
         self.assertEqual(1, source.count('sys.path'))
         self.assertIn("sys.path[0:0] = ['/app/src']", source)
 
+    def test_ac_02_child_refuses_an_unknown_context_kind_and_main_is_silent(self):
+        """AC-IMP-007F-02: unknown contexts and a bad stdin never emit a result."""
+        import io
+        from types import SimpleNamespace
+        from unittest import mock
+        from kurafolio.ingestion.runner_child import main as child_main, run as child_run
+        from kurafolio.ingestion.runner_client import pack_input
+
+        job, member = str(uuid.uuid4()), str(uuid.uuid4())
+        context_bytes = encode({'version': 1, 'job_id': job, 'member_id': member,
+            'fence': '1', 'installation_id': INSTALL,
+            'wrapper_profile_digest': PROFILE_DIGEST, 'format_version': FORMAT,
+            'image_digest': IMAGE, 'payload_kind': 'mystery'})
+        raw = b'synthetic,raw\n'
+        meta = validate({'version': 1, 'operation': 'start', 'job_id': job,
+            'member_id': member, 'fence': '1', 'instance_id': INSTANCE,
+            'realm_digest': REALM, 'credential_epoch': '1',
+            'installation_id': INSTALL, 'image_digest': IMAGE,
+            'wrapper_profile_digest': PROFILE_DIGEST, 'format_version': FORMAT,
+            'context_sha256': sha256(context_bytes), 'context_bytes': len(context_bytes),
+            'raw_sha256': sha256(raw), 'raw_bytes': len(raw),
+            'deadline': {'tag': 'instant', 'token': '2099-01-01T00:00:00+00:00',
+                         'zone': None, 'fractional_digits': 0},
+            'nonce': secrets.token_hex(32)}, 'LaunchStart')
+        with self.assertRaises(IngestionError):
+            child_run(pack_input(meta, context_bytes, raw, schema='LaunchStart'))
+        stdout = SimpleNamespace(buffer=io.BytesIO())
+        with mock.patch('sys.stdin', SimpleNamespace(buffer=io.BytesIO(b'garbage'))), \
+                mock.patch('sys.stdout', stdout):
+            self.assertEqual(2, child_main())
+        self.assertEqual(b'', stdout.buffer.getvalue())
+
     def test_ac_02_child_refuses_unreviewed_frames(self):
         from kurafolio.ingestion.runner_child import run as child_run
         from kurafolio.ingestion.runner_client import pack_input

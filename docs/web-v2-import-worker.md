@@ -23,10 +23,23 @@ source image; it adds the Docker CLI from
 `docker:29.6.1-cli@sha256:862099ada15c6690...` (the multi-architecture manifest
 list covers amd64 and arm64) and creates both journal directories owned by UID
 10001. The child image is the source-only image built from `Dockerfile` by
-`scripts/check_pr_image.py`; `Dockerfile.ingestion` is not a child image. On 2026-11-25, `docker compose -f compose.ingestion.yaml up -d`
+`scripts/check_pr_image.py`; `Dockerfile.ingestion` is not a child image. The
+production launcher resolves a profile as `<repository>@sha256:<digest>` and
+requires that exact string in the image's `RepoDigests`. A locally built
+candidate has none, so provision the child image by loading or pushing it to a
+registry-backed reference with that digest; a bare local image ID is not a
+production launcher reference. The tests use a test-only engine mapping for
+that reason. On 2026-11-25, `docker compose -f compose.ingestion.yaml up -d`
 started `import-launcher` and `import-worker` with synthetic configuration and
 `stop` completed in 1 s; the worker logged its expected synthetic database
 errors because no database was mounted.
+
+Compose interpolates `KURAFOLIO_IMPORT_LAUNCHER_IMAGE`,
+`KURAFOLIO_IMPORT_WORKER_IMAGE`, `KURAFOLIO_LAUNCHER_CONFIG`,
+`KURAFOLIO_LAUNCHER_TLS`, `KURAFOLIO_LAUNCHER_PROFILES`,
+`KURAFOLIO_WORKER_CONFIG`, `KURAFOLIO_WORKER_DSN`, `KURAFOLIO_WORKER_TLS`,
+`KURAFOLIO_WORKER_CATALOG`, `KURAFOLIO_WORKER_PROFILES` and
+`KURAFOLIO_DOCKER_GID`; missing values are refused before a container starts.
 
 The commands inside the containers are fixed:
 
@@ -144,7 +157,11 @@ Those rows are configuration-only and are not counted as verified here; only the
 runtime probes above are. Rows marked "not tested" have no effective probe yet.
 
 Native-discovery members are rejected with `import_evidence_unsupported` before
-any launch until native discovery lands in the child (IMP-007Z).
+any launch until native discovery lands in the child (IMP-007Z). Their set keeps
+its raw slot and storage reservation because cleanup has no launcher proof;
+IMP-008 owns the SQL release. Native Linux CI runs the real-child, wall-limit and
+launcher-kill acceptance rows in `postgres-ingestion`; the probe rows above
+remain `not tested` on native Linux.
 
 Native Linux CI has not run this matrix in this session. Docker Desktop runs the
 containers in a Linux VM; this evidence is not host-root or native-macOS sandbox

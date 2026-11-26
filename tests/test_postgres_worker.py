@@ -675,16 +675,24 @@ class WorkerPostgresTests(pg.IngestionAppendOnlyPostgresTests):
                                  [(install, descriptor)])
             metadata = _metadata(context_bytes, raw, 'ab' * 32, realm,
                                  plan['set_id'], member_id)
-            worker.handoff(metadata, context_bytes, raw)
-            worker._executor.run()
+            captured = {}
+            original = worker_module.discovery.admit_parser2
+            def capture(*args, **kwargs):
+                captured['minimal'] = original(*args, **kwargs)
+                return captured['minimal']
+            with mock.patch.object(worker_module.discovery, 'admit_parser2', side_effect=capture):
+                worker.handoff(metadata, context_bytes, raw)
+                worker._executor.run()
             remaining_journal = len(worker.journal.records())
         rows = self.query(database,
             "SELECT m.state, x.state, (SELECT count(*) FROM wl_ingestion.stages g "
             "WHERE g.set_id=x.id), (SELECT raw_slot FROM wl_ingestion.leases l "
-            "WHERE l.set_id=x.id AND l.work_kind='normalize'), m.error_code "
+            "WHERE l.set_id=x.id AND l.work_kind='normalize'), m.error_code, "
+            "(SELECT digest FROM wl_ingestion.stages g WHERE g.set_id=x.id) "
             "FROM wl_ingestion.sets x JOIN wl_ingestion.members m ON m.set_id=x.id "
             "WHERE x.id='" + plan['set_id'] + "'")[0]
-        self.assertEqual(('admitted', 'NORMALIZING', 1, 'released', None), tuple(rows))
+        self.assertEqual(('admitted', 'NORMALIZING', 1, 'released', None,
+                          sha256(captured['minimal'])), tuple(rows))
         self.assertEqual(0, remaining_journal)
         remaining = subprocess.run(['docker', 'ps', '--all', '--quiet', '--filter',
             'label=kurafolio.launcher.instance=' + self.INCARNATION],

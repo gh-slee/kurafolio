@@ -312,9 +312,15 @@ class LauncherContainmentTests(unittest.TestCase):
                 self.assertTrue(host['ReadonlyRootfs'])
                 self.assertEqual(('none', 'none'), (host['NetworkMode'], host['IpcMode']))
                 self.assertEqual(['ALL'], host['CapDrop'])
-                self.assertEqual(16, host['PidsLimit'])
+                self.assertIn('no-new-privileges', host['SecurityOpt'])
+                self.assertEqual((host['Memory'], host['MemorySwap'], host['NanoCpus'],
+                                  host['PidsLimit']),
+                                 (268435456, 268435456, 1000000000, 16))
                 self.assertEqual('10001:10001', inspected['Config']['User'])
+                self.assertEqual(host['Tmpfs'],
+                    {'/tmp': 'rw,noexec,nosuid,nodev,size=33554432,uid=10001,gid=10001'})
                 self.assertFalse(host.get('Binds'))
+                self.assertFalse(inspected['Mounts'])
                 launcher.control(validate({**request, 'operation': 'cancel',
                                            'include_result': False}, 'LaunchControl'))
                 self.assertIsNone(engine.inspect(record.engine_id))
@@ -330,6 +336,7 @@ class LauncherContainmentTests(unittest.TestCase):
             self.assertEqual(expected['accounts'], len(minimal['accounts']))
             self.assertEqual(expected['positions'], len(minimal['records']))
             self.assertEqual(expected['membership'], minimal['membership']['status'])
+            self.assertEqual(expected['as_of'], minimal['snapshots'][0]['as_of']['token'])
             self.assertTrue(all(item['status'] == expected['coverage']
                                 for item in minimal['coverage']))
             values = {'CAD': Decimal(0), 'USD': Decimal(0)}
@@ -342,6 +349,9 @@ class LauncherContainmentTests(unittest.TestCase):
             self.assertEqual(expected['accounts'], len(minimal['accounts']))
             buys = [row for row in minimal['records'] if row['kind'] == 'BUY']
             self.assertEqual(expected['completed_buys'], len(buys))
+            self.assertEqual(expected['completed_orders'],
+                len([row for row in minimal['records']
+                     if row['kind'] in ('BUY', 'FUNDING')]))
             totals = {'BTC': Decimal(0), 'LBTC': Decimal(0)}
             for row in buys:
                 for leg in row['legs']:

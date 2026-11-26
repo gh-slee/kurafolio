@@ -325,6 +325,8 @@ class ImportWorker:
             try:
                 context_value = self._context(attempt)
             except IngestionError as error:
+                if attempt.hold is not None:
+                    attempt.hold.drop()
                 outcome = 'rejected'
                 code = ('import_evidence_unsupported'
                         if getattr(error, 'code', None) == 'import_evidence_unsupported'
@@ -387,13 +389,16 @@ class ImportWorker:
     def _context(self, attempt):
         from ..data_sources.contract_v1 import load_json
         primitive = load_json(bytes(attempt.hold.context), limit=MAX_CONTEXT)
+        kind = primitive.get('payload_kind')
         schema = {'parser_v2': 'ParserChildContext',
-                  'native_discovery_v1': 'NativeChildContext'}[primitive['payload_kind']]
+                  'native_discovery_v1': 'NativeChildContext'}.get(kind)
+        if schema is None:
+            raise IngestionError('import_evidence_unsupported')
         value = decode(bytes(attempt.hold.context), schema, limit=MAX_CONTEXT)
         for name in ('job_id', 'member_id', 'fence'):
             if value[name] != getattr(attempt, name):
                 raise IngestionError('import_stale')
-        if primitive['payload_kind'] != 'parser_v2':
+        if kind != 'parser_v2':
             raise IngestionError('import_evidence_unsupported')
         return {'primitive': primitive, **value}
 
