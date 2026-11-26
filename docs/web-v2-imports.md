@@ -262,7 +262,7 @@ for tracking and reports. Existing Web/CLI workspaces remain on SQLite.
   request fields are assertions, never scope authority. The helper returns the
   SHA-256 of the token's 32 decoded bytes for the caller's lease check. It
   needs no user session, so cleanup can run after the originating session
-  ends. No worker function calls it yet.
+  ends. Every worker function calls it first.
   The declared gateway function `create_set_v1` takes only an `operation_id` and
   one to four member selections. Each selection names a connection, installation,
   format version and an optional declared size of at most 10 MiB; no financial
@@ -299,8 +299,7 @@ for tracking and reports. Existing Web/CLI workspaces remain on SQLite.
   replay, a reused operation, quota exhaustion, each unavailable-source case, the
   native namespace, cancel-then-purge release, reservation rollback on every
   refusal, missing or ambiguous workers, re-upload fencing and the returned context
-  bytes at 1 byte and 1 MiB. No upload route, worker claim or raw transport calls
-  them yet.
+  bytes at 1 byte and 1 MiB. No upload route or raw transport calls them yet.
   The worker functions `claim_member_v1` and `renew_member_v1` handle normalize
   leases; the prepare and cleanup kinds return `import_invalid` here. Both take no bytes and call `_guard_worker_v1` first.
   Scope comes only from the stored set row, and locks follow the reserve order.
