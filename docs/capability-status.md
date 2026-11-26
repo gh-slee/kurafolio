@@ -52,12 +52,10 @@ parity and existing-ledger migration remain later stages. The fake offline API i
 
 ## V2 CSV acceptance under implementation
 
-The [ingestion building blocks](web-v2-imports.md) now include strict typed
-evidence, parser2 and native projection, explicit mappings, review verification, bounded
-transport/raw-receive helpers and storage fragments. They also include transition
-and head guards, the single accepted write `_effects_v1` and the authenticated
-confirm function `accept_preview_v1`, with opt-in PostgreSQL tests. They are not
-an operational import service: no migration provider or grant installs them. The
-remaining database functions, authenticated routes, worker/launcher, live native
-admission/preparation integration and recovery acceptance remain unfinished.
+The operator migration installs the ingestion database functions and grants under
+`0004_ingestion`. The explicit [ingestion API profile](web-v2-imports.md) serves
+eight authenticated JSON routes for import sets, previews and receipts, including
+signed pagination and confirmation. Completing an import from a CSV still
+requires the separate upload, operator activation and worker/launcher work.
+Live native preparation and recovery acceptance remain unfinished.
 No new financial booking, browser workflow or workspace migration is activated.

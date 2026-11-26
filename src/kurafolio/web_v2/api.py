@@ -37,6 +37,14 @@ DYNAMIC = ((re.compile(r'/api/v2/(candidate-batches|jobs)/[^/]+\Z'),('GET',)),
 SOURCE_ROUTES = {'/api/v2/sources':('GET',),'/api/v2/source-connections':('GET','POST')}
 SOURCE_DYNAMIC = ((re.compile(r'/api/v2/sources/[^/]+/capabilities/[^/]+\Z'),('PUT',)),
                   (re.compile(r'/api/v2/source-connections/[^/]+\Z'),('GET','PUT')))
+IMPORT_ROUTES = {'/api/v2/import-sets': ('GET', 'POST')}
+IMPORT_DYNAMIC = (
+    (re.compile(r'/api/v2/import-sets/[^/]+\Z'), ('GET',)),
+    (re.compile(r'/api/v2/import-sets/[^/]+/decisions\Z'), ('PUT',)),
+    (re.compile(r'/api/v2/import-sets/[^/]+/cancel\Z'), ('POST',)),
+    (re.compile(r'/api/v2/import-previews/[^/]+\Z'), ('GET',)),
+    (re.compile(r'/api/v2/import-previews/[^/]+/confirm\Z'), ('POST',)),
+    (re.compile(r'/api/v2/import-receipts/[^/]+\Z'), ('GET',)))
 ANONYMOUS = {'/api/v2/auth/login','/api/v2/auth/register','/api/v2/auth/setup'}
 # Anonymous GET-only browser bundle paths; they never reach identity or finance code.
 FRONTEND_PAGES = ('/','/login','/setup','/register')
@@ -182,11 +190,17 @@ class Boundary:
         if methods is None:
             methods=next((m for pattern,m in DYNAMIC if pattern.fullmatch(path)),None)
         source_request=False
-        if methods is None and getattr(self.settings,'schema_profile','identity')=='sources':
+        if methods is None and getattr(self.settings,'schema_profile','identity') in {'sources','ingestion'}:
             methods=SOURCE_ROUTES.get(path)
             if methods is None:
                 methods=next((m for pattern,m in SOURCE_DYNAMIC if pattern.fullmatch(path)),None)
             source_request=methods is not None
+        import_request = False
+        if methods is None and getattr(self.settings,'schema_profile','identity') == 'ingestion':
+            methods = IMPORT_ROUTES.get(path)
+            if methods is None:
+                methods = next((m for pattern,m in IMPORT_DYNAMIC if pattern.fullmatch(path)), None)
+            import_request = methods is not None
         if methods is None:
             raise RequestError('not_found',404)
         if method not in methods:
@@ -243,12 +257,18 @@ class Boundary:
                                     scope.get('client',('unknown',0))[0],principal.user_id)
         params=query(scope)
         source_list=source_request and method=='GET' and path in SOURCE_ROUTES
-        if not source_list and path!='/api/v2/admin/invitations' or method!='GET':
+        if import_request:
+            allowed = {'cursor','limit','state'} if method == 'GET' and path == '/api/v2/import-sets' else (
+                {'cursor','limit'} if method == 'GET' and path.startswith('/api/v2/import-previews/') else set())
+            if not set(params) <= allowed:
+                raise RequestError('invalid_input',422)
+            await asyncio.to_thread(self.auth.imports.admit, principal, 'control' if unsafe else 'read')
+        elif (not source_list and path!='/api/v2/admin/invitations') or method!='GET':
             if params:
                 raise RequestError('invalid_input',422)
         scope.setdefault('state',{}).update(request_id=request_id,token=token,principal=principal,
                                              peer=scope.get('client',('unknown',0))[0],query=params,language=scope.get('identity_language','en-CA'),
-                                             source_request=source_request,source_deadline=entered+20)
+                                             source_request=source_request,import_request=import_request,source_deadline=entered+20)
         if unsafe:
             content_types=headers.get(b'content-type',[])
             if len(content_types)!=1 or not re.fullmatch(r'application/json(?:\s*;\s*charset=utf-8)?',content_types[0],re.I):
@@ -278,6 +298,8 @@ class Boundary:
                     raise ValueError()
             except Exception:
                 raise RequestError('invalid_input',422) from None
+            if import_request:
+                scope['state']['import_body'] = value
             async def body_receive():
                 return {'type':'http.request','body':bytes(raw),'more_body':False}
             receive=body_receive
@@ -311,7 +333,7 @@ def create_app(settings, *, frontend_root=None):
 
     @app.exception_handler(ResponseValidationError)
     async def invalid_response(request,error):
-        return error_response(RequestError('internal_error',500) if getattr(request.state,'source_request',False) else IdentityError(),request.state.request_id,settings,language=getattr(request.state,'language','en-CA'))
+        return error_response(RequestError('internal_error',500) if getattr(request.state,'source_request',False) or getattr(request.state,'import_request',False) else IdentityError(),request.state.request_id,settings,language=getattr(request.state,'language','en-CA'))
 
     @app.exception_handler(RequestError)
     @app.exception_handler(IdentityError)
@@ -413,7 +435,7 @@ def create_app(settings, *, frontend_root=None):
         auth.revoke_invite(request.state.principal,checked_uuid(record_id),request.state.peer)
         return Response(status_code=204)
 
-    if getattr(settings,'schema_profile','identity')=='sources':
+    if getattr(settings,'schema_profile','identity') in {'sources','ingestion'}:
         def source_result(request,name,payload):
             return auth.source(request.state.principal,name,payload,deadline=request.state.source_deadline)
 
@@ -471,6 +493,102 @@ def create_app(settings, *, frontend_root=None):
         @app.put('/api/v2/source-connections/{record_id}',response_model=s.SourceConnectionMutation,responses=errors)
         def source_update(record_id:str,body:s.SourceUpdateRequest,request:Request):
             return source_result(request,'update_source_connection_v1',body.model_dump()|{'connection_id':checked_uuid(record_id)})
+
+    if getattr(settings,'schema_profile','identity') == 'ingestion':
+        from kurafolio.ingestion import codec, cursors
+        from kurafolio.ingestion.contracts import ROUTES as IMPORT_CONTRACTS, IngestionError
+        from .import_wire import preview_page, set_list
+        route_contracts = [r for r in IMPORT_CONTRACTS if r['request'] != 'RAW_BINARY']
+        contracts = {(r['method'], r['path']): r for r in route_contracts}
+
+        def extra(method, path):
+            return s.import_openapi_extra(contracts[method, path])
+
+        def imported(request, name, payload, response):
+            value = auth.imports.call(name, request.state.principal, payload,
+                                      deadline=request.state.source_deadline)
+            if response == 'PreviewPage':
+                return preview_page(value, auth.cursor_key)
+            if response == 'SetList':
+                return set_list(value, auth.cursor_key)
+            try:
+                return codec.validate(value, response)
+            except Exception:
+                raise RequestError('internal_error', 500) from None
+
+        def control(request, name):
+            try:
+                return codec.validate(request.state.import_body, name)
+            except IngestionError:
+                raise RequestError('import_invalid', 422) from None
+
+        def page_query(request, *, sets=False):
+            params = request.state.query
+            limit = params.get('limit', '50')
+            if not re.fullmatch(r'[1-9][0-9]?', limit) or not 1 <= int(limit) <= 50:
+                raise RequestError('invalid_input', 422)
+            state = params.get('state') if sets else None
+            if state is not None and state not in cursors.STATES:
+                raise RequestError('import_invalid', 422)
+            try:
+                token = cursors.verify(auth.cursor_key, params['cursor']) if 'cursor' in params else None
+            except IngestionError:
+                raise RequestError('import_invalid', 422) from None
+            result = {'cursor': token, 'limit': limit}
+            if sets:
+                result['state'] = state
+            return result
+
+        @app.post('/api/v2/import-sets', status_code=201, responses=errors,
+                  openapi_extra=extra('POST','/api/v2/import-sets'))
+        def import_create(request: Request):
+            return imported(request, 'create_set_v1', control(request, 'Create'), 'SetResult')
+
+        @app.get('/api/v2/import-sets', responses=errors,
+                 openapi_extra=extra('GET','/api/v2/import-sets'))
+        def import_sets(request: Request):
+            return imported(request, 'read_sets_v1', page_query(request, sets=True), 'SetList')
+
+        @app.get('/api/v2/import-sets/{set}', responses=errors,
+                 openapi_extra=extra('GET','/api/v2/import-sets/{set}'))
+        def import_set(set: str, request: Request):
+            return imported(request, 'read_set_v1', {'set_id': checked_uuid(set)}, 'SetResult')
+
+        @app.put('/api/v2/import-sets/{set}/decisions', status_code=202, responses=errors,
+                 openapi_extra=extra('PUT','/api/v2/import-sets/{set}/decisions'))
+        def import_decide(set: str, request: Request):
+            set_id = checked_uuid(set)
+            body = control(request, 'Decide')
+            if body['set_id'] != set_id:
+                raise RequestError('import_invalid', 422)
+            return imported(request, 'decide_set_v1', body, 'SetResult')
+
+        @app.get('/api/v2/import-previews/{preview}', responses=errors,
+                 openapi_extra=extra('GET','/api/v2/import-previews/{preview}'))
+        def import_preview(preview: str, request: Request):
+            return imported(request, 'read_preview_v1', page_query(request) | {
+                'preview_id': checked_uuid(preview)}, 'PreviewPage')
+
+        @app.post('/api/v2/import-previews/{preview}/confirm', responses=errors,
+                  openapi_extra=extra('POST','/api/v2/import-previews/{preview}/confirm'))
+        def import_confirm(preview: str, request: Request):
+            preview_id = checked_uuid(preview)
+            return imported(request, 'accept_preview_v1', control(request, 'Confirm') | {
+                'preview_id': preview_id}, 'Receipt')
+
+        @app.post('/api/v2/import-sets/{set}/cancel', responses=errors,
+                  openapi_extra=extra('POST','/api/v2/import-sets/{set}/cancel'))
+        def import_cancel(set: str, request: Request):
+            set_id = checked_uuid(set)
+            return imported(request, 'cancel_set_v1', control(request, 'Cancel') | {
+                'set_id': set_id}, 'SetResult')
+
+        @app.get('/api/v2/import-receipts/{receipt}', responses=errors,
+                 openapi_extra=extra('GET','/api/v2/import-receipts/{receipt}'))
+        def import_receipt(receipt: str, request: Request):
+            return imported(request, 'read_receipt_v1', {'receipt_id': checked_uuid(receipt)}, 'Receipt')
+
+        s.install_import_openapi(app, route_contracts)
 
     @app.get('/api/v2/openapi.json',responses=errors)
     def openapi():return app.openapi()

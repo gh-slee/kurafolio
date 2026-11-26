@@ -29,17 +29,12 @@ the open items below are kept for history and map to tickets as listed in the ro
 
 ## V2 backend development
 
-- [ ] **IMP-007 V2 CSV acceptance**: evidence, review, transport and storage
-  fragments, the transition and head guards, the single accepted write and the
-  authenticated confirm function have independent review. The private quota and
-  transient-purge helpers, the cancel and decision functions, and the read
-  functions with signed page cursors, the worker guard, the create and raw
-  reserve/bind functions, and the normalize claim, renew, stage-admission and
-  finish worker functions have developer tests but no independent review yet.
-  Still to do: the raw upload transport, the preparation and cleanup worker
-  functions, the operator `0004` migration and grants, routes, worker and
-  launcher, and recovery/concurrency/containment/restore acceptance.
-  No operational V2 import profile is available yet. See [current boundaries](docs/web-v2-imports.md).
+- [ ] **IMP-007 V2 CSV acceptance**: the operator `0004_ingestion` migration
+  installs the database functions and grants. The explicit `ingestion` profile
+  serves eight authenticated JSON routes for import sets, previews and receipts.
+  Remaining work includes raw upload, operator activation, worker and launcher
+  integration, and recovery, concurrency, containment and restore acceptance.
+  See [current boundaries](docs/web-v2-imports.md).
 
 ## Self-hosted web app (browser/API/worker workflow implemented)
 

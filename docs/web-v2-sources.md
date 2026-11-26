@@ -2,7 +2,8 @@
 
 The optional `sources` backend profile implements inert catalog discovery,
 per-user FILE_IMPORT enablement and explicitly selected, reusable connections.
-It uses PostgreSQL revision `0003_source_lifecycle`. This is a development backend,
+It uses PostgreSQL revision `0003_source_lifecycle`. The same source routes are
+also served on the explicit `ingestion` profile at `0004_ingestion`. This is a development backend,
 not a replacement for the supported SQLite Web/CLI workflow. Production V2 upload,
 financial acceptance and UI are separate delivery stages. Enabling a capability or
 creating a connection never imports data or produces a financial observation.

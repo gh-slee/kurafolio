@@ -101,7 +101,7 @@ class Principal:
 class IdentityStore:
     """Each expected business rejection commits its sampled clock before mapping."""
     def __init__(self, config, *, schema_mode="identity"):
-        if schema_mode not in {"identity", "sources"}:
+        if schema_mode not in {"identity", "sources", "ingestion"}:
             raise IdentityError()
         self.database=Database(config,schema_mode=schema_mode)
 
@@ -242,7 +242,7 @@ def role_inventory(database, *, gateway, connection=None, role=None):
                         if (column['writable']!=insertable or column['changeable']!=(column['attname'] in updates.get(table,set()))
                                 or column['referenceable']):
                             raise IdentityError()
-            if database.schema_mode=='sources':
+            if database.schema_mode in {'sources','ingestion'}:
                 from .source_store import source_role_inventory
                 source_role_inventory(conn,gateway=gateway)
             return role['name']

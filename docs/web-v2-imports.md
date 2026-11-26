@@ -1,7 +1,9 @@
 # V2 CSV ingestion
 
-V2 financial ingestion is under implementation. There is no operational `0004`
-profile, authenticated CSV import route or new browser import workflow yet. Use
+The explicit `ingestion` profile serves authenticated import control and history
+routes on PostgreSQL `0004`. CSV upload, instance activation and the dedicated
+worker remain separate delivery stages, so this is not a complete import service
+or a new browser import workflow. Use
 the existing [daily source workflow](source-projections.md#default-daily-workflow)
 for tracking and reports. Existing Web/CLI workspaces remain on SQLite.
 
@@ -50,7 +52,8 @@ for tracking and reports. Existing Web/CLI workspaces remain on SQLite.
   checked effects function must still prove actual references and changed facts.
   A private user-guard fragment reuses existing identity clock/session/credential
   rules and checks the explicit schema, initialized marker, realm and catalog
-  before returning an authenticated scope. It is not wired into import routes.
+  before returning an authenticated scope. Import routes call it through the
+  closed SQL gateway functions.
   A schema-owned SQL renderer also checks closed Minimal structure, decimal and
   time envelopes, typed selectors and support flags. It is an expression builder,
   not the complete Minimal validator: local graph, whole-satoshi, financial and
@@ -234,7 +237,8 @@ for tracking and reports. Existing Web/CLI workspaces remain on SQLite.
   It reports `can_confirm` only for the current
   READY revision with a complete Plan before expiry. A later set revision leaves an
   old preview readable but not confirmable. Both return the unsigned next-page
-  payload for the API to sign. No route signs or verifies cursors yet.
+  payload for the API to sign. The import list and preview routes sign those
+  payloads with a dedicated derived key and verify incoming cursors before reads.
   The private `_guard_worker_v1(worker, token, request)` helper is the first
   check of every worker function. Worker identity is the actual database login:
   the registry row named by the worker UUID must belong to `session_user` and be
@@ -444,7 +448,8 @@ CONFLICT with `unsupported` (IMP-007Y). No worker calls the builder until IMP-00
 For API readiness on a `0004` target, `verify_runtime_inventory` checks the exact
 installed inventory through the runtime role's own login with its existing rights.
 It only reads; `verify_inventory` remains an operator check requiring database
-CREATE. IMP-007E is planned to call it from `/readyz`; no application calls it yet.
+CREATE. `/readyz` on the `ingestion` profile calls the runtime verifier. It never
+calls the operator verifier or the predecessor source-profile verifier.
 
 The operator command installs the schema on a verified PostgreSQL 18
 `0003_source_lifecycle` instance with completed identity setup. Use a synthetic
@@ -497,10 +502,94 @@ verified snapshot excludes subsequent accepted writes. This workflow is for
 synthetic database acceptance. Application artifacts and production restore
 remain separate.
 
+## Authenticated import control and history
+
+Start the API with the existing explicit connection, key, catalog and origin files,
+plus `--schema-profile ingestion --worker-role <worker role>`. The worker role is
+required for this profile and refused on `identity` or `sources`. The gateway and
+runtime roles come from their separate connection logins. Startup verifies the
+exact installed inventory and all three roles without operator privileges.
+
+An unactivated `ingestion` instance can pass `/readyz`: readiness checks the schema,
+grants, identity realm and catalog. Import routes return `instance_not_ready` (503)
+until IMP-007S activates the instance. Completing an import also needs the worker
+(IMP-007F) and upload route (IMP-007U). These routes do not start a parser or launch
+work themselves. The source routes are also available on `ingestion`.
+
+All eight routes require an authenticated session; unsafe methods require the
+existing Origin and CSRF checks. JSON bodies retain the 16,384-byte limit and
+10-second receive deadline. On `identity` and `sources` these routes return 404
+without reading a body or accessing the database. The raw upload route remains
+404 on every profile until IMP-007U implements it.
+
+| Method and path | Request | Success body / status |
+|---|---|---|
+| `POST /api/v2/import-sets` | Create | SetResult / 201 |
+| `GET /api/v2/import-sets` | Signed cursor, limit 1 to 50, optional state filter | SetList / 200 |
+| `GET /api/v2/import-sets/{set}` | None | SetResult / 200 |
+| `PUT /api/v2/import-sets/{set}/decisions` | Decide | SetResult / 202 |
+| `GET /api/v2/import-previews/{preview}` | Signed cursor, limit 1 to 50 | PreviewPage / 200 |
+| `POST /api/v2/import-previews/{preview}/confirm` | Confirm | Receipt / 200 |
+| `POST /api/v2/import-sets/{set}/cancel` | Cancel | SetResult / 200 |
+| `GET /api/v2/import-receipts/{receipt}` | None | Receipt / 200 |
+
+The OpenAPI document at `/api/v2/openapi.json` exposes the frozen request and
+response schemas. Decimal and counter values remain strings. Confirm accepts only
+an operation ID and the digest of the preview shown to the user. Create, decisions,
+confirm and cancel replay the first answer for an identical operation ID and body;
+a different body with that operation ID is `import_operation_conflict`.
+
+List and preview reads accept signed cursors and at most 50 whole rows per page.
+Preview responses are flat `PreviewPage` objects with `next_cursor`; neither the
+internal `page` wrapper nor the unsigned `next` payload is exposed. A malformed SQL
+response is a generic `internal_error` (500), with no partial response or source
+content. Cursors remain bound to the user, portfolio, realm, filter and resource.
+
+`import_busy` (429) on these eight routes means the user's read bucket (60 calls in
+300 seconds), control bucket (30 calls in 300 seconds), or the instance-wide bucket
+is exhausted. Wait and retry. SQL admits the attempt before the JSON body is read
+and commits that count separately, so later refusal does not refund the attempt.
+There is no second Python rate limiter for import requests.
+
+Errors use the existing generic `Error` envelope with a fixed code and message.
+No file content, path, connection string or parser diagnostics reach responses or
+logs. The frozen import error-status map is:
+
+| Code | HTTP status |
+|---|---|
+| `authentication_required` | 401 |
+| `credentials_changed` | 409 |
+| `import_busy` | 429 |
+| `import_cleanup_pending` | 503 |
+| `import_commit_uncertain` | 503 |
+| `import_conflict` | 409 |
+| `import_evidence_unsupported` | 422 |
+| `import_expired` | 409 |
+| `import_invalid` | 422 |
+| `import_limit` | 413 |
+| `import_mapping_required` | 409 |
+| `import_operation_conflict` | 409 |
+| `import_reupload_required` | 409 |
+| `import_runner_unavailable` | 503 |
+| `import_stale` | 409 |
+| `instance_not_ready` | 503 |
+| `internal_error` | 500 |
+| `invalid_headers` | 400 |
+| `invalid_input` | 422 |
+| `invalid_length` | 400 |
+| `length_required` | 411 |
+| `not_found` | 404 |
+| `rate_limited` | 429 |
+| `request_timeout` | 408 |
+| `session_changed` | 409 |
+| `unsupported_media_type` | 415 |
+
+`length_required` is reserved for IMP-007U; these JSON routes do not return it.
+
 ## Remaining acceptance
 
-Runtime profile readiness, authenticated routes, the dedicated worker and
-trusted launcher remain unfinished. End-to-end acceptance must exercise
+The upload route (IMP-007U), instance activation (IMP-007S), dedicated worker
+(IMP-007F) and trusted launcher remain unfinished. End-to-end acceptance must exercise
 atomic effects, replay, shared capacity, races, cleanup, effective Linux
 containment and receipt history after authorized activation.
 
