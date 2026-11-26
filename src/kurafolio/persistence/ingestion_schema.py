@@ -3300,6 +3300,93 @@ _PREPARE_CLAIM_SQL = r"""
   'outcome','no_work','lease',NULL));
 """
 
+NORMALIZE_SWEEP_LIMIT = 8
+
+_NORMALIZE_SWEEP_DECLARATIONS = ' sweep_hints wl_ingestion.leases[];sweep_hint wl_ingestion.leases%ROWTYPE;sweep_lease wl_ingestion.leases%ROWTYPE;sweep_member wl_ingestion.members%ROWTYPE;sweep_set wl_ingestion.sets%ROWTYPE;sweep_now timestamptz;sweep_release boolean;sweep_changed integer;\n'
+
+_NORMALIZE_SWEEP_PRELUDE = r"""
+ IF p_request->>'work_kind'='prepare' THEN
+  PERFORM 1 FROM wl_identity.instance_auth_state WHERE id=1 FOR UPDATE;
+ END IF;
+ -- IMP-007R (owner answers Q23, Q24): close normalize attempts whose lease and raw deadline
+ -- have both lapsed, oldest lease deadline first, at most SWEEP_LIMIT per call. The list is a
+ -- hint; every condition is rechecked under the set lock.
+ sweep_now:=wl_identity._clock_timestamp_v1();
+ sweep_hints:=ARRAY(SELECT l FROM wl_ingestion.leases l
+  JOIN wl_ingestion.members m ON m.tenant_id=l.tenant_id AND m.portfolio_id=l.portfolio_id AND m.set_id=l.set_id AND m.id=l.member_id
+  JOIN wl_ingestion.sets x ON x.tenant_id=l.tenant_id AND x.portfolio_id=l.portfolio_id AND x.id=l.set_id
+  WHERE l.work_kind='normalize' AND l.state IN ('offered','active') AND l.expires_at<=sweep_now
+   AND m.state IN ('receiving','normalizing') AND m.fence=l.fence AND m.raw_deadline<=sweep_now
+   AND x.state NOT IN TERMINAL AND sweep_now<x.expires_at
+  ORDER BY l.expires_at,l.id::text COLLATE "C" LIMIT SWEEP_LIMIT);
+ -- Raw quota rows precede the roots, as in reserve, finish and cleanup_set_v1.
+ IF EXISTS(SELECT 1 FROM pg_catalog.unnest(sweep_hints) h WHERE h.token_digest IS NULL) THEN
+  PERFORM 1 FROM wl_ingestion.instance_budgets WHERE bucket='raw' FOR UPDATE;
+  PERFORM 1 FROM wl_ingestion.quotas q WHERE q.bucket='raw' AND (q.tenant_id,q.portfolio_id) IN (
+   SELECT h.tenant_id,h.portfolio_id FROM pg_catalog.unnest(sweep_hints) h WHERE h.token_digest IS NULL)
+   ORDER BY q.tenant_id,q.portfolio_id FOR UPDATE;
+ END IF;
+ FOREACH sweep_hint IN ARRAY sweep_hints LOOP
+  BEGIN
+   -- A root another call holds is skipped, never waited for; a later call retries.
+   PERFORM 1 FROM wl_ingestion.roots WHERE tenant_id=sweep_hint.tenant_id AND portfolio_id=sweep_hint.portfolio_id
+    FOR UPDATE SKIP LOCKED;
+   IF FOUND THEN
+    SELECT * INTO sweep_set FROM wl_ingestion.sets WHERE tenant_id=sweep_hint.tenant_id AND
+     portfolio_id=sweep_hint.portfolio_id AND id=sweep_hint.set_id FOR UPDATE;
+    PERFORM 1 FROM wl_ingestion.members WHERE tenant_id=sweep_set.tenant_id AND portfolio_id=sweep_set.portfolio_id
+     AND set_id=sweep_set.id ORDER BY id FOR UPDATE;
+    PERFORM 1 FROM wl_ingestion.leases WHERE tenant_id=sweep_set.tenant_id AND portfolio_id=sweep_set.portfolio_id
+     AND set_id=sweep_set.id ORDER BY id FOR UPDATE;
+    sweep_now:=wl_identity._clock_timestamp_v1();
+    SELECT * INTO sweep_lease FROM wl_ingestion.leases WHERE tenant_id=sweep_hint.tenant_id AND
+     portfolio_id=sweep_hint.portfolio_id AND id=sweep_hint.id;
+    SELECT * INTO sweep_member FROM wl_ingestion.members WHERE tenant_id=sweep_lease.tenant_id AND
+     portfolio_id=sweep_lease.portfolio_id AND set_id=sweep_lease.set_id AND id=sweep_lease.member_id;
+    -- A set at or past its expiry belongs to the expiry step, which cancels the lease.
+    IF sweep_set.state NOT IN TERMINAL AND sweep_now<sweep_set.expires_at AND sweep_lease.work_kind='normalize' AND
+     sweep_lease.state IN ('offered','active') AND sweep_now>=sweep_lease.expires_at AND
+     sweep_member.state IN ('receiving','normalizing') AND sweep_member.fence=sweep_lease.fence AND
+     sweep_now>=sweep_member.raw_deadline THEN
+     -- The trigger's own release rule: never bound and 120 s past reserve. Any other
+     -- swept attempt has no proof, so its slot stays held.
+     sweep_release:=sweep_hint.token_digest IS NULL AND sweep_lease.token_digest IS NULL AND
+      sweep_now>=sweep_lease.created_at+interval '120 seconds';
+     UPDATE wl_ingestion.leases SET state='expired',
+      raw_slot=CASE WHEN sweep_release THEN 'released' ELSE raw_slot END
+      WHERE tenant_id=sweep_lease.tenant_id AND portfolio_id=sweep_lease.portfolio_id AND id=sweep_lease.id
+       AND state IN ('offered','active') AND raw_slot='held';
+     GET DIAGNOSTICS sweep_changed=ROW_COUNT;
+     IF sweep_changed<>1 THEN RAISE EXCEPTION USING ERRCODE='XX000',MESSAGE='internal_error'; END IF;
+     UPDATE wl_ingestion.members SET state='reupload_required',error_code='import_reupload_required'
+      WHERE tenant_id=sweep_member.tenant_id AND portfolio_id=sweep_member.portfolio_id AND
+       set_id=sweep_member.set_id AND id=sweep_member.id;
+     -- This attempt's transient stage, so a re-upload of the same file can store it again.
+     DELETE FROM wl_ingestion.stages WHERE tenant_id=sweep_member.tenant_id AND portfolio_id=sweep_member.portfolio_id
+      AND set_id=sweep_member.set_id AND member_id=sweep_member.id AND created_at>=sweep_lease.created_at;
+     IF sweep_release THEN
+      PERFORM wl_ingestion._quota_v1(sweep_lease.tenant_id,sweep_lease.portfolio_id,'raw',-1,0);
+     END IF;
+    END IF;
+   END IF;
+  -- An attempt a trigger or _quota_v1 refuses (its set reached expiry between the checks,
+  -- for example) is left as it was, and the loop goes on to the next one.
+  EXCEPTION WHEN data_exception THEN NULL;
+  END;
+ END LOOP;
+ BEGIN
+"""
+
+_NORMALIZE_SWEEP_REFUSALS = r""" -- IMP-007R: a refusal rolls back only this block; the sweep above stands.
+ EXCEPTION WHEN SQLSTATE '22023' THEN
+  code:=SQLERRM;
+  IF code NOT IN CODES THEN code:='import_invalid'; END IF;
+  RETURN pg_catalog.jsonb_build_object('ok',false,'code',code);
+ WHEN unique_violation THEN RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_conflict');
+ WHEN data_exception THEN RETURN pg_catalog.jsonb_build_object('ok',false,'code','import_invalid');
+ END;
+"""
+
 CLAIM_PLAN_DDL = r"""
 CREATE FUNCTION wl_ingestion.claim_plan_v1(p_worker uuid,p_token text,p_request jsonb,p_bytes bytea) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $claim_plan$
@@ -3311,7 +3398,7 @@ DECLARE guard jsonb;selected wl_ingestion.sets%ROWTYPE;held wl_ingestion.leases%
  st wl_pg.instance_state%ROWTYPE;ss wl_identity.sessions%ROWTYPE;u wl_identity.users%ROWTYPE;
  cs wl_sources.catalog_state%ROWTYPE;ingestion_state wl_ingestion.instance_state%ROWTYPE;
  cl wl_sources.connection_lifecycle%ROWTYPE;em wl_sources.enablements%ROWTYPE;catalog jsonb;wrappers jsonb;
-BEGIN
+SWEEP_DECLARATIONSBEGIN
  IF p_bytes IS NOT NULL OR pg_catalog.jsonb_typeof(p_request) IS DISTINCT FROM 'object' OR
   ARRAY(SELECT pg_catalog.jsonb_object_keys(p_request) ORDER BY 1)<>
    ARRAY['claim_request_id','credential_epoch','realm_digest','version','work_kind']::text[] OR
@@ -3327,7 +3414,7 @@ BEGIN
  IF pg_catalog.current_setting('transaction_isolation')<>'read committed' THEN
   RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_invalid'; END IF;
  request_digest:=pg_catalog.encode(pg_catalog.sha256(wl_ingestion._canonical_v1(p_request)),'hex');
- -- Take the existing authority lock before looking up a prepare request so
+SWEEP_PRELUDE -- Take the existing authority lock before looking up a prepare request so
  -- a concurrent retry can see the lease committed by the first claimant.
  IF p_request->>'work_kind'='prepare' THEN
   PREPARE_AUTH_STATE_LOCK
@@ -3426,7 +3513,7 @@ BEGIN
  END LOOP;
  RETURN pg_catalog.jsonb_build_object('ok',true,'value',pg_catalog.jsonb_build_object('version',1,'outcome','no_work',
   'lease',NULL));
-EXCEPTION WHEN SQLSTATE '22023' THEN
+SWEEP_REFUSALSEXCEPTION WHEN SQLSTATE '22023' THEN
  -- Every change above rolls back with this block.
  code:=SQLERRM;
  IF code NOT IN CODES THEN code:='import_invalid'; END IF;
@@ -3447,7 +3534,10 @@ def _plan_lease_ack_sql(outcome, fingerprint):
             "','source_fingerprint'," + fingerprint + ")")
 
 
-CLAIM_PLAN_DDL = (CLAIM_PLAN_DDL.replace('ACK_HELD', _plan_lease_ack_sql('already_claimed', 'selected.request_digest'))
+CLAIM_PLAN_DDL = (CLAIM_PLAN_DDL.replace('SWEEP_DECLARATIONS', _NORMALIZE_SWEEP_DECLARATIONS)
+                  .replace('SWEEP_PRELUDE', _NORMALIZE_SWEEP_PRELUDE.replace('SWEEP_LIMIT', str(NORMALIZE_SWEEP_LIMIT)))
+                  .replace('SWEEP_REFUSALS', _NORMALIZE_SWEEP_REFUSALS)
+                  .replace('ACK_HELD', _plan_lease_ack_sql('already_claimed', 'selected.request_digest'))
                   .replace('ACK_CLAIMED', _plan_lease_ack_sql('claimed', 'selected.request_digest'))
                   .replace('PREPARE_AUTH_STATE_LOCK', _PREPARE_AUTH_STATE_LOCK)
                   .replace('PREPARE_CLAIM', _PREPARE_CLAIM_SQL
@@ -4904,6 +4994,21 @@ REVOKE ALL ON FUNCTION wl_ingestion._outbox_guard_v1() FROM PUBLIC;
 # Row-local storage invariants for mutable control rows. The checked functions
 # still authenticate, take locks in the declared order and recheck live source
 # authority; this guard only rejects states no checked function may produce.
+_SWEEP_STAGE_GUARD_PREFIX = r"""
+    -- IMP-007R (owner answer Q24): in a live set, only the stage of the attempt the
+    -- claim_plan_v1 sweep closed. Its member is reupload_required at that attempt's fence,
+    -- the attempt's normalize lease is expired (only the sweep expires one) and the stage
+    -- is no older than the attempt.
+    IF TG_TABLE_NAME<>'stages' THEN REJECT; END IF;
+    IF NOT EXISTS(SELECT 1 FROM wl_ingestion.members m JOIN wl_ingestion.leases l ON l.tenant_id=m.tenant_id AND
+      l.portfolio_id=m.portfolio_id AND l.set_id=m.set_id AND l.member_id=m.id
+     WHERE m.tenant_id=OLD.tenant_id AND m.portfolio_id=OLD.portfolio_id AND m.set_id=OLD.set_id AND
+      m.id=OLD.member_id AND m.state='reupload_required' AND m.stage_digest IS NULL AND
+      l.work_kind='normalize' AND l.fence=m.fence AND l.state='expired' AND l.created_at<=OLD.created_at) THEN
+    """
+
+_SWEEP_STAGE_GUARD_SUFFIX = '\n   END IF;'
+
 TRANSITION_DDL = r'''
 CREATE FUNCTION wl_ingestion._transition_v1() RETURNS trigger
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $transition$
@@ -5133,7 +5238,7 @@ BEGIN
  ELSIF TG_TABLE_NAME IN ('stages','decisions','previews') THEN
   IF TG_OP='DELETE' THEN
    -- Transient review/evidence rows are removed only after terminal state or expiry.
-   IF NOT (parent.state=ANY(terminal) OR n>=OLD.purge_at) THEN REJECT; END IF;
+   IF NOT (parent.state=ANY(terminal) OR n>=OLD.purge_at) THENSWEEP_STAGE_PREFIX REJECT; END IF;SWEEP_STAGE_SUFFIX
    RETURN OLD;
   ELSIF TG_OP<>'INSERT' THEN REJECT; END IF;
   IF parent.state=ANY(terminal) THEN REJECT; END IF;
@@ -5205,7 +5310,7 @@ EXCEPTION WHEN OTHERS THEN
  RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_invalid';
 END $transition$;
 REVOKE ALL ON FUNCTION wl_ingestion._transition_v1() FROM PUBLIC;
-'''.replace('REJECT;', "RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_invalid';").replace(
+'''.replace('SWEEP_STAGE_PREFIX', _SWEEP_STAGE_GUARD_PREFIX).replace('SWEEP_STAGE_SUFFIX', _SWEEP_STAGE_GUARD_SUFFIX).replace('REJECT;', "RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_invalid';").replace(
     'EXPIRED;', "RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_expired';")
 
 
