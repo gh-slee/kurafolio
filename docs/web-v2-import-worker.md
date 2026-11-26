@@ -78,9 +78,14 @@ bytes, context, results, stderr, a plaintext nonce or a plaintext handle.
 
 ## Recovery and known limits
 
-- A worker crash leaves the member `receiving` or `normalizing`. The recovery is
-  to cancel the set or let it expire, until the fenced sweep ticket lands. The
-  new worker does not reuse the old handoff token.
+- A worker crash leaves the member `receiving` or `normalizing`. The next
+  `claim_plan_v1` sweep turns an attempt whose lease and raw deadline have both
+  passed into `reupload_required`; cancel or expiry remains the set-level
+  recovery. The new worker does not reuse the old handoff token.
+- A native-discovery member is refused before launch and its set becomes
+  `REJECTED`. Its attempt has no launcher handle, so cleanup has no proof to
+  send: the raw slot and storage reservation stay held. Releasing that case is
+  the SQL follow-up filed as IMP-008; this branch makes no SQL change.
 - A record without a launcher handle can produce no proof. Its set stays
   `cleanup_pending` and keeps the slot and storage until an operator acts.
 - A cleanup that cannot prove child and payload absence keeps the storage
@@ -108,7 +113,10 @@ nofile 64, core 0, and exactly eight environment variables. The entry point is
 The table records what was actually run. A configuration value alone is not
 evidence. `tests/test_ingestion_containment.py` builds an offline probe image
 from an immutable local base (`--network none`) and starts it with the exact
-engine arguments.
+engine arguments. Its real-child case and the PostgreSQL real-child row use a
+test-only `DockerEngine` subclass that maps the candidate image ID for the
+digest lookup and `create` reference, because a locally built image has no
+registry `RepoDigests`; every other engine call is the production adapter.
 
 | Control | Docker Desktop, Apple Silicon | Native Linux CI |
 |---|---|---|
