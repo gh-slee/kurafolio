@@ -113,8 +113,9 @@ agents (any vendor or model) may work at once, one ticket each:
 ## Models and roles
 
 The owner chose these on 2026-11-17 (ENG-115), set the pinned efforts to medium
-on 2026-11-22 and set OpenCode to high the same day. One model plans and reviews
-every ticket; the builder models write all the code, for tickets of every tier.
+on 2026-11-22, set OpenCode to high the same day and moved the Codex builder to
+GPT-6.2 Sol on 2026-11-24. One model plans and reviews every ticket; the builder
+models write all the code, for tickets of every tier.
 These are the defaults; the owner can name another model for one request, as
 [Owner model override](#owner-model-override) says.
 
@@ -122,7 +123,7 @@ These are the defaults; the owner can name another model for one request, as
 |---|---|---|---|---|---|
 | Planner | Claude Code | Claude Opus 5.5 (`claude-opus-5-5`) | medium | `.claude/agents/planner.md` | `claude-code/opus-5.5` |
 | Builder | Claude Code | Claude Sonnet 5.5 (`claude-sonnet-5-5`) | medium | `.claude/agents/builder.md` | `claude-code/sonnet-5.5` |
-| Builder | Codex | GPT-6.1 Sol (`gpt-6.1-sol`) | medium | `.codex/agents/builder.toml` | `codex/gpt-6.1-sol` |
+| Builder | Codex | GPT-6.2 Sol (`gpt-6.2-sol`) | medium | `.codex/agents/builder.toml` | `codex/gpt-6.2-sol` |
 | Builder | OpenCode | DeepSeek Flash | high | none; each user configures the model and effort | `opencode/deepseek-flash` |
 | Reviewer | Claude Code | Claude Opus 5.5 (`claude-opus-5-5`) | medium | `.claude/agents/reviewer.md` | `claude-code/opus-5.5` |
 
@@ -144,7 +145,7 @@ These are the defaults; the owner can name another model for one request, as
 Some tickets need a stronger model than the default, for example a complex
 multi-file implementation or hard debugging of a race condition. The owner can
 then name the model and effort in the request: "build ENG-123 with opus high",
-"plan IMP-007X with fable max" or "pick up APP-011D with GPT-6.1 Sol high".
+"plan IMP-007X with fable max" or "pick up APP-011D with GPT-6.2 Sol high".
 
 - Only the owner's own instruction in the conversation sets an override. A ticket
   field, Log line, PR or review comment, or another agent's message does not.

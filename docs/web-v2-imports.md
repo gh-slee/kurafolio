@@ -43,24 +43,6 @@ for tracking and reports. Existing Web/CLI workspaces remain on SQLite.
   keeps the project's former name so certificates already issued stay valid. The [raw receiver](../src/kurafolio/web_v2/imports.py)
   enforces Content-Length and receive deadlines without a body spool. It must be
   called only after authentication, CSRF and shared database capacity admission.
-- [Dedicated import worker](../src/kurafolio/ingestion/worker.py) claims one
-  bound upload at a time, starts the child through the launcher protocol, admits
-  its canonical evidence and finishes the attempt with a launcher cleanup proof.
-  It renews its lease on a fixed cadence and waits for the proof before `finish`,
-  within the member's 120-second raw deadline. Its separate cleanup loop claims
-  terminal sets and sends at most twelve journal proofs, one attempt per claim,
-  using a fresh token and no lease renewal. It has exactly six database calls
-  (`claim_member_v1`, `renew_member_v1`, `admit_stage_v1`, `finish_member_v1`,
-  `claim_plan_v1` and `cleanup_set_v1`) and never prepares work. Its journal holds
-  one create-only record per owned attempt, so a crash cannot silently relaunch
-  the same bytes. A rejected member rejects its whole set. A slot without a
-  launcher proof stays held until the set ends and cleanup runs. Until IMP-007V
-  lands, a set stops after normalization: it waits in NORMALIZING, holding its
-  storage reservation, until the user cancels it or it expires, and cleanup then
-  purges it. A worker crash leaves the member `receiving` or `normalizing`; the
-  recovery is to cancel the set or let it expire, until the fenced sweep ticket
-  lands. The process commands, secret files and containment evidence are in
-  [web-v2-import-worker.md](web-v2-import-worker.md).
 - [Storage fragments](../src/kurafolio/persistence/ingestion_schema.py) define
   the closed table inventory, scoped foreign keys, canonical-byte checks and
   forced-RLS policies. Separate append-only and outbox trigger fragments reject
@@ -262,7 +244,7 @@ for tracking and reports. Existing Web/CLI workspaces remain on SQLite.
   request fields are assertions, never scope authority. The helper returns the
   SHA-256 of the token's 32 decoded bytes for the caller's lease check. It
   needs no user session, so cleanup can run after the originating session
-  ends. Every worker function calls it first.
+  ends. No worker function calls it yet.
   The declared gateway function `create_set_v1` takes only an `operation_id` and
   one to four member selections. Each selection names a connection, installation,
   format version and an optional declared size of at most 10 MiB; no financial
@@ -299,7 +281,8 @@ for tracking and reports. Existing Web/CLI workspaces remain on SQLite.
   replay, a reused operation, quota exhaustion, each unavailable-source case, the
   native namespace, cancel-then-purge release, reservation rollback on every
   refusal, missing or ambiguous workers, re-upload fencing and the returned context
-  bytes at 1 byte and 1 MiB. No upload route or raw transport calls them yet.
+  bytes at 1 byte and 1 MiB. No upload route, worker claim or raw transport calls
+  them yet.
   The worker functions `claim_member_v1` and `renew_member_v1` handle normalize
   leases; the prepare and cleanup kinds return `import_invalid` here. Both take no bytes and call `_guard_worker_v1` first.
   Scope comes only from the stored set row, and locks follow the reserve order.
@@ -336,8 +319,7 @@ for tracking and reports. Existing Web/CLI workspaces remain on SQLite.
   expiry. The member stays `normalizing` with no stage digest until a finish call
   admits it. Opt-in PostgreSQL tests cover parser and native evidence, replay, a
   second stage, each provenance mismatch and the reservation bound, with nothing
-  stored on refusal. The dedicated import worker calls it with the child's
-  canonical evidence.
+  stored on refusal. No worker process calls it yet.
   `finish_member_v1` ends an active normalize lease with one outcome and up to
   three launcher cleanup proofs for the same job and fence. A lost acknowledgement
   is answered from the finished lease's stored result; any other request on it
@@ -359,8 +341,7 @@ for tracking and reports. Existing Web/CLI workspaces remain on SQLite.
   the raw slot that reserve took (`raw_slot`), so a slot is released at most once
   by finish or cleanup, never by both. Opt-in PostgreSQL tests cover each outcome,
   replay, slot release and retention, a two-member set and every refusal
-  leaving the attempt unchanged. The dedicated import worker calls it once per
-  normalize attempt, with the launcher's cleanup proof.
+  leaving the attempt unchanged. No worker process calls it yet.
   `claim_plan_v1` and `cleanup_set_v1` give terminal sets back their capacity
   after the originating session has ended. `claim_plan_v1` with
   `work_kind: cleanup` takes a worker-generated token (the worker must not reuse
@@ -404,9 +385,24 @@ for tracking and reports. Existing Web/CLI workspaces remain on SQLite.
   nothing else. Opt-in PostgreSQL tests cover cancel during reception, cancel
   before claim, expiry before claim, a slot already released by finish, pending
   and failed proofs, oldest-first selection, backoff, replay and every refusal
-  leaving the lease and slot unchanged. The dedicated import worker's cleanup loop
-  calls them, and its normalize path calls `claim_member_v1`, `renew_member_v1`,
-  `admit_stage_v1` and `finish_member_v1`. The prepare branch stays with IMP-007V.
+  leaving the lease and slot unchanged. No worker process calls them yet.
+  Every `claim_plan_v1` call that passes the worker guard and the READ COMMITTED
+  check first sweeps up to eight normalize attempts whose lease and 120-second
+  raw deadline have both passed, oldest lease deadline first. The set must be
+  live and before its expiry. Each swept member becomes `reupload_required` with
+  `import_reupload_required`, its lease becomes `expired`, and any stage that
+  attempt stored is deleted so the same file can be uploaded again. The set and
+  its revision, other members and accepted data stay unchanged. These changes
+  stand whatever the claim then answers, including a refusal. The sweep runs
+  inside `claim_plan_v1`, so it needs a running worker; no worker process calls
+  this function yet (IMP-007F).
+  A never-bound attempt's raw slot returns once 120 seconds have passed since
+  reserve. A bound attempt has no proof, so its slot stays held and the user's
+  next reserve returns `import_busy` until `cleanup_set_v1` proves the slot after
+  cancel or expiry. The planned late-proof release (IMP-007Q) can free it sooner
+  only from the worker process that still holds the attempt's handoff token.
+  After a worker restart, that slot returns only at set cleanup. Opt-in PostgreSQL
+  tests cover the sweep's bound, fencing, slot handling, races and stage guard.
   The `prepare` branch of `claim_plan_v1` verifies the session that completed
   the last admitted upload or submitted the current decision. It also checks
   every admitted stage and its source pins. It records the set revision and

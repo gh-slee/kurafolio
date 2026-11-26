@@ -31,6 +31,32 @@ RESERVE_KEYS = frozenset({'action', 'set_id', 'member_id', 'lease_id', 'fence', 
                           'offer_expires_at'})
 
 
+def pre_sweep_bodies():
+    """Strip rendered insertions once; pins below establish the original bodies."""
+    claim = schema.CLAIM_PLAN_DDL
+    for added in (schema._NORMALIZE_SWEEP_DECLARATIONS,
+                  schema._NORMALIZE_SWEEP_PRELUDE.replace('SWEEP_LIMIT', str(schema.NORMALIZE_SWEEP_LIMIT))
+                    .replace('TERMINAL', schema._TERMINAL_SQL),
+                  schema._NORMALIZE_SWEEP_REFUSALS.replace('CODES', schema._WORKER_CODES_SQL)):
+        if claim.count(added) != 1:
+            raise AssertionError('claim insertion is not unique')
+        claim = claim.replace(added, '', 1)
+    transition = schema.TRANSITION_DDL
+    for added in (schema._SWEEP_STAGE_GUARD_PREFIX.replace('REJECT;',
+                    "RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_invalid';"),
+                  schema._SWEEP_STAGE_GUARD_SUFFIX):
+        # The suffix occurs in other branches; remove it only at the guard insertion.
+        if added == schema._SWEEP_STAGE_GUARD_SUFFIX:
+            marker = 'IF NOT (parent.state=ANY(terminal) OR n>=OLD.purge_at) THEN REJECT; END IF;'
+            marker = marker.replace('REJECT;', "RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_invalid';")
+            transition = transition.replace(marker + added, marker, 1)
+        else:
+            if transition.count(added) != 1:
+                raise AssertionError('stage guard insertion is not unique')
+            transition = transition.replace(added, '', 1)
+    return claim, transition
+
+
 class IngestionStorageDDLTests(unittest.TestCase):
     def test_bind_returns_the_context_bytes_under_one_private_key(self):
         """AC-IMP-007O-01; AC-IMP-007O-02; AC-IMP-007O-03; AC-IMP-007O-04."""
@@ -286,6 +312,30 @@ class IngestionStorageDDLTests(unittest.TestCase):
             self.assertLess(ddl.index(start), ddl.index(expression))
             self.assertLess(ddl.index(expression), ddl.index(end))
 
+    def test_sweep_changes_only_claim_plan_and_the_stage_guard(self):
+        """AC-IMP-007R-01, AC-IMP-007R-07, AC-IMP-007R-11: insertion-only SQL."""
+        from kurafolio.persistence.ingestion_migration import function_ddl
+        claim, transition = pre_sweep_bodies()
+        h = lambda value: hashlib.sha256(value.encode()).hexdigest()
+        self.assertEqual('0416dccbd8ac6bd8a83eda4873d1ca9c581f9fbab5ba89a7a90cb66677bdef1d', h(claim))
+        self.assertEqual('884071b8ab5f0af3e35fc9d3b573eda1ff03a26886b0832b77ec3486b3449d13', h(transition))
+        self.assertEqual('6066ad4131933d7ccb7da183c483d0b22920b104ae82943ffa4ed1aa460e88c8',
+                         h(function_ddl().replace(schema.CLAIM_PLAN_DDL, '').replace(schema.TRANSITION_DDL, '')))
+        self.assertEqual(('claim_member_v1', 'renew_member_v1', 'admit_stage_v1', 'prepare_preview_v1',
+                          'finish_member_v1', 'cleanup_set_v1', 'claim_plan_v1', 'read_plan_basis_v1'), schema.WORKER)
+        self.assertEqual(32, len(schema.inventory()['functions']))
+        self.assertEqual(ORACLE['sql-inventory']['functions'], schema.inventory()['functions'])
+        self.assertEqual(8, schema.NORMALIZE_SWEEP_LIMIT)
+        ddl = schema.CLAIM_PLAN_DDL
+        points = [ddl.index('guard:=wl_ingestion._guard_worker_v1'), ddl.index("current_setting('transaction_isolation')"),
+                  ddl.index('sweep_now:='), ddl.index('\n BEGIN\n'), ddl.index('-- Take the existing authority lock'),
+                  ddl.index("'outcome','no_work'"), ddl.index('-- IMP-007R: a refusal'),
+                  ddl.rindex("EXCEPTION WHEN SQLSTATE '22023'")]
+        self.assertEqual(sorted(points), points)
+        self.assertIn('LIMIT 8);', ddl[points[2]:points[3]])
+        for body in (ddl, schema.TRANSITION_DDL):
+            self.assertIsNone(re.search(r'RAISE\s+(NOTICE|LOG|WARNING|INFO|DEBUG)', body))
+
     def test_cleanup_lease_functions_match_their_worker_declarations(self):
         declared = {x['name']: x for x in schema.inventory()['functions']}
         for name, ddl in (('claim_plan_v1', schema.CLAIM_PLAN_DDL), ('cleanup_set_v1', schema.CLEANUP_SET_DDL)):
@@ -295,7 +345,12 @@ class IngestionStorageDDLTests(unittest.TestCase):
                 self.assertIn('REVOKE ALL ON FUNCTION wl_ingestion.' + name + '(uuid,text,jsonb,bytea) FROM PUBLIC;', ddl)
                 self.assertEqual(1, ddl.count('CREATE FUNCTION'))
                 self.assertIn('wl_ingestion._guard_worker_v1(p_worker,p_token,p_request)', ddl)
-                for fragment in ('GRANT ', 'DELETE ', 'ACK_', 'TERMINAL', 'CODES', 'UUID_RE', 'PROOFS_SHAPE',
+                if name == 'claim_plan_v1':
+                    self.assertEqual(1, ddl.count('DELETE '))
+                    self.assertIn('DELETE FROM wl_ingestion.stages', ddl)
+                else:
+                    self.assertNotIn('DELETE ', ddl)
+                for fragment in ('GRANT ', 'ACK_', 'TERMINAL', 'CODES', 'UUID_RE', 'PROOFS_SHAPE',
                                  'ATTEMPT_JOB', 'CLEANUP_SESSION', 'MAXIMUM', 'BACKOFF_'):
                     self.assertNotIn(fragment, ddl)
         # A cleanup lease never names a user session; it stores one fixed marker.
@@ -382,6 +437,37 @@ class IngestionRuntimeInventoryPostgresTests(unittest.TestCase):
 
     def _assert_clean(self):
         self.assertEqual({'schema_revision': '0004_ingestion', 'functions': 68}, self._check())
+
+    def test_imp_007r_installed_bodies_with_unchanged_digests(self):
+        """AC-IMP-007R-07: installed bodies, unchanged structure, stale-body refusal."""
+        from kurafolio.persistence.context import execute
+        from kurafolio.persistence.errors import PersistenceError
+        from kurafolio.persistence.ingestion_migration import verify_inventory
+        self._assert_clean()
+        with self.operator.engine.begin() as conn:
+            self.assertEqual({'schema_revision': '0004_ingestion', 'functions': 68}, verify_inventory(conn, **self.arguments))
+            bodies = dict(execute(conn, "SELECT p.proname,p.prosrc FROM pg_catalog.pg_proc p "
+                "JOIN pg_catalog.pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='wl_ingestion' "
+                "AND p.proname IN ('claim_plan_v1','_transition_v1')").all())
+        self.assertEqual(1, bodies['claim_plan_v1'].count('sweep_hints:=ARRAY'))
+        self.assertEqual(1, bodies['_transition_v1'].count('-- IMP-007R (owner answer Q24)'))
+        old = pre_sweep_bodies()
+        current = (schema.CLAIM_PLAN_DDL, schema.TRANSITION_DDL)
+        replacement = lambda ddl: ddl.replace('CREATE FUNCTION ', 'CREATE OR REPLACE FUNCTION ', 1)
+        try:
+            with self.operator.engine.begin() as conn:
+                for ddl in old:
+                    conn.exec_driver_sql(replacement(ddl), execution_options={'no_parameters': True})
+            with self.assertRaisesRegex(PersistenceError, '^migration_target_invalid$'):
+                self._check()
+            with self.operator.engine.begin() as conn:
+                with self.assertRaisesRegex(PersistenceError, '^migration_target_invalid$'):
+                    verify_inventory(conn, **self.arguments)
+        finally:
+            with self.operator.engine.begin() as conn:
+                for ddl in current:
+                    conn.exec_driver_sql(replacement(ddl), execution_options={'no_parameters': True})
+            self._assert_clean()
 
     def test_imp_007o_installed_bind_body_with_unchanged_digests(self):
         """AC-IMP-007O-03: old function bodies fail both live inventory checks."""
@@ -2965,9 +3051,9 @@ ALTER TABLE wl_ingestion.accepted_inputs ADD CONSTRAINT accepted_inputs_installa
              "wl_ingestion.source_revisions),'generations',(SELECT pg_catalog.jsonb_build_array(accepted_generation,"
              "mapping_generation) FROM wl_ingestion.roots))::text;")
 
-    def run_labelled(self, script):
+    def run_labelled(self, script, begin='BEGIN;'):
         out = {}
-        for line in self.sql('BEGIN;' + script + 'ROLLBACK;').splitlines():
+        for line in self.sql(begin + script + 'ROLLBACK;').splitlines():
             label, _, value = line.partition(' ')
             if label.isupper() and value.startswith(('{', '[')):
                 out[label] = json.loads(value)
@@ -5693,6 +5779,378 @@ SELECT 'STAGE '||jsonb_build_array(octet_length(data),encode(sha256(data),'hex')
                 'cleanup_complete': outcome != 'cleanup_pending', 'quota_released': released, 'outcome': outcome}
 
     NO_WORK = {'ok': True, 'value': {'version': 1, 'outcome': 'no_work', 'lease': None}}
+
+    def lapse(self, seconds=180, where="l.work_kind='normalize'"):
+        interval = str(int(seconds))
+        return ("SET LOCAL session_replication_role=replica;"
+                "UPDATE wl_ingestion.members m SET raw_deadline=m.raw_deadline-interval '" + interval +
+                " seconds' FROM wl_ingestion.leases l WHERE m.tenant_id=l.tenant_id AND "
+                "m.portfolio_id=l.portfolio_id AND m.set_id=l.set_id AND m.id=l.member_id AND " + where + ";"
+                "UPDATE wl_ingestion.leases l SET created_at=l.created_at-interval '" + interval +
+                " seconds',expires_at=l.expires_at-interval '" + interval + " seconds' WHERE " + where +
+                ";SET LOCAL session_replication_role=origin;")
+
+    def sweep_snapshot(self, label):
+        tables = ('leases', 'members', 'stages', 'quotas', 'instance_budgets', 'sets')
+        return "SELECT '" + label + " '||jsonb_build_object(" + ','.join(
+            "'" + table + "',(SELECT COALESCE(jsonb_agg(to_jsonb(r) ORDER BY r::text),'[]'::jsonb) "
+            "FROM wl_ingestion." + table + " r)" for table in tables) + ')::text;'
+
+    def test_sweep_closes_lapsed_receiving_and_normalizing_attempts(self):
+        """AC-IMP-007R-01; AC-IMP-007R-09: both unfinished normalize states."""
+        for claimed in (False, True):
+            with self.subTest(claimed=claimed):
+                _, _, seed, _ = self.claim_seed(count=2)
+                if claimed:
+                    seed += self.lease_call('claim_member_v1', 'claim')
+                out = self.run_labelled(seed + self.lapse() + self.sweep_snapshot('BEFORE') +
+                    self.plan_claim('sweep') + self.FINISH_STATE + self.sweep_snapshot('AFTER'))
+                self.assertEqual(self.NO_WORK, out['SWEEP'])
+                self.assertEqual({'set': ['RECEIVING', 1, 'not_needed'], 'members': [
+                    ['reupload_required', 'import_reupload_required', False, 1],
+                    ['waiting', None, False, 1]], 'leases': ['expired'], 'raw': [1, 1]}, out['FSTATE'])
+                before, after = out['BEFORE'], out['AFTER']
+                for key in ('sets', 'stages', 'quotas', 'instance_budgets'):
+                    self.assertEqual(before[key], after[key])
+                for key in ('created_at', 'expires_at', 'cleanup_proof_bytes', 'raw_slot'):
+                    self.assertEqual(before['leases'][0][key], after['leases'][0][key])
+                for key in ('fence', 'raw_digest', 'raw_bytes', 'raw_deadline', 'stage_digest'):
+                    self.assertEqual(before['members'][0][key], after['members'][0][key])
+
+    def test_sweep_leaves_live_unlapsed_finished_and_terminal_attempts(self):
+        """AC-IMP-007R-02; AC-IMP-007R-09: noncandidates remain byte-identical."""
+        replica, origin = 'SET LOCAL session_replication_role=replica;', 'SET LOCAL session_replication_role=origin;'
+        for case in ('live', 'raw_live', 'finished', 'terminal', 'set_expired'):
+            with self.subTest(case=case):
+                seed, _ = self.cleanup_seed(bind=case != 'raw_live')
+                if case == 'live':
+                    seed += replica + "UPDATE wl_ingestion.members SET raw_deadline=clock_timestamp()-interval '1 second';" + origin
+                elif case == 'raw_live':
+                    seed += self.lapse(40)
+                elif case == 'finished':
+                    seed += self.lease_call('claim_member_v1', 'claim') + self.finish_call('finish',
+                        outcome='reupload_required', error_code='import_reupload_required') + self.lapse()
+                else:
+                    seed += self.lease_call('claim_member_v1', 'claim') + self.lapse()
+                    if case == 'terminal':
+                        seed += replica + "UPDATE wl_ingestion.sets SET state='CANCELLED',cleanup_state='complete';" + origin
+                    else:
+                        seed += replica + "UPDATE wl_ingestion.sets SET created_at=created_at-interval '2 days',expires_at=expires_at-interval '2 days' WHERE state='RECEIVING';" + origin
+                fields = {'work_kind': "'prepare'"} if case == 'set_expired' else {}
+                out = self.run_labelled(seed + self.sweep_snapshot('BEFORE') + self.plan_claim('sweep', **fields) +
+                                        self.sweep_snapshot('AFTER'))
+                self.assertEqual(self.NO_WORK, out['SWEEP'])
+                self.assertEqual(out['BEFORE'], out['AFTER'])
+                if case == 'set_expired':
+                    out = self.run_labelled(seed + self.plan_claim('sweep') + self.CLEANUP_STATE)
+                    self.assertEqual(['EXPIRED', 'pending'], out['CSTATE']['set'])
+                    self.assertEqual([['expired', 2]], out['CSTATE']['members'])
+                    self.assertEqual([['cancelled', 'held', None]], out['CSTATE']['attempts'])
+
+    def test_sweep_fences_the_old_attempt_and_reserve_starts_the_next_fence(self):
+        """AC-IMP-007R-03; AC-IMP-007R-09: old tokens cannot mutate a swept attempt."""
+        _, _, seed, _ = self.finish_seed()
+        calls = (self.lease_call('renew_member_v1', 'renew') + self.admit_call('admit_old') +
+                 self.lease_call('claim_member_v1', 'claim_old') + self.finish_call('finish_old') +
+                 self.finish_call('reupload_old', outcome='reupload_required', error_code='import_reupload_required'))
+        out = self.run_labelled(seed + self.lapse() + self.plan_claim('sweep') + self.sweep_snapshot('BEFORE') +
+                                calls + self.sweep_snapshot('AFTER'))
+        for label in ('RENEW', 'ADMIT_OLD', 'CLAIM_OLD', 'FINISH_OLD', 'REUPLOAD_OLD'):
+            self.assertEqual({'ok': False, 'code': 'import_stale'}, out[label], label)
+        self.assertEqual(out['BEFORE'], out['AFTER'])
+        seed, catalog = self.cleanup_seed(bind=False)
+        # Capture old job and member IDs before reserve resets the member context.
+        capture = ("SELECT set_config('test.old_job',(SELECT id::text FROM wl_ingestion.leases WHERE work_kind='normalize'),true);"
+                   "SELECT set_config('test.old_member'," + self.LEASE_MEMBER + ",true);")
+        old = {'job_id': "current_setting('test.old_job')", 'member_id': "current_setting('test.old_member')"}
+        out = self.run_labelled(seed + capture + self.lapse() + self.plan_claim('sweep') +
+            self.reserve_call('again', catalog) + self.LEASE_STATE + self.RESERVE_STATE +
+            self.lease_call('renew_member_v1', 'renew', **old) + self.finish_call('oldfinish', cleanup_proofs="'[]'::jsonb", **old))
+        self.assertTrue(out['AGAIN']['ok'], out['AGAIN'])
+        self.assertEqual('2', out['AGAIN']['value']['fence'])
+        self.assertEqual(['receiving', 2], out['LSTATE']['member'])
+        self.assertEqual(['expired', 'offered'], [row[0] for row in out['LSTATE']['leases']])
+        self.assertEqual([None, None], out['RSTATE']['member'][2:4])
+        for label in ('RENEW', 'OLDFINISH'):
+            self.assertEqual({'ok': False, 'code': 'import_stale'}, out[label], label)
+
+    def test_sweep_releases_only_a_never_bound_slot_and_cleanup_proves_the_rest(self):
+        """AC-IMP-007R-04; AC-IMP-007R-09: proof and 120-second release rules."""
+        for defensive in (False, True):
+            with self.subTest(defensive=defensive):
+                seed, _ = self.cleanup_seed(bind=False)
+                seed += self.lapse()
+                if defensive:
+                    seed += ("SET LOCAL session_replication_role=replica;UPDATE wl_ingestion.leases SET "
+                             "created_at=clock_timestamp()-interval '60 seconds',expires_at=clock_timestamp()-interval '30 seconds' WHERE work_kind='normalize';"
+                             "SET LOCAL session_replication_role=origin;")
+                out = self.run_labelled(seed + self.plan_claim('sweep') + self.plan_claim('twice',
+                    request='c1000000-0000-4000-8000-000000000002') + self.CLEANUP_STATE)
+                self.assertEqual(self.NO_WORK, out['SWEEP'])
+                self.assertEqual(self.NO_WORK, out['TWICE'])
+                self.assertEqual([['expired', 'held' if defensive else 'released', None]], out['CSTATE']['attempts'])
+                self.assertEqual([1, int(defensive)], out['CSTATE']['raw'])
+                self.assertEqual(int(defensive), out['CSTATE']['raw_instance'])
+        seed, catalog = self.cleanup_seed()
+        out = self.run_labelled(seed + self.lease_call('claim_member_v1', 'claim_member') + self.lapse() +
+            self.plan_claim('sweep') + self.reserve_call('busy', catalog) +
+            self.CLEANUP_STATE.replace("'CSTATE '", "'HELD '") + self.cancel_call(catalog) +
+            self.plan_claim('claim') + "SELECT set_config('test.saved_proofs',(" + self.proofs('absent') + ")::text,true);" + self.cleanup_call('clean', cleanup_proofs="current_setting('test.saved_proofs')::jsonb") + self.CLEANUP_STATE +
+            self.cleanup_call('replay', cleanup_proofs="current_setting('test.saved_proofs')::jsonb"))
+        self.assertEqual({'ok': False, 'code': 'import_busy'}, out['BUSY'])
+        self.assertEqual([['expired', 'held', None]], out['HELD']['attempts'])
+        self.assertEqual([1, 1], out['HELD']['raw'])
+        self.assertEqual(out['CLEAN'], out['REPLAY'])
+        self.assertEqual(('purged', True), (out['CLEAN']['value']['outcome'], out['CLEAN']['value']['quota_released']))
+        self.assertEqual([['expired', 'released', ['absent']]], out['CSTATE']['attempts'])
+        self.assertEqual(([1, 0], 0, [0, 0], 0), tuple(out['CSTATE'][key] for key in ('raw', 'raw_instance', 'storage', 'transient')))
+
+    def test_concurrent_sweeps_and_late_calls_have_one_effect(self):
+        """AC-IMP-007R-05; AC-IMP-007R-09: real overlapping transactions, one effect."""
+        from concurrent.futures import ThreadPoolExecutor
+        for case in ('unbound_sweeps', 'bound_sweeps', 'sweep_finish', 'finish_sweep', 'sweep_cancel', 'cancel_sweep'):
+            with self.subTest(case=case):
+                seed, catalog = self.cleanup_seed(bind=case != 'unbound_sweeps', count=2)
+                if case != 'unbound_sweeps':
+                    seed += self.lease_call('claim_member_v1', 'member')
+                if case == 'finish_sweep':
+                    seed += self.admit_call('admit')
+                    seed += ("SET LOCAL session_replication_role=replica;UPDATE wl_ingestion.leases SET "
+                             "expires_at=clock_timestamp()+interval '3 seconds' WHERE work_kind='normalize';"
+                             "UPDATE wl_ingestion.members SET raw_deadline=clock_timestamp()+interval '3 seconds' "
+                             "WHERE state='normalizing';SET LOCAL session_replication_role=origin;")
+                else:
+                    seed += self.lapse()
+                db = 'sweep_race_' + case
+                self.sql('CREATE DATABASE ' + db + ' TEMPLATE postgres;')
+                args = ['docker', 'exec', '-i', self.container, 'psql', '-X', '-A', '-t',
+                        '-U', 'postgres', '-d', db, '-v', 'ON_ERROR_STOP=1']
+                def execute(statement):
+                    result = self.command(args, input=statement.encode())
+                    self.assertEqual(0, result.returncode, 'Synthetic sweep race statement failed')
+                    return result.stdout.decode()
+                def ack(lines, label):
+                    return json.loads(next(line.partition(' ')[2] for line in lines if line.startswith(label + ' ')))
+                marker = 'CREATE TABLE wl_sources.synthetic_installation_ids(id text PRIMARY KEY);'
+                setup = seed.replace(marker, marker +
+                    'ALTER TABLE wl_ingestion.members DROP CONSTRAINT members_installation_fk;'
+                    'ALTER TABLE wl_ingestion.members ADD CONSTRAINT members_installation_fk '
+                    'FOREIGN KEY(installation_id) REFERENCES wl_sources.synthetic_installation_ids(id);')
+                first_call = self.plan_claim('first')
+                if case == 'finish_sweep':
+                    first_call = self.finish_call('first')
+                elif case == 'cancel_sweep':
+                    first_call = self.cancel_call(catalog).replace('test.cancel', 'test.first').replace("'CANCEL '", "'FIRST '")
+                second_call = self.plan_claim('second', request='c1000000-0000-4000-8000-000000000002')
+                if case == 'sweep_finish':
+                    second_call = self.finish_call('second', outcome='reupload_required', error_code='import_reupload_required')
+                elif case == 'sweep_cancel':
+                    second_call = self.cancel_call(catalog).replace('test.cancel', 'test.second').replace("'CANCEL '", "'SECOND '")
+                waiting_expected = case in ('unbound_sweeps', 'sweep_finish', 'sweep_cancel')
+                try:
+                    execute('BEGIN;' + setup + 'COMMIT;')
+                    with subprocess.Popen(args, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                          stderr=subprocess.DEVNULL, text=True) as first:
+                        try:
+                            first.stdin.write('BEGIN;\n' + first_call + '\n')
+                            first.stdin.flush()
+                            initial = ack(first.stdout, 'FIRST')
+                            self.assertTrue(initial['ok'], initial)
+                            if case == 'finish_sweep':
+                                # Deliberately cross the lease and raw deadlines while finish holds the root.
+                                execute('SELECT pg_sleep(3.2);')
+                            with ThreadPoolExecutor(max_workers=1) as executor:
+                                second = executor.submit(execute, "BEGIN;SET LOCAL application_name='imp_007r_race';" + second_call + 'COMMIT;')
+                                waiting = False
+                                try:
+                                    if waiting_expected:
+                                        deadline = time.monotonic() + 8
+                                        while time.monotonic() < deadline and not second.done():
+                                            waiting = self.sql("SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE "
+                                                "application_name='imp_007r_race' AND datname='" + db + "' AND wait_event_type='Lock');") == 't'
+                                            if waiting:
+                                                break
+                                            time.sleep(.05)
+                                    else:
+                                        # A bound sweep must skip the held root, returning before the holder commits.
+                                        response = ack(second.result(timeout=5).splitlines(), 'SECOND')
+                                finally:
+                                    first.stdin.write('COMMIT;\n\\q\n')
+                                    first.stdin.flush()
+                                if waiting_expected:
+                                    response = ack(second.result(timeout=10).splitlines(), 'SECOND')
+                                    self.assertTrue(waiting, 'Expected lock overlap was not observed')
+                            if case == 'sweep_finish':
+                                self.assertEqual({'ok': False, 'code': 'import_stale'}, response)
+                            elif case == 'sweep_cancel':
+                                self.assertTrue(response['ok'], response)
+                            else:
+                                self.assertEqual(self.NO_WORK, response)
+                        finally:
+                            if first.poll() is None:
+                                first.stdin.close()
+                            first.wait(timeout=10)
+                    final = ack(execute(self.CLEANUP_STATE).splitlines(), 'CSTATE')
+                    state = 'finished' if case == 'finish_sweep' else 'cancelled' if case == 'cancel_sweep' else 'expired'
+                    slot = 'released' if case in ('finish_sweep', 'unbound_sweeps') else 'held'
+                    self.assertEqual([state, slot], final['attempts'][0][:2])
+                    self.assertEqual([1, int(slot == 'held')], final['raw'])
+                    self.assertEqual(int(slot == 'held'), final['raw_instance'])
+                    member = 'admitted' if case == 'finish_sweep' else 'cancelled' if 'cancel' in case else 'reupload_required'
+                    self.assertEqual([member, 2 if 'cancel' in case else 1], final['members'][0])
+                    execute('BEGIN;' + self.plan_claim('after') + 'COMMIT;')
+                    after = ack(execute(self.CLEANUP_STATE).splitlines(), 'CSTATE')
+                    for key in ('attempts', 'members', 'raw', 'raw_instance', 'storage', 'transient'):
+                        self.assertEqual(final[key], after[key], key)
+                finally:
+                    self.sql('DROP DATABASE ' + db + ' WITH (FORCE);')
+        seed, _ = self.cleanup_seed()
+        overdue = ("SET LOCAL session_replication_role=replica;UPDATE wl_ingestion.sets SET "
+                   "created_at=created_at-interval '2 days',expires_at=expires_at-interval '2 days' "
+                   "WHERE state='RECEIVING';SET LOCAL session_replication_role=origin;")
+        out = self.run_labelled(seed + self.lapse() + self.plan_claim('sweep') + overdue +
+                               self.plan_claim('expiry') + self.CLEANUP_STATE)
+        self.assertEqual(['EXPIRED', 'pending'], out['CSTATE']['set'])
+        self.assertEqual([['expired', 2]], out['CSTATE']['members'])
+        self.assertEqual([['expired', 'held', None]], out['CSTATE']['attempts'])
+
+    def protected_sweep_digest(self, label):
+        tables = ('accepted_inputs', 'accepted_plans', 'source_revisions', 'mappings', 'authority_links',
+                  'lineage', 'receipts', 'audit', 'outbox', 'decisions', 'previews', 'roots', 'stages')
+        return "SELECT '" + label + " '||jsonb_build_object(" + ','.join(
+            "'" + table + "',(SELECT COALESCE(jsonb_agg(md5(r::text) ORDER BY r::text),'[]'::jsonb) "
+            "FROM wl_ingestion." + table + " r" + (" WHERE member_id<>" + self.LEASE_MEMBER + "::uuid" if table == 'stages' else '') + ')'
+            for table in tables) + ')::text;'
+
+    def test_sweep_deletes_only_the_swept_attempts_stage(self):
+        """AC-IMP-007R-06; AC-IMP-007R-09: transient stage removal and re-upload."""
+        from kurafolio.ingestion.codec import digest, encode
+        plan, _, seed, catalog = self.finish_seed(count=2)
+        # Write retained accepted facts through the existing effects function, while
+        # keeping accept_seed's literal READY set for the live-stage refusal below.
+        # Caller-owned receipt/set bookkeeping remains outside this rolled-back helper.
+        seed += 'SELECT ' + self.effects_call(plan, 'd3000000-0000-4000-8000-000000000001') + ';'
+        prestate = ORACLE['authority-only-prestate.json']
+        peer = prestate['peer_revision']
+        typed = encode(peer['typed'])
+        scope = "'" + plan['tenant_id'] + "','" + plan['portfolio_id'] + "'"
+        seed += ("INSERT INTO wl_ingestion.source_revisions(tenant_id,portfolio_id,id,source_key,source_revision,"
+            "financial_digest,source_change,accepted_change,parent_id,input_id,collection,local_id,typed_bytes,typed_digest,"
+            "created_at) SELECT " + scope + ",'" + peer['id'] + "','" + peer['source_key_digest'] + "','r1','" +
+            peer['financial_digest'] + "','original','original',NULL,a.id,'records','0',decode('" + typed.hex() +
+            "','hex'),'" + digest(peer['typed']) + "','2026-02-02T13:00:00+00:00' FROM wl_ingestion.accepted_inputs a;"
+            "INSERT INTO wl_ingestion.authority_links SELECT " + scope + ",'" + prestate['prior_link_id'] + "',1,'" +
+            prestate['prior_authority']['left']['accepted_revision_id'] + "','" + peer['id'] + "','independent','" +
+            prestate['prior_authority']['evidence_reference'] + "','" + digest(prestate['prior_authority']) +
+            "',p.id FROM wl_ingestion.accepted_plans p;")
+        protected = self.protected_sweep_digest
+        rejects = ''.join(self.rejects('DELETE FROM wl_ingestion.' + table +
+                         (" WHERE member_id<>" + self.LEASE_MEMBER + "::uuid" if table == 'stages' else ''))
+                          for table in ('stages', 'decisions', 'previews'))
+        # Keep the proof before a new reserve replaces this attempt's context.
+        proof = "SELECT set_config('test.proof',(" + self.proofs('absent') + ")::text,true);"
+        release = ("UPDATE wl_ingestion.leases SET raw_slot='released',cleanup_proof_bytes="
+                   "wl_ingestion._canonical_v1(current_setting('test.proof')::jsonb) WHERE work_kind='normalize';"
+                   "SELECT wl_ingestion._quota_v1('" + self.T + "','" + self.P + "','raw',-1,0);")
+        # A copied stage predating the swept attempt must still be protected.
+        older = ("SET LOCAL session_replication_role=replica;CREATE TEMP TABLE old_stage AS SELECT * FROM "
+                 "wl_ingestion.stages WHERE member_id=" + self.LEASE_MEMBER + "::uuid;"
+                 "UPDATE old_stage SET created_at=(SELECT created_at-interval '1 second' FROM "
+                 "wl_ingestion.leases WHERE work_kind='normalize');SET LOCAL session_replication_role=origin;")
+        old_refusal = ("SET LOCAL session_replication_role=replica;INSERT INTO wl_ingestion.stages SELECT * FROM old_stage;"
+                       "SET LOCAL session_replication_role=origin;" + self.rejects(
+                       "DELETE FROM wl_ingestion.stages WHERE member_id=" + self.LEASE_MEMBER + "::uuid") +
+                       "SET LOCAL session_replication_role=replica;DELETE FROM wl_ingestion.stages WHERE member_id=" +
+                       self.LEASE_MEMBER + "::uuid;SET LOCAL session_replication_role=origin;")
+        token_digest = "'" + hashlib.sha256(bytes.fromhex(self.WORKER_TOKEN)).hexdigest() + "'"
+        ready = ("SELECT 'READY '||jsonb_build_array(x.state,"
+                 "(SELECT count(*) FROM wl_ingestion.members m WHERE m.set_id=x.id AND m.state='admitted'),"
+                 "(SELECT count(*) FROM wl_ingestion.stages s WHERE s.set_id=x.id),"
+                 "(SELECT count(*) FROM wl_ingestion.decisions d WHERE d.set_id=x.id),"
+                 "(SELECT count(*) FROM wl_ingestion.previews p WHERE p.set_id=x.id))::text "
+                 "FROM wl_ingestion.sets x WHERE x.id='" + plan['set_id'] + "';")
+        refuse_ready_stage = self.rejects("DELETE FROM wl_ingestion.stages WHERE set_id='" + plan['set_id'] + "'::uuid")
+        out = self.run_labelled(seed + self.lapse() + proof + older + ready + protected('BEFORE') +
+            self.plan_claim('sweep') + self.FINISH_STATE + protected('AFTER') + refuse_ready_stage + rejects + old_refusal + release +
+            self.reserve_call('again', catalog) + self.reserve_call('bind2', catalog, action='bind', handoff_token_digest=token_digest) +
+            self.lease_call('claim_member_v1', 'claim2', fence="'2'", request_id="'c0000000-0000-4000-8000-000000000012'") +
+            self.admit_call('admit2', fence="'2'", request_id="'c0000000-0000-4000-8000-000000000016'") +
+            self.finish_call('finish2', fence="'2'", cleanup_proofs=self.proofs('absent').replace("'fence','1'", "'fence','2'"),
+                             request_id="'c0000000-0000-4000-8000-000000000017'"))
+        self.assertEqual('READY', out['READY'][0])
+        self.assertTrue(all(count > 0 for count in out['READY'][1:]), out['READY'])
+        # An empty accepted table cannot make the preservation comparison pass.
+        for table, rows in out['BEFORE'].items():
+            self.assertGreater(len(rows), 0, table)
+        self.assertEqual(out['BEFORE'], out['AFTER'])
+        self.assertEqual(['reupload_required', 'import_reupload_required', False, 1], out['FSTATE']['members'][0])
+        self.assertTrue(out['AGAIN']['ok'], out['AGAIN'])
+        self.assertEqual('2', out['AGAIN']['value']['fence'])
+        self.assertEqual('admitted', out['ADMIT2']['value']['outcome'])
+        self.assertEqual('admitted', out['FINISH2']['value']['state'])
+        _, _, seed, _ = self.finish_seed()
+        self.run_labelled(seed + self.finish_call('finished', outcome='reupload_required', error_code='import_reupload_required') +
+                          self.rejects('DELETE FROM wl_ingestion.stages WHERE member_id=' + self.LEASE_MEMBER + '::uuid'))
+
+    def synthetic_sweep_attempts(self, count=1):
+        """Replica-only bound attempts, three per set, without consuming raw quota."""
+        script = 'SET LOCAL session_replication_role=replica;'
+        for i in range(count):
+            set_id = str(uuid.UUID(int=0xd0000000000040008000000000000100 + i // 3))
+            member_id = str(uuid.UUID(int=0xd1000000000040008000000000000100 + i))
+            lease_id = str(uuid.UUID(int=0xd2000000000040008000000000000100 + i))
+            if i % 3 == 0:
+                script += self.set_row(set_id, members=min(3, count - i))
+            script += self.member_row(set_id, member_id, i % 3, state='receiving', raw='5' * 64)
+            script += self.lease_row(lease_id, set_id, member_id, token='6' * 64,
+                created="clock_timestamp()-interval '" + str(300 - i) + " seconds'",
+                expires="clock_timestamp()-interval '" + str(200 - i) + " seconds'")
+        script += ("UPDATE wl_ingestion.members m SET raw_deadline=l.created_at+interval '120 seconds' "
+                   "FROM wl_ingestion.leases l WHERE l.member_id=m.id AND l.id::text LIKE 'd200%';"
+                   "SET LOCAL session_replication_role=origin;")
+        return script
+
+    SWEEP_COUNT = ("SELECT 'COUNT '||jsonb_build_array(count(*) FILTER(WHERE state='expired'),"
+                   "COALESCE(jsonb_agg(id::text ORDER BY expires_at,id) FILTER(WHERE state='expired'),'[]'::jsonb))::text "
+                   "FROM wl_ingestion.leases WHERE id::text LIKE 'd200%';")
+
+    def test_sweep_runs_on_every_claim_within_its_bound(self):
+        """AC-IMP-007R-11; AC-IMP-007R-09: fixed bound, guards, and refusal persistence."""
+        seed, catalog = self.cleanup_seed()
+        for kind in ('cleanup', 'prepare'):
+            with self.subTest(kind=kind):
+                out = self.run_labelled(seed + self.synthetic_sweep_attempts() + self.plan_claim('sweep', work_kind=repr(kind)) + self.SWEEP_COUNT)
+                self.assertEqual(self.NO_WORK, out['SWEEP'])
+                self.assertEqual(1, out['COUNT'][0])
+        out = self.run_labelled(seed + self.synthetic_sweep_attempts(9) + self.plan_claim('one') +
+            self.SWEEP_COUNT.replace("'COUNT '", "'ONE '") + self.plan_claim('two') +
+            self.SWEEP_COUNT.replace("'COUNT '", "'TWO '") + self.plan_claim('three') + self.SWEEP_COUNT)
+        self.assertEqual((8, 9, 9), tuple(out[key][0] for key in ('ONE', 'TWO', 'COUNT')))
+        self.assertEqual([str(uuid.UUID(int=0xd2000000000040008000000000000100 + i)) for i in range(8)], out['ONE'][1])
+        for case, fields, begin, code in (
+                ('worker', {}, 'BEGIN;', 'authentication_required'),
+                ('epoch', {'credential_epoch': "'2'"}, 'BEGIN;', 'credentials_changed'),
+                ('isolation', {}, 'BEGIN ISOLATION LEVEL REPEATABLE READ;', 'import_invalid')):
+            with self.subTest(case=case):
+                script = seed + self.synthetic_sweep_attempts()
+                if case == 'worker':
+                    script += "SET LOCAL session_replication_role=replica;DELETE FROM wl_ingestion.workers;SET LOCAL session_replication_role=origin;"
+                out = self.run_labelled(script + self.plan_claim('refused', **fields) + self.SWEEP_COUNT, begin=begin)
+                self.assertEqual({'ok': False, 'code': code}, out['REFUSED'])
+                self.assertEqual(0, out['COUNT'][0])
+        for case, fields, mutation, code in (
+                ('replay', {}, '', 'already_claimed'),
+                ('conflict', {'work_kind': "'prepare'"}, '', 'import_conflict'),
+                ('token', {'token': 'ef' * 32}, '', 'authentication_required'),
+                ('stale', {}, self.age_cleanup_leases(60), 'import_stale')):
+            with self.subTest(case=case):
+                out = self.run_labelled(seed + self.cancel_call(catalog) + self.plan_claim('first') + mutation +
+                    self.synthetic_sweep_attempts() + self.plan_claim('answer', **fields) + self.SWEEP_COUNT)
+                if case == 'replay':
+                    self.assertEqual(code, out['ANSWER']['value']['outcome'])
+                else:
+                    self.assertEqual({'ok': False, 'code': code}, out['ANSWER'])
+                self.assertEqual(1, out['COUNT'][0])
 
     def test_cleanup_after_cancel_during_reception_releases_the_unbound_slot_once(self):
         replica = 'SET LOCAL session_replication_role=replica;'

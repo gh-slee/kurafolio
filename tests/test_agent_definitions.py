@@ -68,7 +68,7 @@ class AgentDefinitionTests(unittest.TestCase):
         self.assertEqual(rows[('Planner', 'Claude Code')]['effort'], 'medium')
         self.assertEqual(rows[('Builder', 'Claude Code')]['model'], 'claude-sonnet-5-5')
         self.assertEqual(rows[('Builder', 'Claude Code')]['effort'], 'medium')
-        self.assertEqual(rows[('Builder', 'Codex')]['model'], 'gpt-6.1-sol')
+        self.assertEqual(rows[('Builder', 'Codex')]['model'], 'gpt-6.2-sol')
         self.assertEqual(rows[('Builder', 'Codex')]['effort'], 'medium')
         self.assertEqual(rows[('Reviewer', 'Claude Code')]['model'], 'claude-opus-5-5')
         self.assertEqual(rows[('Reviewer', 'Claude Code')]['effort'], 'medium')
