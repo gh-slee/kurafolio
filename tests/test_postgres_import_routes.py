@@ -143,7 +143,7 @@ class ImportRoutesPostgresTests(unittest.TestCase):
 
     def state(self):
         return self.scalar("""SELECT jsonb_build_object('sets',
-            (SELECT jsonb_object_agg(id::text,revision::text) FROM wl_ingestion.sets),
+            (SELECT jsonb_object_agg(id::text,jsonb_build_array(state,revision::text)) FROM wl_ingestion.sets),
             'receipts',(SELECT count(*) FROM wl_ingestion.receipts),
             'generations',(SELECT jsonb_agg(jsonb_build_array(accepted_generation,mapping_generation,control_generation))
                            FROM wl_ingestion.roots))""")
@@ -232,7 +232,10 @@ class ImportRoutesPostgresTests(unittest.TestCase):
         sid=first.json()['id']; path='/api/v2/import-sets/'+sid
         self.assertEqual(self.client.get(path).json(),first.json())
         body=dict(operation_id=str(uuid.uuid4()),expected_set_revision='2')
-        self.assertEqual(self.client.post(path+'/cancel',json=body,headers=self.headers).json()['error']['code'],'import_stale')
+        before=self.state()
+        stale=self.client.post(path+'/cancel',json=body,headers=self.headers)
+        self.assertEqual((stale.status_code,stale.json()['error']['code']),(409,'import_stale'))
+        self.assertEqual(before,self.state())
         body['expected_set_revision']='1'
         cancelled=self.client.post(path+'/cancel',json=body,headers=self.headers)
         self.assertEqual(cancelled.status_code,200,cancelled.text)
@@ -289,11 +292,14 @@ class ImportRoutesPostgresTests(unittest.TestCase):
         revision=int(plan['expected_set_revision'])
         body=dict(set_id=plan['set_id'],decisions=dict(version=1,operation_id=str(uuid.uuid4()),
             expected_set_revision=str(revision-1),mappings=[],new_entities=[],authorities=[],parents=[]))
+        before=self.state()
         stale=self.client.put(path+'/decisions',json=body,headers=self.headers)
-        self.assertEqual(stale.json()['error']['code'],'import_stale')
+        self.assertEqual((stale.status_code,stale.json()['error']['code']),(409,'import_stale'))
+        self.assertEqual(before,self.state())
         cancelled=self.client.post(path+'/cancel',json=dict(operation_id=str(uuid.uuid4()),
             expected_set_revision=str(revision-1)),headers=self.headers)
-        self.assertEqual(cancelled.json()['error']['code'],'import_stale')
+        self.assertEqual((cancelled.status_code,cancelled.json()['error']['code']),(409,'import_stale'))
+        self.assertEqual(before,self.state())
         body['decisions']['expected_set_revision']=str(revision)
         first=self.client.put(path+'/decisions',json=body,headers=self.headers)
         self.assertEqual(first.status_code,202,first.text)

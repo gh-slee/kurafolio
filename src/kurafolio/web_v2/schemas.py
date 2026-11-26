@@ -325,6 +325,20 @@ def import_openapi_extra(route):
     if route['request'] in {'Create', 'Decide', 'Confirm', 'Cancel'}:
         result['requestBody'] = {'required': True, 'content': {'application/json': {
             'schema': {'$ref': '#/components/schemas/' + route['request']}}}}
+    if route['method'] == 'GET' and route['response'] in {'SetList', 'PreviewPage'}:
+        from kurafolio.ingestion.cursors import MAX_TOKEN, STATES
+
+        parameters = [
+            {'name': 'cursor', 'in': 'query', 'required': False,
+             'description': 'Signed next_cursor from the previous page.',
+             'schema': {'type': 'string', 'maxLength': MAX_TOKEN}},
+            {'name': 'limit', 'in': 'query', 'required': False,
+             'schema': {'type': 'integer', 'minimum': 1, 'maximum': 50, 'default': 50}},
+        ]
+        if route['response'] == 'SetList':
+            parameters.append({'name': 'state', 'in': 'query', 'required': False,
+                               'schema': {'type': 'string', 'enum': list(STATES)}})
+        result['parameters'] = parameters
     return result
 
 

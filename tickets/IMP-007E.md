@@ -2,7 +2,7 @@
 id: IMP-007E
 title: Add authenticated V2 import HTTP routes
 priority: P0
-status: in_review
+status: done
 type: feature
 parent: IMP-007
 depends_on: [IMP-007D, IMP-007J, IMP-007W]
@@ -471,10 +471,11 @@ Items 1 to 5 were answered by the owner on 2026-11-20, items 6 and 7 on 2026-11-
 
 ## Handoff
 
-- State: PR #115 is open at `7ee642c`. The [independent QA / Architecture review](https://github.com/gh-slee/kurafolio/pull/115#issuecomment-7180277053) passed all acceptance criteria with four nonblocking should-fix items. This branch is in review while the repairs are outstanding.
-- Next step: Update the capability summaries and OpenAPI pagination parameters, verify that stale decisions and cancellations leave persistent import state unchanged, and refresh the PR evidence.
-- CI: [PR CI on the reviewed head](https://github.com/gh-slee/kurafolio/actions/runs/45670427939) passed all nine jobs, including the ticket completion check.
-- Gotchas: Upload, activation and the worker remain IMP-007U, IMP-007S and IMP-007F. Use isolated synthetic data for verification.
+- State: Review repair round 1 is complete locally. The [independent QA / Architecture review](https://github.com/gh-slee/kurafolio/pull/115#issuecomment-7180277053) passed all acceptance criteria on published head `7ee642c`, with four nonblocking should-fix items. The repair updates capability documentation, declares pagination in OpenAPI, adds persisted-state checks after stale operations and refreshes review evidence. The approved spec and Build plan are unchanged.
+- Next step: Push the repair after approval and rerun PR CI on the updated head before the owner's final review.
+- Verify: The import OpenAPI/HTTP helper suite passed 16 tests with zero skips. The full isolated PostgreSQL HTTP module passed 10 tests with zero skips against the reconciled main, including before/after snapshots of set states and revisions, receipt counts and root generations after stale decisions and cancellations. PostgreSQL foundation discovery found the expected 151 opt-in skips.
+- CI: [The reviewed head](https://github.com/gh-slee/kurafolio/actions/runs/45670427939) passed all nine jobs, including the ticket completion check. The local repair has not run on CI or had a separate independent review.
+- Gotchas: Upload, activation and the worker remain IMP-007U, IMP-007S and IMP-007F. Use isolated synthetic data for verification. The OpenAPI addition describes the existing query options without changing request handling or frozen DTOs.
 - Open questions: None.
 
 ## Log
@@ -516,3 +517,5 @@ Items 1 to 5 were answered by the owner on 2026-11-20, items 6 and 7 on 2026-11-
 - 2026-11-25 codex/gpt-6.1-sol: corrected completion metadata under quick-start step 5 after the approved reconciliation and CI repair were pushed as `50b36b3`. Outcome: implementation complete by codex/gpt-6.1-sol; reviewing model: NOT RUN (required claude-code/opus-5.5 unavailable to this builder); independent review repair rounds: 0. The earlier preview-wrapper plan gap was resolved by the owner-approved merged planner amendment #111; no unresolved spec or Build plan gap remains. Status done describes implementation completion, not independent acceptance. This frontier PR must receive the prescribed Claude Code review before the owner's final review or merge. Metadata correction local only pending exact-scope publication approval.
 
 - 2026-11-25 codex/gpt-6.2-sol: recorded the [independent QA / Architecture review](https://github.com/gh-slee/kurafolio/pull/115#issuecomment-7180277053) by claude-code/opus-5.5 on `7ee642c`: all acceptance criteria passed, with four nonblocking should-fix items. Set the ticket to in_review for repair round 1.
+
+- 2026-11-25 codex/gpt-6.2-sol: completed the four should-fix items. Refreshed the capability status and backlog, declared existing pagination parameters in OpenAPI, verified stale decisions and cancellations against persisted state, and refreshed the ticket and PR evidence. Reconciled main `301588b`; the PostgreSQL foundation skip count is 151. Outcome: implementation by codex/gpt-6.1-sol, repairs by codex/gpt-6.2-sol, reviewed by claude-code/opus-5.5 on `7ee642c`, one review repair round. The earlier preview-wrapper plan gap was resolved by #111; no other spec or Build plan gaps were found. Repair CI and separate independent retest have not run.

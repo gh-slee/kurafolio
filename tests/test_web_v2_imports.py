@@ -136,6 +136,21 @@ class ImportHttpTests(unittest.TestCase):
         self.assertEqual(len(routes),8)
         for route in routes:
             operation = doc['paths'][route['path']][route['method'].lower()]
+            query = {p['name']: p for p in operation.get('parameters', []) if p['in'] == 'query'}
+            expected_query = {
+                '/api/v2/import-sets': {'cursor', 'limit', 'state'},
+                '/api/v2/import-previews/{preview}': {'cursor', 'limit'},
+            }.get(route['path'], set()) if route['method'] == 'GET' else set()
+            self.assertEqual(query.keys(), expected_query)
+            if expected_query:
+                self.assertTrue(all(not param['required'] for param in query.values()))
+                self.assertEqual(query['cursor']['schema'], {'type': 'string', 'maxLength': 1024})
+                self.assertEqual(query['limit']['schema'],
+                                 {'type': 'integer', 'minimum': 1, 'maximum': 50, 'default': 50})
+            if 'state' in query:
+                self.assertEqual(query['state']['schema'], {'type': 'string', 'enum': [
+                    'RECEIVING', 'NORMALIZING', 'RECONCILING', 'NEEDS_MAPPING', 'CONFLICT', 'READY',
+                    'COMMITTED', 'REJECTED', 'CANCELLED', 'EXPIRED']})
             names = [route['response']]
             if route['request'] in ('Create','Decide','Confirm','Cancel'):
                 names.append(route['request'])
