@@ -76,7 +76,7 @@ jobs:
         run: python scripts/tickets.py check
       - name: Run the ticket tests
         if: needs.changes.outputs.ticket_only == 'true'
-        run: PYTHONPATH=src python -m unittest discover -s tests -p 'test_tickets.py' -v
+        run: PYTHONPATH=src:tests python -m unittest -v test_tickets test_agent_definitions
       - name: Run isolated synthetic unit tests
         if: needs.changes.outputs.ticket_only != 'true'
         run: PYTHONPATH=src python -m unittest discover -s tests -v

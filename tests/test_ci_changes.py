@@ -162,13 +162,56 @@ def steps_of(lines: list[str]) -> list[list[str]]:
     return steps
 
 
+LIGHT = "needs.changes.outputs.ticket_only == 'true'"
+LIGHT_RUN = 'PYTHONPATH=src:tests python -m unittest -v '
+# A module that reads real files under tickets/: names the directory, or lists or globs the repository.
+TICKET_READER = re.compile(r"""tickets/|['"]tickets['"]|ls-files|ROOT\s*\.\s*r?glob\(""")
+# Modules that match TICKET_READER but never read the repository's own ticket files.
+NOT_TICKET_READERS = {
+    'test_ci_changes.py': 'writes tickets/ files only in synthetic repositories',
+    'test_pr_image.py': 'writes tickets/ files only in synthetic repositories',
+    'test_publication.py': 'names tickets/ paths only as path_allowed inputs and in synthetic repositories',
+}
+
+
+def light_test_modules() -> list[str]:
+    """File names of the modules the light-path step runs, in workflow order."""
+    steps = steps_of(workflow_jobs()['python-312-linux'])
+    light_steps = [step for step in steps if '        if: ' + LIGHT in step]
+    if len(light_steps) != 1:
+        raise AssertionError(f'Expected one light test step, found {len(light_steps)}')
+
+    run_prefix = '        run: '
+    runs = [line.removeprefix(run_prefix) for line in light_steps[0] if line.startswith(run_prefix)]
+    if len(runs) != 1 or not runs[0].startswith(LIGHT_RUN):
+        raise AssertionError(f'Expected the light unittest command, found {runs}')
+
+    modules = runs[0].removeprefix(LIGHT_RUN).split()
+    if not modules or any(not re.fullmatch(r'test_[a-z0-9_]+', module) for module in modules):
+        raise AssertionError(f'Expected test module names, found {modules}')
+    return [module + '.py' for module in modules]
+
+
+def ticket_file_readers(tests_dir: Path) -> set[str]:
+    """Names of the test_*.py files directly under tests_dir whose source matches TICKET_READER."""
+    return {
+        path.name for path in tests_dir.glob('test_*.py')
+        if path.is_file() and TICKET_READER.search(path.read_text(encoding='utf-8'))
+    }
+
+
+def uncovered_ticket_readers(tests_dir: Path, light: list[str], allowed: dict[str, str]) -> set[str]:
+    """ticket_file_readers(tests_dir) minus light minus allowed."""
+    return ticket_file_readers(tests_dir).difference(light, allowed)
+
+
 class WorkflowTest(unittest.TestCase):
     GATED = ('docker-foundation', 'browser-workflow', 'parser-sdk-packages', 'postgres-foundation',
              'postgres-ingestion', 'postgres-identity', 'postgres-sources')
     NOT_LIGHT = "needs.changes.outputs.ticket_only != 'true'"
 
     def test_jobs_have_the_expected_conditions(self):
-        """AC-ENG-120-05."""
+        """AC-ENG-120-05, AC-ENG-121-02."""
         jobs = workflow_jobs()
         changes = '\n'.join(jobs['changes'])
         self.assertIn('fetch-depth: 0', changes)
@@ -183,7 +226,7 @@ class WorkflowTest(unittest.TestCase):
         self.assertIn('    if: ${{ !cancelled() }}', jobs['python-312-linux'])
 
     def test_light_path_steps_of_the_main_job(self):
-        """AC-ENG-120-05: guards never carry a condition; heavy steps skip on the light path."""
+        """AC-ENG-120-05, AC-ENG-121-01: guards always run and heavy steps skip on the light path."""
         steps = steps_of(workflow_jobs()['python-312-linux'])
         guards = ('check_language.py', 'check_publication.py --worktree', 'check_publication.py --staged',
                   'tickets.py check')
@@ -197,12 +240,62 @@ class WorkflowTest(unittest.TestCase):
         self.assertEqual(len(heavy), 5)
         for step in heavy:
             self.assertIn('        if: ' + self.NOT_LIGHT, step)
-        tickets_tests = [s for s in steps if any("-p 'test_tickets.py'" in line for line in s)]
+        tickets_tests = [s for s in steps if '        if: ' + LIGHT in s]
         self.assertEqual(len(tickets_tests), 1)
-        self.assertIn("        if: needs.changes.outputs.ticket_only == 'true'", tickets_tests[0])
+        self.assertIn('        run: ' + LIGHT_RUN + 'test_tickets test_agent_definitions', tickets_tests[0])
         last = steps[-1]
         self.assertTrue(any('tickets.py pr-check --branch "$HEAD_REF"' in line for line in last))
         self.assertTrue(any('github.event_name == '"'pull_request'" in line for line in last))
+
+    def test_light_path_runs_every_ticket_reader(self):
+        """AC-ENG-121-01: the light command runs both ticket-reading modules."""
+        modules = light_test_modules()
+        self.assertEqual(modules, ['test_tickets.py', 'test_agent_definitions.py'])
+        for module in modules:
+            self.assertTrue((ROOT / 'tests' / module).is_file(), module)
+
+    def test_every_ticket_reader_is_on_the_light_path(self):
+        """AC-ENG-121-03: every reader is covered and no allowed module is missing or already covered."""
+        tests_dir = ROOT / 'tests'
+        modules = light_test_modules()
+        self.assertEqual(uncovered_ticket_readers(tests_dir, modules, NOT_TICKET_READERS), set())
+        for module in NOT_TICKET_READERS:
+            with self.subTest(module=module):
+                self.assertTrue((tests_dir / module).is_file())
+                self.assertNotIn(module, modules)
+
+    def test_reader_detection_on_synthetic_modules(self):
+        """AC-ENG-121-03: direct references, tracked-file listings and root globs are detected."""
+        files = {
+            'test_reads.py': "(ROOT / 'tickets/ROADMAP.md').read_text()",
+            'test_lists.py': "subprocess.run(['git', 'ls-files'])",
+            'test_globs.py': "ROOT.rglob('*.md')",
+            'test_quoted.py': "ROOT / 'tickets'",
+            'test_plain.py': 'x = 1',
+            'helper.py': 'tickets/',
+        }
+        with tempfile.TemporaryDirectory() as temp:
+            tests_dir = Path(temp)
+            for name, source in files.items():
+                (tests_dir / name).write_text(source, encoding='utf-8')
+            self.assertEqual(
+                ticket_file_readers(tests_dir),
+                {'test_reads.py', 'test_lists.py', 'test_globs.py', 'test_quoted.py'},
+            )
+            self.assertEqual(
+                uncovered_ticket_readers(tests_dir, ['test_reads.py'], {'test_lists.py': 'reason'}),
+                {'test_globs.py', 'test_quoted.py'},
+            )
+
+    def test_development_guide_names_the_light_path_modules(self):
+        """AC-ENG-121-04: the development guide names the modules and the coverage guard."""
+        guide = (ROOT / 'docs/development.md').read_text(encoding='utf-8')
+        paragraphs = [' '.join(paragraph.split()) for paragraph in guide.split('\n\n')]
+        light_path = [paragraph for paragraph in paragraphs if 'A small `changes` job' in paragraph]
+        self.assertEqual(len(light_path), 1)
+        for module in light_test_modules():
+            self.assertIn(f'`tests/{module}`', light_path[0])
+        self.assertIn('tests/test_ci_changes.py', light_path[0])
 
     def test_event_values_reach_the_shell_only_through_env(self):
         """AC-ENG-120-05: no expression inside a run script; head_ref only on an env line."""
