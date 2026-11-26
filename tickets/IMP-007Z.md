@@ -87,4 +87,4 @@ Rules that reviewers will check:
 
 ## Log
 
-- 2026-11-25 claude-code/opus-5.5: filed from the owner's decision on IMP-007F: asked "For AC-02, should OpenCode build a native parser or the planner rescope it?", the owner chose "Planner rescopes AC-02". Native discovery in the child moved here from IMP-007F's AC-02 (IMP-007F decision D12). Gated text drafted; no Gate A yet.
+- 2026-11-25 claude-code/opus-5.5: filed from the owner's decision on IMP-007F: asked "For AC-02, should OpenCode build a native parser or the planner rescope it?", the owner chose "Planner rescopes AC-02". Native discovery in the child moved here from IMP-007F's AC-02 (IMP-007F decision D12). Gated text drafted; no Gate A yet. Plan PR #119.
