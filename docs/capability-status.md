@@ -52,17 +52,15 @@ parity and existing-ledger migration remain later stages. The fake offline API i
 
 ## V2 CSV acceptance under implementation
 
-The [ingestion building blocks](web-v2-imports.md) now include strict typed
-evidence, parser2 and native projection, explicit mappings, review verification, bounded
-transport/raw-receive helpers and storage fragments. They also include transition
-and head guards, the single accepted write `_effects_v1` and the authenticated
-confirm function `accept_preview_v1`, with opt-in PostgreSQL tests. The dedicated
-import worker and the trusted launcher are implemented with their unit, opt-in
-PostgreSQL and Docker Desktop containment tests, but no instance is activated and
-no upload route reaches them yet. The worker runs parser2 members only; native
-members are rejected with `import_evidence_unsupported` before launch until
-native discovery in the child lands in IMP-007Z. They are not an operational
-import service: no migration provider or grant installs them. Authenticated
-routes, native discovery, instance activation and recovery acceptance remain
-unfinished. No new financial booking, browser workflow or workspace
-migration is activated.
+The operator migration installs the ingestion database functions and grants under
+`0004_ingestion`. The explicit [ingestion API profile](web-v2-imports.md) serves
+eight authenticated JSON routes for import sets, previews and receipts, including
+signed pagination and confirmation. The dedicated import worker and trusted
+launcher are implemented with unit, opt-in PostgreSQL and Docker Desktop
+containment tests in [the worker guide](web-v2-import-worker.md); the worker runs
+parser2 members only and refuses native discovery with
+`import_evidence_unsupported` until IMP-007Z. Completing an import from a CSV
+still requires the separate upload, operator activation and worker/launcher work.
+Live native preparation, instance activation and recovery acceptance remain
+unfinished. No new financial booking, browser workflow or workspace migration is
+activated.

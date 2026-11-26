@@ -10,8 +10,10 @@ from ..data_sources.lifecycle_v1 import SourceError, STATUS
 
 
 class SourceStore:
-    def __init__(self, config, catalog):
-        self.database = Database(config, schema_mode="sources")
+    def __init__(self, config, catalog, *, schema_mode="sources"):
+        if schema_mode not in {"sources", "ingestion"}:
+            raise IdentityError()
+        self.database = Database(config, schema_mode=schema_mode)
         self.catalog_digest = catalog_digest(catalog)
 
     def close(self):

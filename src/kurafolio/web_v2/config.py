@@ -1,6 +1,7 @@
 """Explicit private connection/key files for a single direct PostgreSQL target."""
 from dataclasses import dataclass, field
 import os
+import re
 from pathlib import Path
 import stat
 from urllib.parse import urlsplit
@@ -44,14 +45,21 @@ class Settings:
     schema_profile: str="identity"
     source_catalog: object=field(default=None,repr=False)
 
+    worker_role: str | None=field(default=None,kw_only=True)
+
     def __post_init__(self):
         try:
-            if self.schema_profile not in {'identity','sources'}:
+            if self.schema_profile not in {'identity','sources','ingestion'}:
                 raise ValueError()
-            if self.schema_profile=='sources':
+            if self.schema_profile in {'sources','ingestion'}:
                 from kurafolio.data_sources.catalog_v1 import validate_catalog
                 validate_catalog(self.source_catalog)
             elif self.source_catalog is not None:
+                raise ValueError()
+            if self.schema_profile == 'ingestion':
+                if type(self.worker_role) is not str or not re.fullmatch(r'[a-z][a-z0-9_]{0,62}', self.worker_role):
+                    raise ValueError()
+            elif self.worker_role is not None:
                 raise ValueError()
             if any(name.startswith('PG') and value for name,value in os.environ.items()):
                 raise ValueError()
@@ -69,14 +77,14 @@ class Settings:
             raise ValueError('Invalid explicit identity configuration') from None
 
     @classmethod
-    def from_files(cls,identity_file,financial_file,key_file,origin,*,pool_size=5,schema_profile="identity",source_catalog_file=None):
+    def from_files(cls,identity_file,financial_file,key_file,origin,*,pool_size=5,schema_profile="identity",source_catalog_file=None,worker_role=None):
         from kurafolio.persistence.config import PostgresConfig
-        if (schema_profile=='sources') != (source_catalog_file is not None):
+        if (schema_profile in {'sources','ingestion'}) != (source_catalog_file is not None):
             raise ValueError('Explicit source catalog/profile required')
         from kurafolio.data_sources.catalog_v1 import read_catalog_file
         catalog=read_catalog_file(source_catalog_file) if source_catalog_file is not None else None
         return cls(PostgresConfig.from_secret_file(identity_file,pool_size=pool_size),
-                   PostgresConfig.from_secret_file(financial_file,pool_size=pool_size),private_bytes(key_file,32),origin,schema_profile,catalog)
+                   PostgresConfig.from_secret_file(financial_file,pool_size=pool_size),private_bytes(key_file,32),origin,schema_profile,catalog,worker_role=worker_role)
 
     @property
     def host(self):

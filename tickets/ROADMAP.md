@@ -140,7 +140,7 @@ P1, in recommended order. All are `backlog` until the owner approves each one, e
 | Prices | MKT-101 official quote provider (approved; blocked on the owner's provider keys) | Replaces reliance on the unofficial adapter |
 | Deeper analysis | ETF-101 look up any ETF, ANL-107 holding detail, ANL-101 why the value changed, ANL-106 targets and drift, ETF-102 fund overlap, RPT-101 more export formats | Each needs only data that exists at go-live |
 | Reach other users | PLG-101 contributor guide and harness, OPS-104 published images | Other households can install it and add their broker |
-| Agent workflow, any time | ENG-107 flaky test (claimable now), ENG-105 faster CI, ENG-103 and ENG-104 board check and owner inbox, ENG-106 CI reviewer, ENG-101 path check | They speed up everything else |
+| Agent workflow, any time | ENG-107 flaky test (claimable now), ENG-105 faster CI, ENG-103 and ENG-104 board check and owner inbox, ENG-106 CI reviewer, ENG-101 path check, ENG-121 light CI path coverage (after ENG-120) | They speed up everything else |
 
 P2:
 

@@ -2,7 +2,7 @@
 id: IMP-007E
 title: Add authenticated V2 import HTTP routes
 priority: P0
-status: ready
+status: done
 type: feature
 parent: IMP-007
 depends_on: [IMP-007D, IMP-007J, IMP-007W]
@@ -13,11 +13,11 @@ agent_tier: frontier
 gate: owner
 gate_approval: "owner 2026-10-31, IMP-007 spec r7 (covers all child tickets); owner 2026-11-21, IMP-007E text after the upload split (Q13)"
 review: independent
-branch: 
-pr: 
+branch: ticket/imp-007e-add-authenticated-v2-import-http-routes
+pr: https://github.com/gh-slee/kurafolio/pull/115
 spec: docs/specs/imp-007-r7/spec.md
 spec_approved: sha256:aba3bef4df145ca2355ad07c3fafb0954169d04ad8a05609502b23528a1c3d4c
-updated: 2026-11-23
+updated: 2026-11-25
 ---
 
 # IMP-007E: Add authenticated V2 import HTTP routes
@@ -145,12 +145,12 @@ Rules that reviewers will check:
 
 ## Acceptance criteria
 
-- [ ] AC-IMP-007E-01: Each of the eight routes above exists on the ingestion profile, appears in `/api/v2/openapi.json` with its DTOs, and is absent on the `identity` and `sources` profiles.
-- [ ] AC-IMP-007E-02: Routes call only the r7 SQL functions; no route writes tables directly.
-- [ ] AC-IMP-007E-03: Unauthenticated, cross-tenant and stale-version requests are refused.
-- [ ] AC-IMP-007E-05: HTTP tests cover each route and refusal.
-- [ ] AC-IMP-007E-07: Replaying create, decisions, confirm or cancel with the same `operation_id` and payload returns the first answer and changes nothing; the same `operation_id` with a different payload is `import_operation_conflict`.
-- [ ] AC-IMP-007E-09: `docs/web-v2-imports.md` lists the routes and their error codes, so APP-011D can be built from the public document.
+- [x] AC-IMP-007E-01: Each of the eight routes above exists on the ingestion profile, appears in `/api/v2/openapi.json` with its DTOs, and is absent on the `identity` and `sources` profiles.
+- [x] AC-IMP-007E-02: Routes call only the r7 SQL functions; no route writes tables directly.
+- [x] AC-IMP-007E-03: Unauthenticated, cross-tenant and stale-version requests are refused.
+- [x] AC-IMP-007E-05: HTTP tests cover each route and refusal.
+- [x] AC-IMP-007E-07: Replaying create, decisions, confirm or cancel with the same `operation_id` and payload returns the first answer and changes nothing; the same `operation_id` with a different payload is `import_operation_conflict`.
+- [x] AC-IMP-007E-09: `docs/web-v2-imports.md` lists the routes and their error codes, so APP-011D can be built from the public document.
 
 ## Build plan
 
@@ -436,12 +436,12 @@ CI and the skip guard:
 
 ## Plan
 
-- [ ] Part A: the `ingestion` runtime profile (context, identity, source store, config, CLI, Auth, Boundary).
-- [ ] Part B: `IngestionStore` gateway caller and `admit` for `admit_rate_v1`.
-- [ ] Part C: error codes, DTO validation from the frozen schemas, OpenAPI components.
-- [ ] Part D: Boundary order, the eight JSON routes and the strict `{page, next}` read-response conversion (`web_v2/import_wire.py`).
-- [ ] Part F: docs.
-- [ ] Unit and real-PostgreSQL HTTP tests; CI job and skip counts.
+- [x] Part A: the `ingestion` runtime profile (context, identity, source store, config, CLI, Auth, Boundary).
+- [x] Part B: `IngestionStore` gateway caller and `admit` for `admit_rate_v1`.
+- [x] Part C: error codes, DTO validation from the frozen schemas, OpenAPI components.
+- [x] Part D: Boundary order, the eight JSON routes and the strict `{page, next}` read-response conversion (`web_v2/import_wire.py`).
+- [x] Part F: docs.
+- [x] Unit and real-PostgreSQL HTTP tests; CI job and skip counts.
 
 ## Decisions needed
 
@@ -471,11 +471,12 @@ Items 1 to 5 were answered by the owner on 2026-11-20, items 6 and 7 on 2026-11-
 
 ## Handoff
 
-- State: Not started. Plan updated on 2026-11-20 for the owner's decisions; the owner approved the new gated text on 2026-11-21 (Decisions needed, item 6), recorded in plan pull request #87.
-- Next step: After Gate A is on `main`, read `wire-contracts.json` and `ingestion-api.md` in the r7 bundle, then `web_v2/api.py` lines 440 to 475 (how the source routes are registered per profile). Write the DTOs first and review them before any route code.
-- Verify: `KURAFOLIO_INGESTION_TEST=1 PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -p 'test_postgres_migration.py' -v` and `PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -p 'test_ingestion_*.py' -v`; environment setup in [postgres-foundation.md](../docs/postgres-foundation.md) and [web-v2-imports.md](../docs/web-v2-imports.md)
-- Gotchas: IMP-007E, IMP-007U, APP-011I and APP-011E all hold `identity-api` (APP-011E adds it in its plan pull request #84, owner answer Q21 of 2026-11-21), so only one of them builds at a time.
-- Open questions: none.
+- State: Review repair round 1 is complete locally. The [independent QA / Architecture review](https://github.com/gh-slee/kurafolio/pull/115#issuecomment-7180277053) passed all acceptance criteria on published head `7ee642c`, with four nonblocking should-fix items. The repair updates capability documentation, declares pagination in OpenAPI, adds persisted-state checks after stale operations and refreshes review evidence. The approved spec and Build plan are unchanged.
+- Next step: Push the repair after approval and rerun PR CI on the updated head before the owner's final review.
+- Verify: The import OpenAPI/HTTP helper suite passed 16 tests with zero skips. The full isolated PostgreSQL HTTP module passed 10 tests with zero skips against the reconciled main, including before/after snapshots of set states and revisions, receipt counts and root generations after stale decisions and cancellations. PostgreSQL foundation discovery found the expected 151 opt-in skips.
+- CI: [The reviewed head](https://github.com/gh-slee/kurafolio/actions/runs/45670427939) passed all nine jobs, including the ticket completion check. The local repair has not run on CI or had a separate independent review.
+- Gotchas: Upload, activation and the worker remain IMP-007U, IMP-007S and IMP-007F. Use isolated synthetic data for verification. The OpenAPI addition describes the existing query options without changing request handling or frozen DTOs.
+- Open questions: None.
 
 ## Log
 
@@ -496,3 +497,25 @@ Items 1 to 5 were answered by the owner on 2026-11-20, items 6 and 7 on 2026-11-
 - 2026-11-21 claude-code/opus-5.5: the owner answered Decisions needed item 7 with "New prerequisite ticket", option (a): "add a prerequisite ticket providing an approved runtime-safe inventory check, then update this Build plan to use it". Filed IMP-007W in plan pull request https://github.com/gh-slee/kurafolio/pull/93 and added it to `depends_on`; the owner's answer confirms that change. Revised the readiness parts of the Build plan from `main` at `cd68c5e`: `Auth.ready()` on `ingestion` uses `verify_runtime_inventory` and no longer calls `role_inventory(gateway=False)`, which refuses the read-only runtime role at `0004`. Gated sections unchanged (sha256:aba3bef4df145ca2355ad07c3fafb0954169d04ad8a05609502b23528a1c3d4c).
 - 2026-11-23 claude-code/opus-5.5: rechecked the Build plan against `main` at `cd122a2`, after IMP-007W (#96) and IMP-007O (#103) merged, in plan pull request https://github.com/gh-slee/kurafolio/pull/110. `verify_runtime_inventory` matches Part A. Part A now changes `Auth.ready()`'s source-check guard to `schema_profile == 'sources'`, because `source_migration.verify_inventory` refuses `0004`. The Tests table adds `/readyz` rows for IMP-007W's N3 role misconfigurations. The CI note no longer asks for a second lock install, and the skip baseline is 132. No new owner decision. Gated sections unchanged (sha256:aba3bef4df145ca2355ad07c3fafb0954169d04ad8a05609502b23528a1c3d4c).
 - 2026-11-23 claude-code/opus-5.5: revised the Build plan from `main` at `06c5eea` for Decisions needed item 8, in plan pull request https://github.com/gh-slee/kurafolio/pull/111. The owner answered "agree" to option (a) when codex/gpt-6.1-sol asked, and then asked the planner (translated from the original): "Revise the IMP-007E Build plan: adopt the owner-approved strict {page,next} conversion, unwrap page, produce next_cursor, validate the complete PreviewPage and reject extra/conflicting fields; add unit and PostgreSQL HTTP tests. Keep the SQL and the public schema. Open the plan PR." Part D adds `web_v2/import_wire.py` (`preview_page`, `set_list`) with exact-key, no-`next_cursor`-in-page and cursor-agreement checks, full DTO validation and `internal_error` (500) on any fault. Tests add unit cases and real-PostgreSQL paging rows. No SQL, DTO, route or error-code change. Gated sections unchanged (sha256:aba3bef4df145ca2355ad07c3fafb0954169d04ad8a05609502b23528a1c3d4c).
+
+- 2026-11-23 codex/gpt-6.1-sol: claimed the ticket, fast-forwarded its clean worktree to `9817e3a`, verified the approved hash and IMP-007W, and passed both prerequisite readiness checks on isolated PostgreSQL 18. Starting DTOs and profile integration.
+- 2026-11-23 codex/gpt-6.1-sol: stopped before application edits because `read_preview_v1` returns an extra `page` wrapper forbidden by Build plan Part D. Recorded Decisions needed item 8 and the isolated readiness and synthetic codec evidence. Status blocked; no push or PR.
+- 2026-11-23 codex/gpt-6.1-sol: recorded the owner's "agree" to item 8 option (a): the API flattens the strict `page` / `next` wrapper, signs `next` as `next_cursor`, validates `PreviewPage` and refuses unexpected or conflicting keys. SQL and the public schema remain unchanged; scope is the preview response adapter and its tests. Build plan and gated sections are unchanged. Still blocked until the Claude Code planner amendment merges to `main`; local record only, no push or PR.
+
+- 2026-11-23 codex/gpt-6.1-sol: resumed after PR #111 merged at `2647ea8`. Resolved the ticket-record merge by preserving the exact merged Build plan, the approved spec, and local checkpoint Log lines. Starting the approved implementation; no push or PR.
+
+- 2026-11-24 codex/gpt-6.1-sol: saved the partial profile, gateway store, eight JSON routes, strict read conversions and frozen OpenAPI implementation. Twelve database-free helper/HTTP tests passed in 1.355 s. Real-PostgreSQL HTTP tests, docs, CI and full/candidate checks remain; not ready for review or publication.
+
+- 2026-11-24 codex/gpt-6.1-sol: added real migrated PostgreSQL HTTP fixtures without changing SQL, grants or constraints. Ten HTTP tests passed with zero skips, including replay, cross-tenant scope, positive stale revisions, signed paging, readiness drift, inactive activation and shared quotas. Corrected test assumptions using frozen sql-appendix receipt semantics and pre-existing storage/cursor expectations; failed logs are retained locally. Added 4 passing store fault tests and 15 passing helper/HTTP/config/docs tests. Docs and zero-skip CI wiring added. Full-suite and candidate gates remain pending.
+
+- 2026-11-24 codex/gpt-6.1-sol: completed local developer verification. Existing PostgreSQL migration acceptance passed 154/154 with zero skips; ingestion-focused tests passed 107; full default suite passed 1,463 tests with 272 explicit skips in 797.212 s. The 10-test HTTP acceptance passed with zero skips; test-only exact-preview and replay/foreign-receipt strengthening then passed targeted 1-test and 4-test retests. Runtime source is unchanged. Developer source review, language/privacy/spec/ticket checks passed. Independent review, CI and publication remain NOT RUN; final candidate evidence belongs to its exact-HEAD receipt.
+
+- 2026-11-24 codex/gpt-6.1-sol: pushed the approved implementation `18c72ff` and opened PR https://github.com/gh-slee/kurafolio/pull/115 with the validated canonical body. Current main `f146fc9` adds one gated PostgreSQL test; merging it locally requires only reconciling the foundation skip allowance to 143 (132 main ingestion tests plus 10 HTTP tests plus one runtime-image test). Preserved newer main and added the PR URL; gated spec, Build plan and behavior unchanged. Independent review is NOT RUN; the local merge is not approved for another push.
+
+- 2026-11-25 codex/gpt-6.1-sol: diagnosed the published-head CI failure as two tests requiring optional PostgreSQL libraries in the Web-only job. Split the pure error-map assertion from profile construction, explicitly gated only PostgreSQL-dependent configuration tests, and added zero-skip helper/profile/store coverage to the existing PostgreSQL ingestion job. PostgreSQL-enabled checks passed 16 tests (0 skips, 0.906 s) plus 4 store fault tests (0 skips, 0.101 s). An isolated Web-only environment without psycopg or SQLAlchemy passed 14 tests with 2 explicit PostgreSQL skips (1.046 s). No production source, dependencies, SQL, gated spec or Build plan changed. This repair and the main reconciliation remain local pending exact-scope push approval; independent review is NOT RUN.
+
+- 2026-11-25 codex/gpt-6.1-sol: corrected completion metadata under quick-start step 5 after the approved reconciliation and CI repair were pushed as `50b36b3`. Outcome: implementation complete by codex/gpt-6.1-sol; reviewing model: NOT RUN (required claude-code/opus-5.5 unavailable to this builder); independent review repair rounds: 0. The earlier preview-wrapper plan gap was resolved by the owner-approved merged planner amendment #111; no unresolved spec or Build plan gap remains. Status done describes implementation completion, not independent acceptance. This frontier PR must receive the prescribed Claude Code review before the owner's final review or merge. Metadata correction local only pending exact-scope publication approval.
+
+- 2026-11-25 codex/gpt-6.2-sol: recorded the [independent QA / Architecture review](https://github.com/gh-slee/kurafolio/pull/115#issuecomment-7180277053) by claude-code/opus-5.5 on `7ee642c`: all acceptance criteria passed, with four nonblocking should-fix items. Set the ticket to in_review for repair round 1.
+
+- 2026-11-25 codex/gpt-6.2-sol: completed the four should-fix items. Refreshed the capability status and backlog, declared existing pagination parameters in OpenAPI, verified stale decisions and cancellations against persisted state, and refreshed the ticket and PR evidence. Reconciled main `301588b`; the PostgreSQL foundation skip count is 151. Outcome: implementation by codex/gpt-6.1-sol, repairs by codex/gpt-6.2-sol, reviewed by claude-code/opus-5.5 on `7ee642c`, one review repair round. The earlier preview-wrapper plan gap was resolved by #111; no other spec or Build plan gaps were found. Repair CI and separate independent retest have not run.
