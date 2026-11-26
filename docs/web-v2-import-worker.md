@@ -19,8 +19,9 @@ docker compose -f compose.ingestion.yaml stop import-launcher import-worker
 ```
 
 The reviewed image is built from `Dockerfile.ingestion` on an exact source
-image; it adds the pinned Docker CLI and creates both journal directories owned
-by UID 10001. On 2026-11-25, `docker compose -f compose.ingestion.yaml up -d`
+image; it adds the Docker CLI from `docker:29.6.1-cli@sha256:862099ada15c6690...`
+(the multi-architecture manifest list covers amd64 and arm64) and creates both
+journal directories owned by UID 10001. On 2026-11-25, `docker compose -f compose.ingestion.yaml up -d`
 started `import-launcher` and `import-worker` with synthetic configuration and
 `stop` completed in 1 s; the worker logged its expected synthetic database
 errors because no database was mounted.
@@ -109,25 +110,29 @@ engine arguments.
 
 | Control | Docker Desktop, Apple Silicon | Native Linux CI |
 |---|---|---|
-| Network | verified (2026-11-25, engine 29.6.1, `launcher check` against postgres@sha256:0115267a…) | not tested |
-| Read-only root | verified (2026-11-25, engine 29.6.1, `launcher check` against postgres@sha256:0115267a…) | not tested |
-| User 10001:10001 | verified (2026-11-25, engine 29.6.1, `launcher check` against postgres@sha256:0115267a…) | not tested |
-| Capabilities dropped | verified (2026-11-25, engine 29.6.1, `launcher check` against postgres@sha256:0115267a…) | not tested |
-| No-new-privileges | verified (2026-11-25, engine 29.6.1, `launcher check` against postgres@sha256:0115267a…) | not tested |
-| IPC none | verified (2026-11-25, engine 29.6.1, `launcher check` against postgres@sha256:0115267a…) | not tested |
-| PIDs limit 16 | verified (2026-11-25, engine 29.6.1, `launcher check` against postgres@sha256:0115267a…) | not tested |
-| Memory and swap 256 MiB | verified (2026-11-25, engine 29.6.1, `launcher check` against postgres@sha256:0115267a…) | not tested |
-| CPU 1 quota | verified (2026-11-25, engine 29.6.1, `launcher check` against postgres@sha256:0115267a…) | not tested |
+| Network | verified (2026-11-24, engine 29.6.1, `test_ac_06_network_and_filesystem_denials`) | not tested |
+| Read-only root | verified (2026-11-24, engine 29.6.1, `test_ac_06_network_and_filesystem_denials`) | not tested |
+| User 10001:10001 | verified (2026-11-24, engine 29.6.1, `test_ac_02_effective_profile_and_environment`) | not tested |
+| Capabilities dropped | verified (2026-11-25, engine 29.6.1, `test_ac_02_effective_profile_and_environment`: `CapEff` 0) | not tested |
+| No-new-privileges | verified (2026-11-25, engine 29.6.1, `test_ac_02_effective_profile_and_environment`: `NoNewPrivs` 1) | not tested |
+| IPC none | not tested (HostConfig only; no effective namespace probe) | not tested |
+| PIDs limit 16 | verified (2026-11-25, engine 29.6.1, `test_ac_02_effective_profile_and_environment`; `test_ac_06_pids_limit_stops_a_fork_bomb`) | not tested |
+| Memory and swap 256 MiB | verified (2026-11-24, engine 29.6.1, `test_ac_02_effective_profile_and_environment`; `test_ac_06_resource_and_output_limits`) | not tested |
+| CPU 1 quota | not tested (HostConfig only; RLIMIT_CPU is separate) | not tested |
 | RLIMIT_CPU 2 s | verified (2026-11-24, engine 29.6.1, `test_ac_02_effective_profile_and_environment`) | not tested |
 | nofile 64 | verified (2026-11-24, engine 29.6.1, `test_ac_02_effective_profile_and_environment`) | not tested |
 | core 0 | verified (2026-11-24, engine 29.6.1, `test_ac_02_effective_profile_and_environment`) | not tested |
-| tmpfs flags | verified (2026-11-25, engine 29.6.1, `launcher check` against postgres@sha256:0115267a…) | not tested |
+| tmpfs flags | verified (2026-11-24, engine 29.6.1, `test_ac_02_effective_profile_and_environment`) | not tested |
 | Environment (eight variables) | verified (2026-11-24, engine 29.6.1, `test_ac_02_effective_profile_and_environment`) | not tested |
 | Docker socket absent | verified (2026-11-24, engine 29.6.1, `test_ac_02_effective_profile_and_environment`) | not tested |
 | Output limits | verified (2026-11-24, engine 29.6.1, `test_ac_06_resource_and_output_limits`) | not tested |
 | Wall clock 10 s | verified (2026-11-24, engine 29.6.1, `test_ac_06_resource_and_output_limits`) | not tested |
 
-The `launcher check` rows were taken from a real container inspection at image `postgres@sha256:0115267ab5a509022df9319c77be365cef335adb71556c75f60f5360ee247e71`. Runtime denial and limit rows remain from the probes. Native Linux CI has not run this matrix in this session. Docker Desktop runs the
+`launcher check` prints the HostConfig of a container it creates but never starts.
+Those rows are configuration-only and are not counted as verified here; only the
+runtime probes above are. Rows marked "not tested" have no effective probe yet.
+
+Native Linux CI has not run this matrix in this session. Docker Desktop runs the
 containers in a Linux VM; this evidence is not host-root or native-macOS sandbox
 proof. The launcher remains trusted host-level authority.
 

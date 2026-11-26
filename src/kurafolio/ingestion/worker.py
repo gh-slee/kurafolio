@@ -231,9 +231,18 @@ class ImportWorker:
     def handoff(self, metadata, context, raw):
         key = (metadata.get('job_id'), metadata.get('fence'))
         with self._handoff_lock:
-            lock = self._handoff_keys.setdefault(key, threading.Lock())
-        with lock:
-            return self._handoff(metadata, context, raw)
+            entry = self._handoff_keys.get(key)
+            if entry is None:
+                entry = self._handoff_keys[key] = [threading.Lock(), 0]
+            entry[1] += 1
+        try:
+            with entry[0]:
+                return self._handoff(metadata, context, raw)
+        finally:
+            with self._handoff_lock:
+                entry[1] -= 1
+                if entry[1] == 0 and self._handoff_keys.get(key) is entry:
+                    del self._handoff_keys[key]
 
     def _handoff(self, metadata, context, raw):
         if self._stop.is_set():

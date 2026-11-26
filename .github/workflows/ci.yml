@@ -43,7 +43,8 @@ jobs:
     needs: changes
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    # The full synthetic suite takes about 25 minutes on ubuntu-latest.
+    timeout-minutes: 40
     env:
       PYTHONUTF8: "1"
       PYTHONDONTWRITEBYTECODE: "1"
