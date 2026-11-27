@@ -99,14 +99,16 @@ class ProjectionAcceptedPostgresTests(unittest.TestCase):
                         '--config', str(cls.path / 'test-config.json')], check=True, capture_output=True, timeout=45)
 
     @classmethod
-    def seed(cls, conn, context, holdings, activities, *, old_heads=(), mirror=None):
+    def seed(cls, conn, context, holdings, activities, *, old_heads=(), mirror=None,
+             mapping_rows=False, append=False):
         """Direct accepted storage fixture, with all migrated constraints/triggers active."""
         scope = {'tenant_id': context.tenant_id, 'portfolio_id': context.portfolio_id}
         def insert(table, values):
             parameters = {**scope, **values}
             execute(conn, 'INSERT INTO ' + table + '(' + ','.join(parameters) + ') VALUES(' +
                     ','.join(':' + name for name in parameters) + ')', **parameters)
-        insert('wl_ingestion.roots', {'accepted_generation': 0, 'mapping_generation': 0, 'control_generation': 0})
+        if not append:
+            insert('wl_ingestion.roots', {'accepted_generation': 0, 'mapping_generation': 0, 'control_generation': 0})
         accounts, instruments = {}, {}
         all_heads = (*old_heads, *holdings)
         for head in all_heads:
@@ -215,6 +217,13 @@ class ProjectionAcceptedPostgresTests(unittest.TestCase):
         insert('wl_ingestion.receipts', {'id': receipt_id, **realm, 'operation_id': identity(),
             'operation_kind': 'ACCEPT', 'request_digest': '3' * 64, 'preview_id': preview_id,
             'accepted_plan_id': plan_id, 'plan_digest': digest(plan), 'result_bytes': encode({}), 'created_at': pure.NOW})
+        if mapping_rows:
+            connection_id = identity()
+            for (kind, name), value in entity_ids.items():
+                insert('wl_ingestion.mappings', {'id': identity(), 'revision': 1,
+                    'connection_id': connection_id, 'source_key': digest({'key': name, 'kind': kind}),
+                    'entity_kind': kind, 'evidence_digest': '5' * 64, 'plan_id': plan_id,
+                    kind + '_id': value, kind + '_version': versions[(kind, name)]})
         for collection, typed, revision, parent in documents:
             insert('wl_ingestion.source_revisions', {'id': revision, 'source_key': digest({'revision': revision}),
                 'source_revision': 'r1', 'financial_digest': digest(typed), 'source_change': 'original',
@@ -245,10 +254,12 @@ class ProjectionAcceptedPostgresTests(unittest.TestCase):
                 insert('wl_ingestion.authority_links', {'id': link_id, 'revision': revision,
                     'left_revision_id': left, 'right_revision_id': right, 'decision_kind': kind,
                     'evidence_reference': 'synthetic', 'evidence_digest': '4' * 64, 'plan_id': plan_id})
-        execute(conn, 'UPDATE wl_ingestion.roots SET accepted_generation=1,mapping_generation=1 '
+        execute(conn, 'UPDATE wl_ingestion.roots SET accepted_generation=accepted_generation+1,'
+                'mapping_generation=mapping_generation+1 '
                 'WHERE tenant_id=:tenant_id AND portfolio_id=:portfolio_id', **scope)
-        execute(conn, 'UPDATE wl_ingestion.roots SET accepted_generation=2 '
-                'WHERE tenant_id=:tenant_id AND portfolio_id=:portfolio_id', **scope)
+        if not append:
+            execute(conn, 'UPDATE wl_ingestion.roots SET accepted_generation=2 '
+                    'WHERE tenant_id=:tenant_id AND portfolio_id=:portfolio_id', **scope)
         return entity_ids
 
     @classmethod

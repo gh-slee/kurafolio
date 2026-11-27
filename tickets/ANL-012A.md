@@ -2,7 +2,7 @@
 id: ANL-012A
 title: Define the V2 analysis read contract for securities, crypto and total
 priority: P0
-status: blocked
+status: in_progress
 type: feature
 parent: ANL-012
 depends_on: [ANL-008, IMP-007E]
@@ -17,7 +17,7 @@ branch: ticket/anl-012a-define-the-v2-analysis-read-contract-for
 pr:
 spec:
 spec_approved: sha256:53db5ddc3a935a30bdbdefb6bc5d90d43426429e417c2ebb3db32784d205d4ee
-updated: 2026-11-26
+updated: 2026-11-27
 ---
 
 # ANL-012A: Define the V2 analysis read contract for securities, crypto and total
@@ -773,12 +773,12 @@ The opt-in PostgreSQL run uses the isolated environment of the claim (see `docs/
 - [x] Build plan amended for the Part C entity metadata rules (2026-11-26).
 - [x] The amendment pull request merges (#123).
 - [x] Build plan amended for the oracle comparison rule (2026-11-26, item 5).
-- [ ] The comparison amendment pull request merges.
+- [x] The comparison amendment pull request merges (#125).
 - [x] Part A: reference inputs and `tests/test_projection_references.py`.
 - [x] Part B: calculator helpers; the ANL-008 tests pass unchanged.
-- [ ] Part C: DTOs and `build_document`, with the pure oracles for AC-01 to AC-03 and the cache test for AC-04.
-- [ ] Part D: service, routes and Boundary changes, with the default-suite Boundary and OpenAPI tests for AC-04 and AC-05 and the PostgreSQL HTTP tests for AC-01, AC-02, AC-04 and AC-05.
-- [ ] Part E: schema export, generated types and docs; export test for AC-05.
+- [x] Part C: DTOs and `build_document`, with the pure oracles for AC-01 to AC-03 and the cache test for AC-04.
+- [x] Part D: service, routes and Boundary changes, with the default-suite Boundary and OpenAPI tests for AC-04 and AC-05 and the PostgreSQL HTTP tests for AC-01, AC-02, AC-04 and AC-05.
+- [x] Part E: schema export, generated types and docs; export test for AC-05.
 - [ ] Independent QA and Architect review (frontier); repairs.
 
 ## Decisions needed
@@ -825,11 +825,11 @@ Answered earlier: on 2026-11-10 the owner answered yes: the first version may va
 
 ## Handoff
 
-- State: Blocked during Part C on the G07 TWD cost oracle. The owner transferred the claim after confirming the previous writer had stopped, and the branch now includes the merged metadata amendment (#123). Parts A and B are unchanged. The current entity resolver and its pure tests are in place.
-- Next step: The planner clarifies the comparison or aggregation rule under Decisions needed. Resume Part C when the amendment merges. Document construction, route integration and schema export remain pending.
-- Verify: The 41 focused entity, reference and ANL-008 calculation tests passed. A synthetic reproduction using the existing fixture, `calculate`, `convert_money` and `localcontext(ARITHMETIC)` confirms the exact TWD difference is 1E-115. The prior PostgreSQL reader run passed four tests and skipped one optional effects test. The new metadata reader has not run against PostgreSQL.
-- Gotchas: The resolver does not change the metadata pinned by accepted facts. No amount is rounded or recomputed to make the oracle pass.
-- Open questions: See the open G07 TWD cost comparison question under Decisions needed.
+- State: The analysis contract is implemented in Parts A to E. The three authenticated read routes are available on the ingestion profile. The Build plan includes the G07 comparison amendment (#125).
+- Next step: Finish the local candidate image check and obtain publication approval for the branch. Request independent QA and architecture review before owner review.
+- Verify: The final focused Python run passed 69 tests, with 10 identity cases skipped in that run and passed separately on isolated PostgreSQL. The new analysis PostgreSQL tests passed both cases. The accepted reader passed four tests with one optional effects skip, and all ten import route tests passed. Frontend formatting, source check, build and 46 tests passed. Both generated schema files reproduced byte for byte. The publication guard admits the exact approved public document and generated fixture and still refuses neighboring paths.
+- Gotchas: The G07 comparison uses the literal's precision in tests only. The API retains the full calculated Decimal. There is no schema migration or analysis page.
+- Open questions: None.
 
 ## Log
 
@@ -853,3 +853,5 @@ Answered earlier: on 2026-11-10 the owner answered yes: the first version may va
 - 2026-11-26 codex/gpt-6.2-sol: the owner replied "go C", choosing current account and instrument names for analysis while retaining the source-pinned metadata on historical facts. The build remains blocked until the amended Build plan merges.
 - 2026-11-26 codex/gpt-6.2-sol: resumed the existing claim with the owner-approved transfer and rebased Parts A and B onto #123. The projection source and reference tests are unchanged by the rebase.
 - 2026-11-26 codex/gpt-6.2-sol: added the current entity resolver and passed its five pure tests alongside the 36 existing reference and calculator tests. Blocked at the G07 TWD cost oracle because per-row conversions under the required decimal context give 89600 plus 1E-115.
+- 2026-11-27 codex/gpt-6.2-sol: rebased onto #125 and resumed Part C with the revised oracle comparison rule.
+- 2026-11-27 codex/gpt-6.2-sol: implemented the scoped analysis documents, ingestion-only HTTP routes, reference flag, and generated contract. Fixed-oracle, scoped PostgreSQL, identity and frontend checks passed. Independent review and publication are pending.

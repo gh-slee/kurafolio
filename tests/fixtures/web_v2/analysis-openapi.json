@@ -1,0 +1,1871 @@
+{
+  "components": {
+    "schemas": {
+      "Amount": {
+        "additionalProperties": false,
+        "properties": {
+          "amount": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+            "title": "Amount",
+            "type": "string"
+          },
+          "currency": {
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "type": "string"
+          }
+        },
+        "required": [
+          "amount",
+          "currency"
+        ],
+        "title": "Amount",
+        "type": "object"
+      },
+      "AnalysisAccount": {
+        "additionalProperties": false,
+        "properties": {
+          "category": {
+            "maxLength": 4096,
+            "minLength": 0,
+            "title": "Category",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "maxLength": 4096,
+            "minLength": 0,
+            "title": "Label",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "investment",
+              "crypto",
+              "funding"
+            ],
+            "title": "Role",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "category",
+          "role"
+        ],
+        "title": "AnalysisAccount",
+        "type": "object"
+      },
+      "AnalysisInstrument": {
+        "additionalProperties": false,
+        "properties": {
+          "currency": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Z]{3}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "SECURITY",
+              "CASH",
+              "CRYPTO",
+              "UNSUPPORTED"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "mic": {
+            "anyOf": [
+              {
+                "maxLength": 4096,
+                "minLength": 0,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mic"
+          },
+          "network": {
+            "anyOf": [
+              {
+                "maxLength": 4096,
+                "minLength": 0,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Network"
+          },
+          "symbol": {
+            "anyOf": [
+              {
+                "maxLength": 4096,
+                "minLength": 0,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Symbol"
+          },
+          "ticker": {
+            "anyOf": [
+              {
+                "maxLength": 4096,
+                "minLength": 0,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ticker"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "currency",
+          "ticker",
+          "mic",
+          "symbol",
+          "network"
+        ],
+        "title": "AnalysisInstrument",
+        "type": "object"
+      },
+      "AnalysisRow": {
+        "additionalProperties": false,
+        "properties": {
+          "account": {
+            "$ref": "#/components/schemas/AnalysisAccount"
+          },
+          "asset_class": {
+            "enum": [
+              "securities",
+              "cash",
+              "crypto",
+              "unsupported"
+            ],
+            "title": "Asset Class",
+            "type": "string"
+          },
+          "book_cost_cad": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Amount"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "btc_equivalent": {
+            "title": "Btc Equivalent",
+            "type": "boolean"
+          },
+          "codes": {
+            "items": {
+              "enum": [
+                "acquisitions_assumed_held",
+                "crypto_fees_not_deducted",
+                "missing_from_newer_snapshot_is_sold",
+                "sales_counted",
+                "source_reported_value",
+                "valued_as_btc_equivalent"
+              ],
+              "type": "string"
+            },
+            "title": "Codes",
+            "type": "array"
+          },
+          "cost": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Amount"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cost_converted": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "minLength": 1,
+                "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Converted"
+          },
+          "cost_status": {
+            "enum": [
+              "known",
+              "unavailable",
+              "not_applicable"
+            ],
+            "title": "Cost Status",
+            "type": "string"
+          },
+          "gaps": {
+            "items": {
+              "enum": [
+                "corporate_action_unresolved",
+                "cost_currency_mixed",
+                "cost_unavailable",
+                "fx_unavailable",
+                "quote_currency_mismatch",
+                "quote_unavailable",
+                "sale_shape_unsupported",
+                "sales_exceed_purchases",
+                "unsupported_position",
+                "valuation_not_implemented",
+                "value_unavailable"
+              ],
+              "type": "string"
+            },
+            "title": "Gaps",
+            "type": "array"
+          },
+          "instrument": {
+            "$ref": "#/components/schemas/AnalysisInstrument"
+          },
+          "quantity": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "minLength": 1,
+                "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quantity"
+          },
+          "unrealized_gain": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Amount"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "unrealized_gain_converted": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "minLength": 1,
+                "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unrealized Gain Converted"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Amount"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "value_as_of": {
+            "anyOf": [
+              {
+                "maxLength": 4096,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value As Of"
+          },
+          "value_basis": {
+            "anyOf": [
+              {
+                "enum": [
+                  "quote",
+                  "source_reported",
+                  "par"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value Basis"
+          },
+          "value_converted": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "minLength": 1,
+                "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value Converted"
+          }
+        },
+        "required": [
+          "asset_class",
+          "account",
+          "instrument",
+          "quantity",
+          "btc_equivalent",
+          "value",
+          "value_converted",
+          "value_basis",
+          "value_as_of",
+          "cost",
+          "cost_converted",
+          "cost_status",
+          "book_cost_cad",
+          "unrealized_gain",
+          "unrealized_gain_converted",
+          "codes",
+          "gaps"
+        ],
+        "title": "AnalysisRow",
+        "type": "object"
+      },
+      "BtcReference": {
+        "additionalProperties": false,
+        "properties": {
+          "as_of": {
+            "anyOf": [
+              {
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{6}Z$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "As Of"
+          },
+          "price": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Amount"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source": {
+            "anyOf": [
+              {
+                "maxLength": 4096,
+                "minLength": 0,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "status": {
+            "enum": [
+              "available",
+              "unavailable"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "price",
+          "as_of",
+          "source"
+        ],
+        "title": "BtcReference",
+        "type": "object"
+      },
+      "ClassLine": {
+        "additionalProperties": false,
+        "properties": {
+          "asset_class": {
+            "enum": [
+              "securities",
+              "cash",
+              "crypto",
+              "unsupported"
+            ],
+            "title": "Asset Class",
+            "type": "string"
+          },
+          "native_known": {
+            "items": {
+              "$ref": "#/components/schemas/Amount"
+            },
+            "title": "Native Known",
+            "type": "array"
+          },
+          "value": {
+            "$ref": "#/components/schemas/Figure"
+          }
+        },
+        "required": [
+          "asset_class",
+          "value",
+          "native_known"
+        ],
+        "title": "ClassLine",
+        "type": "object"
+      },
+      "CountedActivityRow": {
+        "additionalProperties": false,
+        "properties": {
+          "account_id": {
+            "title": "Account Id",
+            "type": "string"
+          },
+          "cost": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Amount"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "economic_group_id": {
+            "title": "Economic Group Id",
+            "type": "string"
+          },
+          "has_crypto_fee": {
+            "title": "Has Crypto Fee",
+            "type": "boolean"
+          },
+          "instrument_id": {
+            "title": "Instrument Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "BUY",
+              "SELL"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "occurred_at": {
+            "maxLength": 4096,
+            "minLength": 1,
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "quantity": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+            "title": "Quantity",
+            "type": "string"
+          }
+        },
+        "required": [
+          "economic_group_id",
+          "kind",
+          "account_id",
+          "instrument_id",
+          "quantity",
+          "cost",
+          "occurred_at",
+          "has_crypto_fee"
+        ],
+        "title": "CountedActivityRow",
+        "type": "object"
+      },
+      "CryptoAnalysis": {
+        "additionalProperties": false,
+        "properties": {
+          "assumptions": {
+            "items": {
+              "enum": [
+                "acquisitions_assumed_held",
+                "crypto_fees_not_deducted",
+                "missing_from_newer_snapshot_is_sold",
+                "sales_counted",
+                "source_reported_value",
+                "valued_as_btc_equivalent"
+              ],
+              "type": "string"
+            },
+            "title": "Assumptions",
+            "type": "array"
+          },
+          "calculation_id": {
+            "maxLength": 64,
+            "minLength": 64,
+            "pattern": "^[0-9a-f]+$",
+            "title": "Calculation Id",
+            "type": "string"
+          },
+          "contract_version": {
+            "const": 1,
+            "title": "Contract Version",
+            "type": "integer"
+          },
+          "cost": {
+            "$ref": "#/components/schemas/Figure"
+          },
+          "crypto": {
+            "$ref": "#/components/schemas/CryptoDetail"
+          },
+          "fact_generation": {
+            "$ref": "#/components/schemas/FactGeneration"
+          },
+          "gaps": {
+            "items": {
+              "$ref": "#/components/schemas/GapItem"
+            },
+            "title": "Gaps",
+            "type": "array"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/ClassLine"
+            },
+            "title": "Lines",
+            "type": "array"
+          },
+          "observations": {
+            "items": {
+              "$ref": "#/components/schemas/Observation"
+            },
+            "title": "Observations",
+            "type": "array"
+          },
+          "references": {
+            "$ref": "#/components/schemas/References"
+          },
+          "report_currency": {
+            "enum": [
+              "CAD",
+              "USD",
+              "TWD"
+            ],
+            "title": "Report Currency",
+            "type": "string"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/AnalysisRow"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "scope": {
+            "const": "crypto",
+            "title": "Scope",
+            "type": "string"
+          },
+          "unrealized_gain": {
+            "$ref": "#/components/schemas/Figure"
+          },
+          "valuation_time": {
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{6}Z$",
+            "title": "Valuation Time",
+            "type": "string"
+          },
+          "value": {
+            "$ref": "#/components/schemas/Figure"
+          }
+        },
+        "required": [
+          "contract_version",
+          "calculation_id",
+          "fact_generation",
+          "valuation_time",
+          "report_currency",
+          "references",
+          "value",
+          "cost",
+          "unrealized_gain",
+          "lines",
+          "rows",
+          "observations",
+          "assumptions",
+          "gaps",
+          "scope",
+          "crypto"
+        ],
+        "title": "CryptoAnalysis",
+        "type": "object"
+      },
+      "CryptoDetail": {
+        "additionalProperties": false,
+        "properties": {
+          "activities": {
+            "items": {
+              "$ref": "#/components/schemas/CountedActivityRow"
+            },
+            "title": "Activities",
+            "type": "array"
+          },
+          "basis": {
+            "const": "acquisitions_assumed_held",
+            "title": "Basis",
+            "type": "string"
+          },
+          "btc_equivalent_quantity": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "minLength": 1,
+                "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Btc Equivalent Quantity"
+          },
+          "excluded": {
+            "additionalProperties": {
+              "minimum": 0.0,
+              "type": "integer"
+            },
+            "propertyNames": {
+              "enum": [
+                "pending",
+                "cancelled",
+                "unsupported",
+                "void",
+                "mirror",
+                "not_acquisition",
+                "non_crypto_purchase",
+                "balance_observation"
+              ]
+            },
+            "title": "Excluded",
+            "type": "object"
+          },
+          "purchase_rate": {
+            "$ref": "#/components/schemas/PurchaseRate"
+          },
+          "purchases_counted": {
+            "minimum": 0.0,
+            "title": "Purchases Counted",
+            "type": "integer"
+          },
+          "sales_counted": {
+            "title": "Sales Counted",
+            "type": "boolean"
+          },
+          "sales_counted_count": {
+            "minimum": 0.0,
+            "title": "Sales Counted Count",
+            "type": "integer"
+          },
+          "spending": {
+            "$ref": "#/components/schemas/Figure"
+          },
+          "state": {
+            "enum": [
+              "tracked",
+              "no_eligible_acquisitions"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "basis",
+          "state",
+          "btc_equivalent_quantity",
+          "purchases_counted",
+          "sales_counted",
+          "sales_counted_count",
+          "excluded",
+          "activities",
+          "spending",
+          "purchase_rate"
+        ],
+        "title": "CryptoDetail",
+        "type": "object"
+      },
+      "Error": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/ErrorDetail"
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "title": "Error",
+        "type": "object"
+      },
+      "ErrorDetail": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "enum": [
+              "invalid_headers",
+              "invalid_host",
+              "invalid_length",
+              "not_found",
+              "method_not_allowed",
+              "origin_rejected",
+              "authentication_required",
+              "invalid_credentials",
+              "csrf_rejected",
+              "anonymous_session_required",
+              "unsupported_media_type",
+              "body_too_large",
+              "request_timeout",
+              "invalid_input",
+              "rate_limited",
+              "authentication_busy",
+              "credentials_changed",
+              "session_changed",
+              "registration_rejected",
+              "instance_not_ready",
+              "internal_error",
+              "setup_rejected",
+              "setup_closed",
+              "setup_required",
+              "admin_required",
+              "invite_already_issued",
+              "invite_not_active",
+              "source_catalog_unavailable",
+              "source_unavailable",
+              "source_capability_unavailable",
+              "source_context_incompatible",
+              "source_connection_conflict",
+              "source_revision_conflict",
+              "source_idempotency_conflict",
+              "source_repreview_required",
+              "source_capacity_reached",
+              "source_counter_exhausted",
+              "source_commit_uncertain",
+              "import_busy",
+              "import_cleanup_pending",
+              "import_commit_uncertain",
+              "import_conflict",
+              "import_evidence_unsupported",
+              "import_expired",
+              "import_invalid",
+              "import_limit",
+              "import_mapping_required",
+              "import_operation_conflict",
+              "import_reupload_required",
+              "import_runner_unavailable",
+              "import_stale",
+              "length_required",
+              "analysis_unavailable"
+            ],
+            "title": "Code",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "request_id": {
+            "pattern": "^[0-9a-f]{32}$",
+            "title": "Request Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message",
+          "request_id"
+        ],
+        "title": "ErrorDetail",
+        "type": "object"
+      },
+      "FactGeneration": {
+        "additionalProperties": false,
+        "properties": {
+          "accepted": {
+            "title": "Accepted",
+            "type": "string"
+          },
+          "mapping": {
+            "title": "Mapping",
+            "type": "string"
+          }
+        },
+        "required": [
+          "accepted",
+          "mapping"
+        ],
+        "title": "FactGeneration",
+        "type": "object"
+      },
+      "Figure": {
+        "additionalProperties": false,
+        "properties": {
+          "complete_total": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "minLength": 1,
+                "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Complete Total"
+          },
+          "counted_count": {
+            "minimum": 0.0,
+            "title": "Counted Count",
+            "type": "integer"
+          },
+          "known_subtotal": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "minLength": 1,
+                "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Known Subtotal"
+          },
+          "position_count": {
+            "minimum": 0.0,
+            "title": "Position Count",
+            "type": "integer"
+          },
+          "reasons": {
+            "items": {
+              "enum": [
+                "corporate_action_unresolved",
+                "cost_allocation_unresolved",
+                "cost_currency_mixed",
+                "cost_unavailable",
+                "fx_unavailable",
+                "no_eligible_acquisitions",
+                "no_positions",
+                "quote_currency_mismatch",
+                "quote_unavailable",
+                "sale_shape_unsupported",
+                "sales_counted",
+                "sales_exceed_purchases",
+                "unsupported_position",
+                "valuation_not_implemented",
+                "value_cost_currency_differs",
+                "value_unavailable"
+              ],
+              "type": "string"
+            },
+            "title": "Reasons",
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "available",
+              "partial",
+              "unavailable"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "known_subtotal",
+          "complete_total",
+          "counted_count",
+          "position_count",
+          "reasons"
+        ],
+        "title": "Figure",
+        "type": "object"
+      },
+      "FxReference": {
+        "additionalProperties": false,
+        "properties": {
+          "currency": {
+            "enum": [
+              "CAD",
+              "TWD"
+            ],
+            "title": "Currency",
+            "type": "string"
+          },
+          "effective_date": {
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "title": "Effective Date",
+            "type": "string"
+          },
+          "per_pivot": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+            "title": "Per Pivot",
+            "type": "string"
+          },
+          "source": {
+            "maxLength": 4096,
+            "minLength": 0,
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "currency",
+          "per_pivot",
+          "effective_date",
+          "source"
+        ],
+        "title": "FxReference",
+        "type": "object"
+      },
+      "GapItem": {
+        "additionalProperties": false,
+        "properties": {
+          "account_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Id"
+          },
+          "code": {
+            "enum": [
+              "corporate_action_unresolved",
+              "cost_currency_mixed",
+              "cost_unavailable",
+              "fx_unavailable",
+              "quote_currency_mismatch",
+              "quote_unavailable",
+              "sale_shape_unsupported",
+              "sales_exceed_purchases",
+              "unsupported_position",
+              "valuation_not_implemented",
+              "value_unavailable"
+            ],
+            "title": "Code",
+            "type": "string"
+          },
+          "instrument_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instrument Id"
+          }
+        },
+        "required": [
+          "code",
+          "account_id",
+          "instrument_id"
+        ],
+        "title": "GapItem",
+        "type": "object"
+      },
+      "Observation": {
+        "additionalProperties": false,
+        "properties": {
+          "account_id": {
+            "title": "Account Id",
+            "type": "string"
+          },
+          "coverage_status": {
+            "enum": [
+              "complete",
+              "partial",
+              "unknown"
+            ],
+            "title": "Coverage Status",
+            "type": "string"
+          },
+          "observed_at": {
+            "maxLength": 4096,
+            "minLength": 1,
+            "title": "Observed At",
+            "type": "string"
+          },
+          "position_count": {
+            "minimum": 0.0,
+            "title": "Position Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "account_id",
+          "observed_at",
+          "coverage_status",
+          "position_count"
+        ],
+        "title": "Observation",
+        "type": "object"
+      },
+      "PurchaseRate": {
+        "additionalProperties": false,
+        "properties": {
+          "rate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Amount"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reasons": {
+            "items": {
+              "enum": [
+                "corporate_action_unresolved",
+                "cost_allocation_unresolved",
+                "cost_currency_mixed",
+                "cost_unavailable",
+                "fx_unavailable",
+                "no_eligible_acquisitions",
+                "no_positions",
+                "quote_currency_mismatch",
+                "quote_unavailable",
+                "sale_shape_unsupported",
+                "sales_counted",
+                "sales_exceed_purchases",
+                "unsupported_position",
+                "valuation_not_implemented",
+                "value_cost_currency_differs",
+                "value_unavailable"
+              ],
+              "type": "string"
+            },
+            "title": "Reasons",
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "available",
+              "unavailable"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "rate",
+          "reasons"
+        ],
+        "title": "PurchaseRate",
+        "type": "object"
+      },
+      "References": {
+        "additionalProperties": false,
+        "properties": {
+          "btc": {
+            "$ref": "#/components/schemas/BtcReference"
+          },
+          "fx": {
+            "items": {
+              "$ref": "#/components/schemas/FxReference"
+            },
+            "title": "Fx",
+            "type": "array"
+          },
+          "fx_pivot": {
+            "const": "USD",
+            "title": "Fx Pivot",
+            "type": "string"
+          }
+        },
+        "required": [
+          "btc",
+          "fx_pivot",
+          "fx"
+        ],
+        "title": "References",
+        "type": "object"
+      },
+      "SecuritiesAnalysis": {
+        "additionalProperties": false,
+        "properties": {
+          "assumptions": {
+            "items": {
+              "enum": [
+                "acquisitions_assumed_held",
+                "crypto_fees_not_deducted",
+                "missing_from_newer_snapshot_is_sold",
+                "sales_counted",
+                "source_reported_value",
+                "valued_as_btc_equivalent"
+              ],
+              "type": "string"
+            },
+            "title": "Assumptions",
+            "type": "array"
+          },
+          "calculation_id": {
+            "maxLength": 64,
+            "minLength": 64,
+            "pattern": "^[0-9a-f]+$",
+            "title": "Calculation Id",
+            "type": "string"
+          },
+          "contract_version": {
+            "const": 1,
+            "title": "Contract Version",
+            "type": "integer"
+          },
+          "cost": {
+            "$ref": "#/components/schemas/Figure"
+          },
+          "fact_generation": {
+            "$ref": "#/components/schemas/FactGeneration"
+          },
+          "gaps": {
+            "items": {
+              "$ref": "#/components/schemas/GapItem"
+            },
+            "title": "Gaps",
+            "type": "array"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/ClassLine"
+            },
+            "title": "Lines",
+            "type": "array"
+          },
+          "observations": {
+            "items": {
+              "$ref": "#/components/schemas/Observation"
+            },
+            "title": "Observations",
+            "type": "array"
+          },
+          "references": {
+            "$ref": "#/components/schemas/References"
+          },
+          "report_currency": {
+            "enum": [
+              "CAD",
+              "USD",
+              "TWD"
+            ],
+            "title": "Report Currency",
+            "type": "string"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/AnalysisRow"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "scope": {
+            "const": "securities",
+            "title": "Scope",
+            "type": "string"
+          },
+          "unrealized_gain": {
+            "$ref": "#/components/schemas/Figure"
+          },
+          "valuation_time": {
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{6}Z$",
+            "title": "Valuation Time",
+            "type": "string"
+          },
+          "value": {
+            "$ref": "#/components/schemas/Figure"
+          }
+        },
+        "required": [
+          "contract_version",
+          "calculation_id",
+          "fact_generation",
+          "valuation_time",
+          "report_currency",
+          "references",
+          "value",
+          "cost",
+          "unrealized_gain",
+          "lines",
+          "rows",
+          "observations",
+          "assumptions",
+          "gaps",
+          "scope"
+        ],
+        "title": "SecuritiesAnalysis",
+        "type": "object"
+      },
+      "TotalAnalysis": {
+        "additionalProperties": false,
+        "properties": {
+          "assumptions": {
+            "items": {
+              "enum": [
+                "acquisitions_assumed_held",
+                "crypto_fees_not_deducted",
+                "missing_from_newer_snapshot_is_sold",
+                "sales_counted",
+                "source_reported_value",
+                "valued_as_btc_equivalent"
+              ],
+              "type": "string"
+            },
+            "title": "Assumptions",
+            "type": "array"
+          },
+          "calculation_id": {
+            "maxLength": 64,
+            "minLength": 64,
+            "pattern": "^[0-9a-f]+$",
+            "title": "Calculation Id",
+            "type": "string"
+          },
+          "contract_version": {
+            "const": 1,
+            "title": "Contract Version",
+            "type": "integer"
+          },
+          "cost": {
+            "$ref": "#/components/schemas/Figure"
+          },
+          "fact_generation": {
+            "$ref": "#/components/schemas/FactGeneration"
+          },
+          "gaps": {
+            "items": {
+              "$ref": "#/components/schemas/GapItem"
+            },
+            "title": "Gaps",
+            "type": "array"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/ClassLine"
+            },
+            "title": "Lines",
+            "type": "array"
+          },
+          "observations": {
+            "items": {
+              "$ref": "#/components/schemas/Observation"
+            },
+            "title": "Observations",
+            "type": "array"
+          },
+          "references": {
+            "$ref": "#/components/schemas/References"
+          },
+          "report_currency": {
+            "enum": [
+              "CAD",
+              "USD",
+              "TWD"
+            ],
+            "title": "Report Currency",
+            "type": "string"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/AnalysisRow"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "scope": {
+            "const": "total",
+            "title": "Scope",
+            "type": "string"
+          },
+          "unrealized_gain": {
+            "$ref": "#/components/schemas/Figure"
+          },
+          "valuation_time": {
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{6}Z$",
+            "title": "Valuation Time",
+            "type": "string"
+          },
+          "value": {
+            "$ref": "#/components/schemas/Figure"
+          }
+        },
+        "required": [
+          "contract_version",
+          "calculation_id",
+          "fact_generation",
+          "valuation_time",
+          "report_currency",
+          "references",
+          "value",
+          "cost",
+          "unrealized_gain",
+          "lines",
+          "rows",
+          "observations",
+          "assumptions",
+          "gaps",
+          "scope"
+        ],
+        "title": "TotalAnalysis",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "Kurafolio V2 identity API",
+    "version": "2"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/v2/analysis/crypto": {
+      "get": {
+        "operationId": "read_api_v2_analysis_crypto_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "currency",
+            "required": true,
+            "schema": {
+              "enum": [
+                "CAD",
+                "USD",
+                "TWD"
+              ],
+              "title": "Currency",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CryptoAnalysis"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "405": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Method Not Allowed"
+          },
+          "408": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Request Timeout"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unsupported Media Type"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Read"
+      }
+    },
+    "/api/v2/analysis/securities": {
+      "get": {
+        "operationId": "read_api_v2_analysis_securities_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "currency",
+            "required": true,
+            "schema": {
+              "enum": [
+                "CAD",
+                "USD",
+                "TWD"
+              ],
+              "title": "Currency",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecuritiesAnalysis"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "405": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Method Not Allowed"
+          },
+          "408": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Request Timeout"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unsupported Media Type"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Read"
+      }
+    },
+    "/api/v2/analysis/total": {
+      "get": {
+        "operationId": "read_api_v2_analysis_total_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "currency",
+            "required": true,
+            "schema": {
+              "enum": [
+                "CAD",
+                "USD",
+                "TWD"
+              ],
+              "title": "Currency",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TotalAnalysis"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "405": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Method Not Allowed"
+          },
+          "408": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Request Timeout"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unsupported Media Type"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Read"
+      }
+    }
+  }
+}

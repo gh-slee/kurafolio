@@ -125,6 +125,15 @@ class PublicationPolicyTests(unittest.TestCase):
                      'key.pem', 'extra.json', 'extra.py', 'backups/history.sqlite'):
             self.assertFalse(guard.path_allowed('tests/fixtures/ingestion/' + name), name)
 
+    def test_analysis_contract_allows_only_the_two_reviewed_artifacts(self):
+        """AC-ANL-012A-05: exact public schema and docs do not admit private neighbors."""
+        for path in ('docs/web-v2-analysis.md', 'tests/fixtures/web_v2/analysis-openapi.json'):
+            self.assertTrue(guard.path_allowed(path), path)
+            self.assertTrue(guard.content_issues(b'PRIVATE_' + b'FINANCIAL_FIXTURE', path))
+        for path in ('docs/web-v2-analysis.local.md', 'tests/fixtures/web_v2/orders.csv',
+                     'tests/fixtures/web_v2/analysis-openapi.local.json'):
+            self.assertFalse(guard.path_allowed(path), path)
+
     def test_synthetic_secret_patterns(self):
         secrets = (b'ghp_' + b'a' * 36, b'AKIA' + b'A' * 16,
                    b'-----BEGIN ' + b'PRIVATE KEY-----',
