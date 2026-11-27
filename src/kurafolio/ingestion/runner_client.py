@@ -125,6 +125,9 @@ class ChildOutputCollector:
             self.stdout_overflow = True
         self._stdout.extend(chunk[:capacity])
 
+    def stdout_bytes(self):
+        return bytes(self._stdout)
+
     def stderr(self, chunk):
         if type(chunk) is not bytes:
             raise IngestionError()

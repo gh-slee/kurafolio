@@ -1,0 +1,76 @@
+services:
+  import-launcher:
+    image: ${KURAFOLIO_IMPORT_LAUNCHER_IMAGE:?exact launcher image required}
+    user: "10001:10001"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - import-internal
+    volumes:
+      - type: bind
+        source: ${KURAFOLIO_LAUNCHER_CONFIG:?launcher config required}
+        target: /run/config/launcher.json
+        read_only: true
+      - type: bind
+        source: ${KURAFOLIO_LAUNCHER_TLS:?launcher TLS directory required}
+        target: /run/tls
+        read_only: true
+      - type: bind
+        source: ${KURAFOLIO_LAUNCHER_PROFILES:?wrapper profiles required}
+        target: /run/profiles.json
+        read_only: true
+      - type: bind
+        source: /var/run/docker.sock
+        target: /var/run/docker.sock
+      - type: volume
+        source: import-launcher-journal
+        target: /var/lib/kurafolio-launcher
+    entrypoint: ["/usr/local/bin/python", "-m", "kurafolio.ingestion.launcher"]
+    group_add: ["${KURAFOLIO_DOCKER_GID:?docker socket group id required}"]
+    command: ["serve", "--config", "/run/config/launcher.json"]
+
+  import-worker:
+    image: ${KURAFOLIO_IMPORT_WORKER_IMAGE:?exact worker image required}
+    user: "10001:10001"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - import-internal
+    volumes:
+      - type: bind
+        source: ${KURAFOLIO_WORKER_CONFIG:?worker config required}
+        target: /run/config/worker.json
+        read_only: true
+      - type: bind
+        source: ${KURAFOLIO_WORKER_DSN:?worker DSN secret required}
+        target: /run/config/dsn.txt
+        read_only: true
+      - type: bind
+        source: ${KURAFOLIO_WORKER_TLS:?worker TLS directory required}
+        target: /run/tls
+        read_only: true
+      - type: bind
+        source: ${KURAFOLIO_WORKER_CATALOG:?source descriptors required}
+        target: /run/config/catalog.json
+        read_only: true
+      - type: bind
+        source: ${KURAFOLIO_WORKER_PROFILES:?wrapper profiles required}
+        target: /run/profiles.json
+        read_only: true
+      - type: volume
+        source: import-worker-journal
+        target: /var/lib/kurafolio-worker
+    entrypoint: ["/usr/local/bin/python", "-m", "kurafolio.ingestion.worker"]
+    command: ["serve", "--config", "/run/config/worker.json"]
+
+networks:
+  import-internal:
+    internal: true
+
+volumes:
+  import-launcher-journal:
+  import-worker-journal:

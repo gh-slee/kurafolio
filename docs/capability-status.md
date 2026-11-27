@@ -55,7 +55,11 @@ parity and existing-ledger migration remain later stages. The fake offline API i
 The operator migration installs the ingestion database functions and grants under
 `0004_ingestion`. The explicit [ingestion API profile](web-v2-imports.md) serves
 eight authenticated JSON routes for import sets, previews and receipts, including
-signed pagination and confirmation. Completing an import from a CSV still
-requires the separate upload, operator activation and worker/launcher work.
-Live native preparation and recovery acceptance remain unfinished.
-No new financial booking, browser workflow or workspace migration is activated.
+signed pagination and confirmation. The dedicated import worker and trusted
+launcher are implemented with unit, opt-in PostgreSQL and Docker Desktop
+containment tests in [the worker guide](web-v2-import-worker.md); the worker runs
+parser2 members only and refuses native discovery with
+`import_evidence_unsupported`. The remaining stages are the upload route
+(IMP-007U), instance activation (IMP-007S), prepare work (IMP-007V) and native
+discovery in the child (IMP-007Z). No new financial booking, browser workflow or
+workspace migration is activated.
