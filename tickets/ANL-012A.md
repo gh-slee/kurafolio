@@ -825,11 +825,11 @@ Answered earlier: on 2026-11-10 the owner answered yes: the first version may va
 
 ## Handoff
 
-- State: Blocked at Part C. Parts A and B provide the reference snapshot providers and calculator helpers. The approved spec still matches origin/main at 0b7d03c49.
-- Next step: Planner and owner decide which entity version an analysis row displays. Then resume at the Part C DTOs and document builder.
+- State: Blocked at Part C pending a Build plan amendment. Parts A and B provide the reference snapshot providers and calculator helpers. The owner chose to show current account and instrument names in analysis and to retain the source-pinned metadata on historical facts.
+- Next step: The planner specifies the current-version lookup, cache invalidation when display metadata changes, and the fallback for missing or deleted current metadata. Resume Part C after the amended Build plan merges to main.
 - Verify: `PYTHONPATH=src:tests python -m unittest tests.test_projection_references tests.test_projection_positions -v` passed 36 tests. `KURAFOLIO_INGESTION_TEST=1 PYTHONPATH=src:tests python -m unittest tests.test_projection_accepted_postgres -v` passed four tests with one existing optional effects skip on isolated PostgreSQL. The run used the locked PostgreSQL test dependencies.
-- Gotchas: The accepted reader uses the version pinned by each fact. An ID-only lookup in the DTO can select the wrong label when more than one version exists. The analysis routes and their acceptance tests still need implementation.
-- Open question: See Decisions needed for the account and instrument version rule.
+- Gotchas: The accepted reader uses the version pinned by each fact, and the calculator groups by entity IDs. Analysis routes and their acceptance tests still need implementation.
+- Open questions: The display policy is decided. The current-version lookup, cache invalidation and fallback behavior await the amended Build plan.
 
 ## Log
 
@@ -850,3 +850,4 @@ Answered earlier: on 2026-11-10 the owner answered yes: the first version may va
 - 2026-11-26 codex/gpt-6.2-sol: claimed the build after verifying the approved spec, the merged Build plan, and the ingestion prerequisite.
 - 2026-11-26 codex/gpt-6.2-sol: implemented the reference snapshot providers and passed eight synthetic reference tests.
 - 2026-11-26 codex/gpt-6.2-sol: completed the calculator helper refactor and passed the unchanged ANL-008 calculator and scoped read tests. Blocked at Part C to obtain the entity metadata version rule.
+- 2026-11-26 codex/gpt-6.2-sol: the owner replied "go C", choosing current account and instrument names for analysis while retaining the source-pinned metadata on historical facts. The build remains blocked until the amended Build plan merges.
