@@ -34,15 +34,24 @@ The three V2 analysis pages need one versioned read contract so they can be buil
 - The shipped pages read a frozen report (`GET /api/v1/portfolios/{id}/reports/{report_id}`, `src/kurafolio/web/reports.py:293`); its DTO is edition-based and cannot refresh.
 - Positions come from ANL-008 and quotes and FX from MKT-009.
 
-### Findings from the merged code (`main` at `7d7acc1`)
+### Findings from the merged code (`main` at `574896b`, rechecked 2026-11-26)
 
-- ANL-008 is merged (PR #94). `kurafolio.projection` has three parts. `read_accepted_state(connection, context)` (`projection/accepted.py:32`) reads accepted `0004` facts inside a caller-owned `REPEATABLE READ READ ONLY` transaction. `calculate(state, inputs)` (`projection/positions.py:24`) is pure. `to_document` and `calculation_id` live in `projection/model.py:225-244`. The calculator has no route and fetches nothing.
-- No runtime profile on `main` can serve a `0004_ingestion` database:
-  - `Database` (`persistence/context.py:47`) maps only `foundation`, `identity` and `sources`.
-  - `_transaction` (`:114`) and `RequestDatabase` (`:154`) accept only `identity` and `sources`.
-  - `read_accepted_state` refuses every revision except `0004_ingestion` (`projection/accepted.py:9`).
-  - The ANL-008 PostgreSQL test uses a `Database` only for its pool, because "its transaction wrapper refuses 0004" (`tests/test_projection_accepted_postgres.py:92`).
-  - IMP-007E Part A adds the `ingestion` profile. IMP-007E is `ready` and not merged. Decisions needed, item 1.
+- ANL-008 is merged (PR #94). `kurafolio.projection` has three parts. `read_accepted_state(connection, context)` (`projection/accepted.py:32`) reads accepted `0004` facts inside a caller-owned `REPEATABLE READ READ ONLY` transaction. `calculate(state, inputs)` (`projection/positions.py:24`) is pure. `to_document` and `calculation_id` live in `projection/model.py:225-244`. The calculator has no route and fetches nothing. No file under `src/kurafolio/projection/` changed between `7d7acc1` and `574896b`.
+- IMP-007E is merged (PR #115, status `done`), and its `ingestion` profile serves a `0004_ingestion` database:
+  - `Database` (`persistence/context.py:45`) maps `ingestion` to `0004_ingestion`, with the same 5 s statement and idle-in-transaction timeouts as `identity` and `sources` (`:56`).
+  - `_transaction` (`:101`) and `RequestDatabase` (`:147`) accept `ingestion`. A read-only principal transaction checks the realm first, then sets `ledger.tenant_id` and `ledger.portfolio_id`, which is what `read_accepted_state` checks.
+  - The runtime login has SELECT on every table of `wl_pg` and on `ingestion_schema.READ_TABLES` (`ingestion_schema.py:214`, granted in `ingestion_migration.py:126-128`). That covers every table `read_accepted_state` reads, so this ticket needs no grant.
+  - `read_accepted_state` still refuses every revision except `0004_ingestion` (`projection/accepted.py:9`). `migrations/versions/` holds only `0001` to `0004`.
+  - `Auth.__init__` builds `self.financial` (`web_v2/auth.py:61`), and on `ingestion` `ready()` also checks the runtime grant inventory and the catalog digest.
+  - The ANL-008 PostgreSQL test still opens its runtime pool with `schema_mode='sources'` and a comment saying the wrapper refuses 0004 (`tests/test_projection_accepted_postgres.py:92-93`). That comment is now stale. This ticket leaves that test unchanged.
+  - Decisions needed, item 1 (a) is therefore satisfied: the build can start once this recheck merges.
+- The ingestion Boundary as merged (`web_v2/api.py`):
+  - `IMPORT_ROUTES` and `IMPORT_DYNAMIC` (`:40-47`) are looked up only when `schema_profile == 'ingestion'`, after the source routes, which `ingestion` also serves.
+  - After the session check, an import request has its own allowed query keys and calls `auth.imports.admit(principal, 'read' | 'control')`. Every other route refuses any query string except the invitation and source list GETs (`:258-268`).
+  - The scope state carries `import_request` (`:271`), and `invalid_response` (`:335`) maps a response validation failure on a source or import request to 500 `internal_error`.
+  - `install_import_openapi` (`schemas.py:345`, called at `api.py:591`) wraps `app.openapi` and writes the frozen import definitions into `components.schemas` by name, overwriting any existing entry with that name. Its 63 names include `Account`, `Counter`, `Date`, `Decimal`, `Money`, `Position`, `Rate`, `Snapshot`, `State`, `Time` and `UUID`.
+  - `tests/test_web_v2_imports.py` builds an `ingestion` app without PostgreSQL by patching `kurafolio.web_v2.api.Auth` with a `FakeAuth` that has no `financial` attribute. Its OpenAPI test requires that every component whose name is in the frozen codec set equals the frozen definition (`:163-164`).
+  - `tests/test_postgres_import_routes.py` (`KURAFOLIO_INGESTION_TEST=1`) is the merged ingestion HTTP harness: one disposable database per test, `migrate_sources` then `migrate_ingestion`, a synthetic worker role, and a `TestClient` over `create_app`.
 - An empty class comes back as zero. `aggregate` (`positions.py:235-246`) returns `known_subtotal` and `complete_total` of `0` for a class with no positions, and `btc_equivalent_quantity` is `0` with no crypto position. AC-01 forbids that zero on `/crypto`. The calculator stays as it is; the DTO layer below maps an empty scope to a typed status.
 - Decision 12 of ANL-008 makes fully sold purchases a known zero. That zero is real and must stay distinct from an empty scope.
 - The calculator reports each gap once per account and instrument, and per call, over all `report_currencies`. A missing TWD rate would put `fx_unavailable` on rows of a CAD response if one calculation served every currency. The plan therefore calculates once per requested currency.
@@ -56,12 +65,11 @@ The three V2 analysis pages need one versioned read contract so they can be buil
   - `consume_budget_v1` accepts a fixed list of operations, and none of them is an analysis read (`persistence/identity_schema.py:235`, `source_schema.py:32`). Adding one needs SQL and a migration.
   - `admit_rate_v1` (`ingestion_schema.py:2139`) has only the import `read` and `control` buckets, and it answers `import_busy`.
 - Errors:
-  - `error_response` turns any code outside `ERROR_CODES` into 503 `instance_not_ready` (`web_v2/api.py:57`).
-  - `ProjectionUnavailable` has six codes, and none of them is in `ERROR_CODES`.
-  - `Boundary.request` refuses every query string except on the invitation and source list routes (`api.py:246-248`).
+  - `error_response` turns any code outside `ERROR_CODES` into 503 `instance_not_ready` (`web_v2/api.py:60`).
+  - `ProjectionUnavailable` has six codes, and none of them is in `ERROR_CODES`. `ERROR_CODES` now ends with `length_required` (`schemas.py:144-152`).
 - OpenAPI and frontend types:
-  - `create_app` cannot build without PostgreSQL, because `Auth.__init__` calls `ready()` (`web_v2/auth.py:68`).
-  - The shipped `scripts/export_web_schema.py` builds the V1 app only.
+  - A real `create_app` needs PostgreSQL, because `Auth.__init__` calls `ready()` (`web_v2/auth.py:74`). The default suite gets around that by patching `Auth`, as `tests/test_web_v2_imports.py` does.
+  - The shipped `scripts/export_web_schema.py` builds the V1 app only. Its commands are in `docs/web-frontend.md:185-186`.
   - V2 frontend types are hand-written (`frontend/src/v2/api.ts`), and `frontend/package.json` already ships `openapi-typescript` and `decimal.js`.
 - What the consumers expect from this contract:
   - ANL-012B: book cost and unrealized difference "only where cost scope matches", a cash table, the last source date, and a chart that "plots import dates" until MKT-009.
@@ -115,12 +123,16 @@ The three V2 analysis pages need one versioned read contract so they can be buil
 
 ## Build plan
 
-- Based on: `main` at `7d7acc1` ("Set OpenCode to high effort and add a per-request owner model override (#104)"). ANL-008 is merged (PR #94). IMP-007E, IMP-007U, APP-011I, APP-011E and MKT-009B are not.
-- Status: on 2026-11-22 the owner answered items 1 to 3 under Decisions needed with "Accept all recommended", so this plan implements option (a) of each item as a decided rule. The `depends_on` and `resources` changes of item 1 (a) are in the front matter, with the owner's confirmation in the Log. A builder starts only when two things are true:
-  - this plan pull request has merged to `main`;
-  - IMP-007E has status `done`, which `depends_on` now enforces.
+- Based on: `main` at `574896b` ("Add the dedicated import worker and trusted launcher (#116)"). First written from `7d7acc1` in #106; rechecked on 2026-11-26 against the merged IMP-007E (PR #115). ANL-008 and IMP-007E are merged. IMP-007U, APP-011I, APP-011E and MKT-009B are not, and no migration after `0004_ingestion` exists.
+- Status: on 2026-11-22 the owner answered items 1 to 3 under Decisions needed with "Accept all recommended", so this plan implements option (a) of each item as a decided rule. The `depends_on` and `resources` changes of item 1 (a) are in the front matter, with the owner's confirmation in the Log. Both dependencies are `done`. A builder starts when this recheck pull request has merged to `main`.
 
   A question the plan does not answer returns the ticket to the planner.
+- What the recheck changed (no gated text, front matter or `spec_approved` changed):
+  - Part D now follows the merged ingestion Boundary: the analysis lookup sits in the `ingestion` block next to `IMPORT_ROUTES`, the query keys are checked in the Boundary, and analysis requests skip `auth.imports.admit`.
+  - `create_app` must not read `auth.financial` while it builds the app, so the existing `FakeAuth` import tests keep passing.
+  - Analysis component names must not collide with the import component names that `install_import_openapi` writes.
+  - The live OpenAPI check, the 404s on other profiles and the query-key refusals move to the default suite. PostgreSQL keeps the tenant isolation and generation cases.
+  - The Stop-and-ask items about the missing profile and harness are removed, because both exist now.
 - Shape:
   - A reference module fetches the Bitcoin price and two FX pairs at request time. It writes nothing.
   - A service reads the accepted state once per request, calculates once for the requested currency and builds the response for one of three scopes from that calculation.
@@ -243,7 +255,7 @@ class CountedActivity:
 
 ### Part C: DTOs (`web_v2/schemas.py`) and the document builder (`web_v2/analysis.py`)
 
-Append the models after the source models, under a comment "Analysis read contract, version 1". Every model is `Closed`.
+Append the models at the end of the file, after the source models and the import OpenAPI helpers (`import_openapi_extra`, `install_import_openapi`), under a comment "Analysis read contract, version 1". Reuse the existing `Counter`, `Hex`, `Timestamp` and `UUID` types. Every model is `Closed`.
 
 #### Types
 
@@ -443,7 +455,7 @@ SCOPES = ('securities', 'crypto', 'total')
 CURRENCIES = ('CAD', 'USD', 'TWD')
 
 class AnalysisService:
-    def __init__(self, financial, references, *, cache_entries=64): ...
+    def __init__(self, database_of, references, *, cache_entries=64): ...
     def read(self, principal, scope: str, currency: str) -> dict: ...
 
 def install_routes(app, service_of, errors) -> None: ...
@@ -452,7 +464,8 @@ def install_routes(app, service_of, errors) -> None: ...
 `read` runs in this order:
 
 1. `snapshot = references.snapshot()`, before any database work. No network wait happens inside a transaction; the transaction timeout is 5 s.
-2. Open `RequestDatabase(financial, principal).transaction(principal.context, readonly=True)`, then call `read_accepted_state(unit.connection, principal.context)`. IMP-007E Part A makes this accept the `ingestion` profile. The realm check is the first read, and the transaction runs only the reader's SELECTs.
+2. Open `RequestDatabase(database_of(), principal).transaction(principal.context, readonly=True)`, then call `read_accepted_state(unit.connection, principal.context)`. The merged `ingestion` profile accepts this (Context, "Findings"). The realm check is the first read, and the transaction runs only the reader's SELECTs.
+   - `database_of` is a zero-argument callable that returns the financial `Database`. It is called on each read, never in `__init__`.
 3. Set `inputs = snapshot.inputs(currency)` and `identifier = calculation_id(state, inputs)`.
 4. Build the cache key: `(principal.user_id, tenant_id, portfolio_id, scope, currency, state.accepted_generation, state.mapping_generation, identifier)`.
 5. On a hit, return the cached document. On a miss:
@@ -476,19 +489,26 @@ Routes (`install_routes`):
 
 - Three sync GET handlers: `/api/v2/analysis/securities`, `/api/v2/analysis/crypto` and `/api/v2/analysis/total`.
 - Each has `response_model` set to its scope model, `responses=errors` and a required `currency: Literal['CAD','USD','TWD'] = Query()`. A FastAPI validation failure already maps to 422 `invalid_input`.
-- The handler also refuses `request.state.query` unless its keys are exactly `{'currency'}`, with 422 `invalid_input`. So `portfolio_id`, `user_id`, `tenant_id` and any other key are refused, and `query()` already refuses a repeated key.
+- The Boundary checks the query keys before the handler runs (below). The handler does not check them again.
 - It returns `service_of(request).read(request.state.principal, scope, currency)`.
 - `install_routes` imports no `Auth` and opens no database, so Part E can build the schema without PostgreSQL.
 
 `web_v2/api.py`:
 
-- `ANALYSIS_ROUTES` maps the three paths to `('GET',)`. `Boundary.request` consults it only when `settings.schema_profile == 'ingestion'`, next to the import route lookup that IMP-007E adds.
-- Set `analysis_request=True` in the scope state.
-- The analysis GETs are exempt from the "no query string" refusal (`api.py:246-248`), because the handler checks the keys.
+- `ANALYSIS_ROUTES` maps the three paths to `('GET',)`.
+- `Boundary.request` looks it up inside the same `schema_profile == 'ingestion'` step as `IMPORT_ROUTES` (`api.py:198-203`), after the import lookup, and sets `analysis_request = methods is not None`. Analysis paths are exact, so no dynamic pattern is added.
+- Query keys: add an `elif analysis_request:` branch to the existing `if import_request: ... elif ...` chain (`api.py:260-268`). It raises 422 `invalid_input` unless `set(params) == {'currency'}`.
+  - So a missing `currency`, `portfolio_id`, `user_id`, `tenant_id` and any other key are refused, and `query()` already refuses a repeated key.
+  - The value itself (`cad`, `EUR`) is refused by the handler's `Literal` query with 422 `invalid_input`.
+  - This branch does not call `auth.imports.admit`. The import read budget answers `import_busy` and is not an analysis limit (see "No rate limit" below).
+- Add `analysis_request=analysis_request` to the scope state next to `import_request` (`api.py:271`).
 - The existing order still applies: host, headers, route and method (404/405), session (401 `authentication_required`), then query parsing.
-- `invalid_response` returns `internal_error` for an analysis request, as it does for a source request.
+- `invalid_response` (`api.py:335`) returns `internal_error` when `source_request`, `import_request` or `analysis_request` is set.
+- `api.py` gains no `INSERT `, `UPDATE `, `DELETE ` or `TRUNCATE ` text; `tests/test_web_v2_imports.py` checks that.
 - `create_app(settings, *, frontend_root=None, references=None)`:
-  - On `ingestion`, it sets `app.state.analysis = AnalysisService(auth.financial, references if references is not None else LiveReferences())` and calls `install_routes`.
+  - On `ingestion`, it sets `app.state.analysis = AnalysisService(lambda: auth.financial, references if references is not None else LiveReferences())` and calls `install_routes`. Constructing `LiveReferences` starts no fetch.
+  - `create_app` must not read `auth.financial` itself. The `FakeAuth` of `tests/test_web_v2_imports.py` has no such attribute, and those tests must keep passing unchanged.
+  - Call `install_routes` before `s.install_import_openapi` (`api.py:591`), so both sets of operations sit in the one wrapped document.
   - On `identity` and `sources`, the three paths answer 404 `not_found` and do not appear in `/api/v2/openapi.json`. `references` is ignored there.
 - No rate limit is added:
   - `consume_budget_v1` has no analysis operation. Adding one needs SQL and a migration, which is out of scope.
@@ -509,6 +529,7 @@ Routes (`install_routes`):
 - `scripts/export_web_v2_analysis_schema.py --output <file>`:
   - Builds `FastAPI(title='Kurafolio V2 identity API', version='2')` and calls `install_routes` with a stub service that fails if it is ever called. It needs no database.
   - Writes the three paths and the component schemas they reach as `json.dumps(value, indent=2, sort_keys=True) + '\n'`.
+- Component names: no analysis component may share a name with a component that `install_import_openapi` writes (Context, "Findings"), because that function overwrites by name. The model names in Part C (`Amount`, `Figure`, `FactGeneration`, `AnalysisAccount`, `AnalysisInstrument`, `AnalysisRow`, `ClassLine`, `Observation`, `GapItem`, `BtcReference`, `FxReference`, `References`, `CryptoDetail`, `CountedActivityRow`, `PurchaseRate` and the three scope models) do not collide today. A default-suite test computes the import name set from `kurafolio.ingestion.contracts` the way `install_import_openapi` walks it and asserts that the two sets are disjoint. If a name collides, rename the analysis model with an `Analysis` prefix; never rename an import definition.
 - Commit its output as `tests/fixtures/web_v2/analysis-openapi.json`.
 - Generate the types with `frontend/node_modules/.bin/openapi-typescript tests/fixtures/web_v2/analysis-openapi.json -o frontend/src/v2/analysis-schema.d.ts` and commit the result.
 - Add `"!src/v2/analysis-schema.d.ts"` to the `format:check` script of `frontend/package.json`, as `src/lib/schema.d.ts` has.
@@ -523,7 +544,7 @@ Routes (`install_routes`):
     - that securities are source-reported until MKT-009B.
   - `docs/web-v2-imports.md`: the positions section says the routes now exist and links to the new page.
   - `docs/capability-status.md`: the row reads "routes on the ingestion profile; no page until ANL-012B".
-  - `docs/web-frontend.md`: add the V2 export and generation commands next to the V1 ones.
+  - `docs/web-frontend.md`: add the V2 export and generation commands next to the V1 ones (`:185-186`). The gated Implementation note cites lines 130-140; the commands have since moved, and the note is not edited.
 
 ### Tests and expected values
 
@@ -557,10 +578,13 @@ A non-terminating value is compared at 18 decimal places with `quantize`, and it
 | 03 | No CAD rate | CAD `/total`: `partial`, known 800 (DEMO-B only), complete null, [`fx_unavailable`]. USD `/total`: `partial`, known 2800, complete null, [`fx_unavailable`]; only row B lacks its value. |
 | 03 | No BTC quote | `/crypto` value `unavailable` [`quote_unavailable`], quantity `0.030`, `crypto.state` `tracked`. `/total` CAD: known 2200, complete null. `references.btc.status` is `unavailable`. |
 | 03 | Cost of y unknown | The crypto row cost is null with `cost_unavailable`, so the `/crypto` cost figure is `unavailable` [`cost_unavailable`]. With item 3 (a): `spending` `partial`, known CAD 700, 1 of 2 counted; `purchase_rate` `unavailable` [`cost_unavailable`]. |
-| 04 | PostgreSQL: users A and B in separate tenants with different synthetic holdings | A gets A's literals and B gets B's. Neither response contains the other's account labels, instrument IDs or amounts. `?currency=CAD&portfolio_id=<B>`, `&user_id=<B>`, `&tenant_id=<B>`, a repeated `currency` and an unknown key each return 422 `invalid_input`. A read after B's still returns A's values. No session returns 401. |
+| 04 | PostgreSQL: users A and B in separate tenants with different synthetic holdings | A gets A's literals and B gets B's. Neither response contains the other's account labels, instrument IDs or amounts. `?currency=CAD&portfolio_id=<B>` returns 422 `invalid_input`. A read after B's still returns A's values. No session returns 401. |
+| 04 | Default suite: the Boundary, with `Auth` patched as in `tests/test_web_v2_imports.py` and a recording stub service | `?currency=CAD&portfolio_id=<B>`, `&user_id=<B>`, `&tenant_id=<B>`, a repeated `currency`, a missing `currency` and an unknown key each return 422 `invalid_input`, and the stub service is never called. No session returns 401 before any query check. No analysis request calls `admit`. |
 | 04 | Pure: the cache | Two principals with equal generations and equal inputs get separate entries and documents. Changing the currency or a generation misses the cache. |
 | 05 | Export (default suite) | The three paths are GET with a required `currency` enum of CAD, USD and TWD. The response component property sets equal a literal list in the test. Every `DecimalString` property is `type: string` with the pattern. A walk finds no `number` type. The only `integer` properties are `contract_version`, `counted_count`, `position_count`, `purchases_counted`, `sales_counted_count` and the `excluded` values. The export equals `tests/fixtures/web_v2/analysis-openapi.json` byte for byte. |
-| 05 | PostgreSQL: live OpenAPI | `/api/v2/openapi.json` on `ingestion` contains the same three paths and component schemas as the export. On `identity` and `sources` it contains none of them, and the paths return 404. |
+| 05 | Default suite: live OpenAPI, with `Auth` patched | `/api/v2/openapi.json` on `ingestion` contains the same three paths and component schemas as the export, and the import operations and components stay as `test_ac_01_openapi_frozen_schema_equality` expects. On `identity` and `sources` it contains none of the analysis paths, and they return 404 `not_found`. |
+| 05 | Default suite: component names | The analysis component names and the import component names are disjoint. |
+| 05 | PostgreSQL: live OpenAPI | One read of `/api/v2/openapi.json` on the real ingestion app contains the three analysis paths. |
 
 Also in the default suite:
 
@@ -579,7 +603,11 @@ Also in the default suite:
   - the JSON text of a document contains none of `custody`, `wallet`, `opening` or `self-custod`;
   - a decimal amount never arrives as a float;
   - the existing ANL-008 tests pass unchanged after Part B.
-- PostgreSQL HTTP tests: use the ingestion HTTP harness that IMP-007E's merged tests provide, and seed accepted facts as `ProjectionAcceptedPostgresTests.seed` does. Moving that seeding into a shared support module is allowed if its behaviour stays the same. Use the claim's `isolation_id`. A skipped test is not acceptance.
+- The existing `tests/test_web_v2_imports.py` and `tests/test_web_v2_api.py` pass unchanged. Their `FakeAuth` has no `financial`, so this also checks that `create_app` reads the database lazily.
+- PostgreSQL HTTP tests (`tests/test_web_v2_analysis_postgres.py`, skipped unless `KURAFOLIO_INGESTION_TEST=1`):
+  - Build the app as `tests/test_postgres_import_routes.py` does: a disposable database per test class or test, `migrate_sources` then `migrate_ingestion` with a synthetic worker role, `ready=true`, then `create_app(Settings(..., schema_profile='ingestion', worker_role=...), references=FixedReferences(snapshot))`. Sign in through the real login route.
+  - Seed accepted facts through the operator connection as `ProjectionAcceptedPostgresTests.seed` does. Moving that seeding into a shared support module under `tests/` is allowed if its behaviour stays the same and both existing PostgreSQL suites still pass.
+  - Use the claim's `isolation_id` and `port_base`. A skipped test is not acceptance.
 - Every test names its acceptance ID.
 
 ### Negative cases and failure handling
@@ -603,7 +631,7 @@ The change is code only: no schema, migration, grant or stored data. Reverting t
 
 ### Stop and ask if
 
-- IMP-007E is not `done`, or its `ingestion` profile does not let `RequestDatabase` open a read-only transaction on `0004_ingestion`.
+- The merged `ingestion` profile does not let `RequestDatabase` open a read-only transaction on `0004_ingestion` under the runtime login, or that login lacks SELECT on a table `read_accepted_state` reads.
 - `main` has a migration after `0004_ingestion` (APP-011I and APP-011E plan one). `projection.accepted.SUPPORTED_REVISIONS` would then refuse it, and changing that contract is a planner decision.
 - An ANL-008 test changes or fails after Part B.
 - An oracle above disagrees with the code, or a Figure that is not `available` has no reason.
@@ -615,13 +643,14 @@ The change is code only: no schema, migration, grant or stored data. Reverting t
 - The frontend checks refuse the generated file.
 - A reviewer requires a per-user analysis rate limit.
 - Any of the three reference sources needs a key, refuses the request or changes its format.
-- IMP-007E's merged tests give no way to start an `ingestion` app on a synthetic database.
+- An existing test in `tests/test_web_v2_imports.py`, `tests/test_web_v2_api.py` or `tests/test_postgres_import_routes.py` has to change.
+- An analysis component name would have to collide with an import component name.
 
 ### Verify
 
 ```bash
-PYTHONPATH=src:tests .venv/bin/python -m unittest tests.test_projection_references tests.test_web_v2_analysis tests.test_projection_positions -v
-KURAFOLIO_INGESTION_TEST=1 PYTHONPATH=src:tests .venv/bin/python -m unittest tests.test_web_v2_analysis_postgres tests.test_projection_accepted_postgres -v
+PYTHONPATH=src:tests .venv/bin/python -m unittest tests.test_projection_references tests.test_web_v2_analysis tests.test_projection_positions tests.test_web_v2_imports tests.test_web_v2_api -v
+KURAFOLIO_INGESTION_TEST=1 PYTHONPATH=src:tests .venv/bin/python -m unittest tests.test_web_v2_analysis_postgres tests.test_projection_accepted_postgres tests.test_postgres_import_routes -v
 PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -v
 .venv/bin/python scripts/export_web_v2_analysis_schema.py --output work/analysis-openapi.json
 cmp work/analysis-openapi.json tests/fixtures/web_v2/analysis-openapi.json
@@ -631,23 +660,25 @@ python3 scripts/tickets.py spec ANL-012A --base origin/main
 python scripts/check_pr_image.py
 ```
 
-The opt-in PostgreSQL run uses the isolated environment of the claim (see `docs/web-v2-identity.md` and IMP-007E's test notes), with `requirements-web-test.lock` installed.
+The opt-in PostgreSQL run uses the isolated environment of the claim (see `docs/web-v2-identity.md` and the setup of `tests/test_postgres_import_routes.py`), with `requirements-web-test.lock` installed.
 
 ## Plan
 
 - [x] Owner Gate A on the contract (2026-11-10).
 - [x] Owner answers Decisions needed items 1 to 3 (2026-11-22, "Accept all recommended": option (a) of each).
-- [ ] The plan pull request merges, and IMP-007E is `done`.
+- [x] IMP-007E is `done` (PR #115).
+- [x] Build plan rechecked against `main` at `574896b`.
+- [ ] The recheck pull request merges.
 - [ ] Part A: reference inputs and `tests/test_projection_references.py`.
 - [ ] Part B: calculator helpers; the ANL-008 tests pass unchanged.
 - [ ] Part C: DTOs and `build_document`, with the pure oracles for AC-01 to AC-03 and the cache test for AC-04.
-- [ ] Part D: service, routes and Boundary changes, with the PostgreSQL HTTP tests for AC-01, AC-02, AC-04 and AC-05.
+- [ ] Part D: service, routes and Boundary changes, with the default-suite Boundary and OpenAPI tests for AC-04 and AC-05 and the PostgreSQL HTTP tests for AC-01, AC-02, AC-04 and AC-05.
 - [ ] Part E: schema export, generated types and docs; export test for AC-05.
 - [ ] Independent QA and Architect review (frontier); repairs.
 
 ## Decisions needed
 
-None open. On 2026-11-22 the owner answered items 1 to 3 with "Accept all recommended". Each item below keeps its question and options for the record and states the option taken; the Build plan implements each as a rule.
+None open. On 2026-11-22 the owner answered items 1 to 3 with "Accept all recommended". The recheck of 2026-11-26 found that item 1 (a) is now satisfied: IMP-007E merged in #115 with the `ingestion` profile, and the recheck raised no new question. Each item below keeps its question and options for the record and states the option taken; the Build plan implements each as a rule.
 
 1. **The routes need the `ingestion` runtime profile.** Accepted facts exist only in a `0004_ingestion` database, and no profile on `main` serves one (Context, "Findings"). IMP-007E Part A adds that profile, but this ticket's `depends_on` lists only ANL-008. The routes also edit `web_v2/api.py` and `schemas.py`, which IMP-007E, IMP-007U, APP-011I and APP-011E change under the `identity-api` resource.
    - (a) Add IMP-007E to `depends_on` and `identity-api` to `resources`. The ticket is built after IMP-007E merges, and it moves from step 2 to step 3 of ROADMAP.md "Step 1". ANL-012B builds against a mocked contract, so it does not wait. The gated "may start after ANL-008" refers to not waiting for MKT-009, and it does not change.
@@ -697,3 +728,4 @@ Answered earlier: on 2026-11-10 the owner answered yes: the first version may va
 - 2026-11-22 claude-code/opus-5.5: wrote the Build plan from `main` at `7d7acc1` in plan pull request #106 (https://github.com/gh-slee/kurafolio/pull/106). It adds Context findings, updates the Plan steps and opens Decisions needed items 1 to 3: the dependency on IMP-007E's `ingestion` profile with the `identity-api` resource, the value series in the first version, and per-purchase crypto data for ANL-012C. Gated sections and front matter are unchanged; the spec hash still matches. A build waits for the owner's answers.
 - 2026-11-22 claude-code/opus-5.5: the owner answered Decisions needed items 1 to 3 with "Accept all recommended", relayed verbatim by the coordinating session of this planning conversation: option (a) of each. The same words confirm the front-matter change of item 1 (a): `depends_on` gains IMP-007E and `resources` gains `identity-api`. Gated sections, `gate_approval` and `spec_approved` are unchanged; the spec hash still matches. ROADMAP.md "Step 1" still lists ANL-012A at step 2; planner rules keep that file out of this pull request.
 - 2026-11-22 claude-code/opus-5.5: at the owner's request ("Yes, separate PR"), refreshed the stale Handoff and moved this ticket to step 3 of the roadmap's Step 1, after IMP-007E. No gated section changed.
+- 2026-11-26 claude-code/opus-5.5: on the owner's request "plan ANL-012A", rechecked the Build plan against `main` at `574896b` after IMP-007E merged (#115), in plan pull request PR_URL_PLACEHOLDER. Updated the Context findings, Part D (Boundary lookup, query-key check and no `admit` for analysis; lazy database access in `create_app`), the OpenAPI component-name rule, the test split between the default suite and PostgreSQL, Stop-and-ask, Verify and the Plan steps. Gated sections, front matter, `gate_approval` and `spec_approved` are unchanged; the spec hash still matches. Decisions needed stays at none open.
