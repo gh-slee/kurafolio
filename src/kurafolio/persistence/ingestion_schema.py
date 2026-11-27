@@ -4272,7 +4272,16 @@ REVOKE ALL ON FUNCTION wl_ingestion.prepare_preview_v1(uuid,text,jsonb,bytea) FR
 # The normalize job ID of a held attempt: its member's database-built context.
 _ATTEMPT_JOB_SQL = "pg_catalog.convert_from(m.context_bytes,'UTF8')::jsonb->>'job_id'"
 
-# cleanup_set_v1 proves each raw slot still held by a fenced normalize attempt,
+def _NATIVE_REFUSAL_SQL(lease: str, member: str) -> str:
+    # SQL built the context. No worker may launch this kind while this rule exists.
+    return f"""({lease}.work_kind='normalize' AND {lease}.state='finished' AND
+     {lease}.raw_slot='held' AND {lease}.token_digest IS NOT NULL AND
+     {lease}.cleanup_proof_bytes IS NULL AND {member}.state='rejected' AND
+     {member}.error_code='import_evidence_unsupported' AND
+     pg_catalog.convert_from({member}.context_bytes,'UTF8')::jsonb->>'payload_kind'='native_discovery_v1') IS TRUE"""
+
+
+# cleanup_set_v1 accounts for each raw slot held by a fenced normalize attempt,
 # releases it once, and purges the set's transient rows only when none is left.
 CLEANUP_SET_DDL = r"""
 CREATE FUNCTION wl_ingestion.cleanup_set_v1(p_worker uuid,p_token text,p_request jsonb,p_bytes bytea) RETURNS jsonb
@@ -4345,10 +4354,11 @@ BEGIN
   EXISTS(SELECT 1 FROM pg_catalog.jsonb_array_elements(p_request->'cleanup_proofs') q(value)
    GROUP BY q.value->>'job_id',q.value->>'fence' HAVING pg_catalog.count(*)>3) THEN
   RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_invalid'; END IF;
- -- Owner decision: a slot returns only for an attempt that was never bound (once
- -- its raw deadline has passed), or whose proofs all show no live child. Pending or
- -- failed proofs are recorded and the slot stays held for a later cleanup.
- FOR attempt IN SELECT l.id,l.fence,l.token_digest,l.created_at,ATTEMPT_JOB AS job FROM wl_ingestion.leases l
+ -- Owner decision: a never-bound attempt or a native pre-launch refusal without
+ -- a matching proof waits for the raw deadline. Otherwise every proof must show
+ -- no live child. Pending or failed proofs keep the slot held for a later cleanup.
+ FOR attempt IN SELECT l.id,l.fence,l.token_digest,l.created_at,ATTEMPT_JOB AS job,
+   NATIVE_REFUSAL AS native_refusal FROM wl_ingestion.leases l
    JOIN wl_ingestion.members m ON m.tenant_id=l.tenant_id AND m.portfolio_id=l.portfolio_id AND
     m.set_id=l.set_id AND m.id=l.member_id
    WHERE l.tenant_id=tenant AND l.portfolio_id=portfolio AND l.set_id=selected.id AND l.work_kind='normalize' AND
@@ -4366,6 +4376,14 @@ BEGIN
   SELECT pg_catalog.jsonb_agg(q.value ORDER BY q.o) INTO proofs FROM
    pg_catalog.jsonb_array_elements(p_request->'cleanup_proofs') WITH ORDINALITY q(value,o)
    WHERE q.value->>'job_id' IS NOT DISTINCT FROM attempt.job AND q.value->>'fence'=attempt.fence::text;
+  IF attempt.native_refusal AND proofs IS NULL THEN
+   IF n<attempt.created_at+interval '120 seconds' THEN waiting:=waiting+1; CONTINUE; END IF;
+   UPDATE wl_ingestion.leases SET raw_slot='released' WHERE tenant_id=tenant AND portfolio_id=portfolio AND
+    id=attempt.id AND raw_slot='held';
+   GET DIAGNOSTICS changed=ROW_COUNT;
+   released:=released+changed;
+   CONTINUE;
+  END IF;
   IF proofs IS NULL THEN waiting:=waiting+1; CONTINUE; END IF;
   IF NOT EXISTS(SELECT 1 FROM pg_catalog.jsonb_array_elements(proofs) q(value)
     WHERE q.value->>'state' NOT IN ('absent','not_created')) THEN
@@ -4412,6 +4430,7 @@ WHEN OTHERS THEN RAISE EXCEPTION USING ERRCODE='XX000',MESSAGE='internal_error';
 END $cleanup$;
 REVOKE ALL ON FUNCTION wl_ingestion.cleanup_set_v1(uuid,text,jsonb,bytea) FROM PUBLIC;
 """.replace('PROOFS_SHAPE', _proofs_shape_sql(12, same_job=False).strip()).replace('ATTEMPT_JOB', _ATTEMPT_JOB_SQL).replace(
+    'NATIVE_REFUSAL', _NATIVE_REFUSAL_SQL('l', 'm')).replace(
     'TERMINAL', _TERMINAL_SQL).replace('CODES', _WORKER_CODES_SQL).replace('UUID_RE', _UUID_RE)
 
 # One-ID reads: live authentication first, then only the caller's own scope.
@@ -5189,13 +5208,13 @@ BEGIN
     OLD.fence,OLD.worker_id,OLD.session_digest,OLD.credential_version,OLD.incarnation,
     OLD.restore_epoch,OLD.created_at,OLD.prepare_set_revision,OLD.prepare_accepted_generation,
     OLD.prepare_mapping_generation,OLD.prepare_control_generation) THEN REJECT; END IF;
-  -- A raw slot is released once, only by a fenced attempt that was never bound
-  -- (and whose fixed 120-second raw deadline from reserve has passed, so the API
-  -- holds no raw buffer) or whose recorded proofs for this fence all show no
-  -- live child. A
-  -- recorded proof may be replaced while the slot is held but is never dropped.
+  -- A raw slot returns once. An unbound attempt or a native pre-launch refusal
+  -- waits until the 120-second raw deadline; otherwise all proofs for this fence
+  -- must show no live child. A recorded proof can be replaced while held, never dropped.
   IF (NEW.raw_slot IS DISTINCT FROM OLD.raw_slot AND NOT (OLD.raw_slot='held' AND NEW.raw_slot='released' AND
      NEW.state NOT IN ('offered','active') AND ((OLD.token_digest IS NULL AND
+      n>=OLD.created_at+interval '120 seconds') OR
+     (NATIVE_REFUSAL AND NEW.state='finished' AND NEW.cleanup_proof_bytes IS NULL AND
       n>=OLD.created_at+interval '120 seconds') OR (NEW.cleanup_proof_bytes IS NOT NULL AND
      pg_catalog.jsonb_typeof(pg_catalog.convert_from(NEW.cleanup_proof_bytes,'UTF8')::jsonb)='array' AND
      pg_catalog.jsonb_array_length(pg_catalog.convert_from(NEW.cleanup_proof_bytes,'UTF8')::jsonb)>0 AND NOT EXISTS(
@@ -5310,7 +5329,8 @@ EXCEPTION WHEN OTHERS THEN
  RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_invalid';
 END $transition$;
 REVOKE ALL ON FUNCTION wl_ingestion._transition_v1() FROM PUBLIC;
-'''.replace('SWEEP_STAGE_PREFIX', _SWEEP_STAGE_GUARD_PREFIX).replace('SWEEP_STAGE_SUFFIX', _SWEEP_STAGE_GUARD_SUFFIX).replace('REJECT;', "RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_invalid';").replace(
+'''.replace('SWEEP_STAGE_PREFIX', _SWEEP_STAGE_GUARD_PREFIX).replace('SWEEP_STAGE_SUFFIX', _SWEEP_STAGE_GUARD_SUFFIX).replace(
+    'NATIVE_REFUSAL', _NATIVE_REFUSAL_SQL('OLD', 'member')).replace('REJECT;', "RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_invalid';").replace(
     'EXPIRED;', "RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='import_expired';")
 
 

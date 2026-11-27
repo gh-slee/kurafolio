@@ -96,10 +96,10 @@ bytes, context, results, stderr, a plaintext nonce or a plaintext handle.
   passed into `reupload_required`; cancel or expiry remains the set-level
   recovery. The new worker does not reuse the old handoff token.
 - A native-discovery member is refused before launch and its set becomes
-  `REJECTED`. Its attempt has no launcher handle, so cleanup has no proof to
-  send: the raw slot and storage reservation stay held. Releasing that case is
-  the SQL follow-up filed as IMP-008; this branch makes no SQL change.
-- A record without a launcher handle can produce no proof. Its set stays
+  `REJECTED`. Once 120 seconds have passed since reserve, cleanup can release
+  that attempt's raw slot without a launcher proof. When all slots are free,
+  cleanup purges the set and returns its storage reservation.
+- Other records without a launcher handle cannot produce a proof. Their set stays
   `cleanup_pending` and keeps the slot and storage until an operator acts.
 - A cleanup that cannot prove child and payload absence keeps the storage
   reservation and reports `cleanup_pending` or `failed`. A later claim retries
@@ -157,11 +157,11 @@ Those rows are configuration-only and are not counted as verified here; only the
 runtime probes above are. Rows marked "not tested" have no effective probe yet.
 
 Native-discovery members are rejected with `import_evidence_unsupported` before
-any launch until native discovery lands in the child (IMP-007Z). Their set keeps
-its raw slot and storage reservation because cleanup has no launcher proof;
-IMP-008 owns the SQL release. Native Linux CI runs the real-child, wall-limit and
-launcher-kill acceptance rows in `postgres-ingestion`; the probe rows above
-remain `not tested` on native Linux.
+any launch until native discovery lands in the child (IMP-007Z). Cleanup can
+release a refused native member's slot without a proof 120 seconds after reserve,
+then purge the set once all slots are free. Native Linux CI runs the real-child,
+wall-limit and launcher-kill acceptance rows in `postgres-ingestion`; the probe
+rows above remain `not tested` on native Linux.
 
 Native Linux CI has not run this matrix in this session. Docker Desktop runs the
 containers in a Linux VM; this evidence is not host-root or native-macOS sandbox

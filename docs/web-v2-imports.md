@@ -391,11 +391,12 @@ for tracking and reports. Existing Web/CLI workspaces remain on SQLite.
   same shape. A restore or new incarnation since the claim makes the lease
   stale. It locks the raw and storage quota
   rows before the set. Every raw slot still held by a fenced attempt is then
-  handled once. An attempt that was never bound releases its slot without a
-  proof, but only after its 120-second raw deadline from reserve has passed, so
-  the API can no longer hold its raw buffer. A bound attempt releases it only when its proofs all say `absent` or
-  `not_created`, and the proofs are stored on that attempt. When no slot is left
-  held, `_purge_v1` removes the transient rows and releases the storage
+  handled once. Cleanup can release a never-bound attempt or a finished native
+  pre-launch refusal without a proof once the 120-second deadline from reserve
+  has passed and the API can no longer hold the raw buffer. A bound attempt
+  otherwise needs at least one matching proof, and every matching proof must
+  say `absent` or `not_created`. Cleanup stores those proofs on the attempt.
+  When no slot is left held, `_purge_v1` removes transient rows and releases the storage
   reservation (`purged`). Otherwise, by owner decision, the proofs are kept, the
   set stays `failed` with its storage held, and a later claim retries it once
   its backoff has passed (`cleanup_pending`). The finished lease stores its
@@ -418,9 +419,10 @@ for tracking and reports. Existing Web/CLI workspaces remain on SQLite.
   inside `claim_plan_v1`, so it needs a running worker; the worker's cleanup loop
   calls it for cleanup claims.
   A never-bound attempt's raw slot returns once 120 seconds have passed since
-  reserve. A bound attempt has no proof, so its slot stays held and the user's
-  next reserve returns `import_busy` until `cleanup_set_v1` proves the slot after
-  cancel or expiry. The planned late-proof release (IMP-007Q) can free it sooner
+  reserve. Cleanup can release a finished native pre-launch refusal at the same
+  deadline. A swept bound attempt has no proof, so its slot stays held and
+  the user's next reserve returns `import_busy` until `cleanup_set_v1` proves
+  the slot after cancel or expiry. The planned late-proof release (IMP-007Q) can free it sooner
   only from the worker process that still holds the attempt's handoff token.
   After a worker restart, that slot returns only at set cleanup. Opt-in PostgreSQL
   tests cover the sweep's bound, fencing, slot handling, races and stage guard.

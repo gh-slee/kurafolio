@@ -700,7 +700,7 @@ class WorkerPostgresTests(pg.IngestionAppendOnlyPostgresTests):
         self.assertEqual('', remaining)
 
     def test_ac_10_native_context_is_rejected_before_any_launch(self):
-        """AC-IMP-007F-10: a native member is rejected before LaunchStart."""
+        """AC-IMP-007F-10, AC-IMP-008-01, AC-IMP-008-02: refuse before launch and clean up once."""
         from unittest import mock
         database, name = self.fresh_database()
         plan, pin, catalog, raw, context_bytes, member_id = self.seed(
@@ -739,6 +739,29 @@ class WorkerPostgresTests(pg.IngestionAppendOnlyPostgresTests):
                 "WHERE q.portfolio_id=x.portfolio_id AND q.bucket='storage') "
                 "FROM wl_ingestion.sets x WHERE x.id='" + plan['set_id'] + "'")[0]
             self.assertEqual(('failed', int(first[4])), (second[0], int(second[1])))
+
+            self.run_sql(name, "BEGIN;SET LOCAL session_replication_role=replica;"
+                "UPDATE wl_ingestion.leases SET created_at=created_at-interval '3 minutes',"
+                "expires_at=expires_at-interval '3 minutes' WHERE work_kind IN ('normalize','cleanup') "
+                "AND set_id='" + plan['set_id'] + "';SET LOCAL session_replication_role=origin;COMMIT;")
+            cleanup_state = (
+                "SELECT x.state, x.cleanup_state, "
+                "(SELECT raw_slot FROM wl_ingestion.leases l WHERE l.set_id=x.id AND l.work_kind='normalize'), "
+                "(SELECT reserved_bytes FROM wl_ingestion.quotas q WHERE q.tenant_id=x.tenant_id "
+                "AND q.portfolio_id=x.portfolio_id AND q.bucket='storage'), "
+                "(SELECT lease_count FROM wl_ingestion.quotas q WHERE q.tenant_id=x.tenant_id "
+                "AND q.portfolio_id=x.portfolio_id AND q.bucket='raw'), "
+                "(SELECT count(*) FROM wl_ingestion.leases l WHERE l.set_id=x.id AND l.work_kind='cleanup') "
+                "FROM wl_ingestion.sets x WHERE x.id='" + plan['set_id'] + "'")
+            worker._cleanup_once()
+            cleaned = tuple(self.query(database, cleanup_state)[0])
+            self.assertEqual(('REJECTED', 'complete', 'released', 0, 0), cleaned[:5])
+            self.assertEqual([], worker.journal.for_set(plan['set_id']))
+            worker._cleanup_once()
+            self.assertEqual(cleaned, tuple(self.query(database, cleanup_state)[0]))
+            self.assertEqual([], worker.journal.for_set(plan['set_id']))
+            self.assertEqual([], launcher.starts)
+            self.assertEqual([], launcher.controls)
 
     def test_ac_03_record_without_handle_keeps_cleanup_pending(self):
         """AC-IMP-007F-03: a record without a handle yields no proof."""

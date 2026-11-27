@@ -6153,6 +6153,7 @@ SELECT 'STAGE '||jsonb_build_array(octet_length(data),encode(sha256(data),'hex')
                 self.assertEqual(1, out['COUNT'][0])
 
     def test_cleanup_after_cancel_during_reception_releases_the_unbound_slot_once(self):
+        """AC-IMP-008-03: an unbound attempt waits for the raw deadline."""
         replica = 'SET LOCAL session_replication_role=replica;'
         origin = 'SET LOCAL session_replication_role=origin;'
         seed, catalog = self.cleanup_seed(bind=False)
@@ -6199,6 +6200,7 @@ SELECT 'STAGE '||jsonb_build_array(octet_length(data),encode(sha256(data),'hex')
         self.assertEqual(self.NO_WORK, out['AFTER'])
 
     def test_cleanup_holds_a_launched_attempt_until_its_proof_succeeds(self):
+        """AC-IMP-008-03: a launched attempt needs a successful proof."""
         seed, catalog = self.cleanup_seed()
         bound = "WHERE work_kind='normalize'"
         out = self.run_labelled(seed + self.cancel_call(catalog) + self.plan_claim('claim') +
@@ -6304,6 +6306,100 @@ SELECT 'STAGE '||jsonb_build_array(octet_length(data),encode(sha256(data),'hex')
                 self.assertEqual((['CANCELLED', 'complete'], final, [1, 0], 0, [0, 0]),
                                  (state['set'], state['attempts'], state['raw'], state['raw_instance'],
                                   state['storage']))
+
+    def test_cleanup_releases_a_native_refusal_once_after_its_raw_deadline(self):
+        """AC-IMP-008-01, AC-IMP-008-02: one release after the raw deadline."""
+        _, _, seed, _ = self.claim_seed(projection='domain1-minimal-v1')
+        release_sql = "UPDATE wl_ingestion.leases SET raw_slot='released' WHERE work_kind='normalize'"
+        age_normalize = ("SET LOCAL session_replication_role=replica;"
+                         "UPDATE wl_ingestion.leases SET created_at=created_at-interval '3 minutes',"
+                         "expires_at=expires_at-interval '3 minutes' WHERE work_kind='normalize';"
+                         "SET LOCAL session_replication_role=origin;")
+        out = self.run_labelled(
+            seed + self.lease_call('claim_member_v1', 'claim') +
+            self.finish_call('finish', outcome='rejected', error_code='import_evidence_unsupported', proofs=()) +
+            self.CLEANUP_STATE.replace("'CSTATE '", "'BEFORE '") +
+            self.plan_claim('early') + self.cleanup_call('waited', 'early') +
+            self.CLEANUP_STATE.replace("'CSTATE '", "'HELD '") + self.rejects(release_sql) +
+            age_normalize + self.age_cleanup_leases(120) +
+            self.plan_claim('second', request='c1000000-0000-4000-8000-000000000004') +
+            self.cleanup_call('clean', 'second', request='c1000000-0000-4000-8000-0000000000a4') +
+            self.CLEANUP_STATE +
+            self.cleanup_call('replay', 'second', request='c1000000-0000-4000-8000-0000000000a4') +
+            self.cleanup_call('fresh', 'second', request='c1000000-0000-4000-8000-0000000000a5') +
+            self.plan_claim('third', request='c1000000-0000-4000-8000-000000000006') +
+            self.CLEANUP_STATE.replace("'CSTATE '", "'FINAL '"))
+        self.assertTrue(out['CLAIM']['ok'], out['CLAIM'])
+        self.assertTrue(out['FINISH']['ok'], out['FINISH'])
+        finish = out['FINISH']['value']
+        self.assertEqual(('rejected', False), (finish['state'], finish['cleanup_complete']))
+
+        held_quota = ([['finished', 'held', None]], [1, 1], 1, [1, schema.SET_RESERVATION_BYTES])
+        for label, cleanup_state in (('BEFORE', 'pending'), ('HELD', 'failed')):
+            with self.subTest(label=label):
+                snapshot = out[label]
+                self.assertEqual(['REJECTED', cleanup_state], snapshot['set'])
+                self.assertEqual(held_quota, (snapshot['attempts'], snapshot['raw'], snapshot['raw_instance'],
+                                              snapshot['storage']))
+        early = self.assert_cleanup_lease(out['EARLY'], 'claimed', '1', out['BEFORE'])
+        self.assertEqual({'ok': True, 'value': self.cleanup_ack(early, 'cleanup_pending', False)}, out['WAITED'])
+        second = self.assert_cleanup_lease(out['SECOND'], 'claimed', '2', out['HELD'])
+        self.assertEqual({'ok': True, 'value': self.cleanup_ack(second, 'purged', True)}, out['CLEAN'])
+        cleaned = out['CSTATE']
+        self.assertEqual((['REJECTED', 'complete'], [['finished', 'released', None]], [1, 0], 0, [0, 0], 0),
+                         (cleaned['set'], cleaned['attempts'], cleaned['raw'], cleaned['raw_instance'],
+                          cleaned['storage'], cleaned['transient']))
+        self.assertEqual(out['CLEAN'], out['REPLAY'])
+        self.assertEqual({'ok': False, 'code': 'import_stale'}, out['FRESH'])
+        self.assertEqual(self.NO_WORK, out['THIRD'])
+        self.assertEqual(cleaned, out['FINAL'])
+
+    def test_cleanup_keeps_slots_that_are_not_a_native_refusal(self):
+        """AC-IMP-008-03: other attempts cannot release their slot without proof."""
+        age_normalize = ("SET LOCAL session_replication_role=replica;"
+                         "UPDATE wl_ingestion.leases SET created_at=created_at-interval '3 minutes',"
+                         "expires_at=expires_at-interval '3 minutes' WHERE work_kind='normalize';"
+                         "SET LOCAL session_replication_role=origin;")
+        release_sql = "UPDATE wl_ingestion.leases SET raw_slot='released' WHERE work_kind='normalize'"
+        cases = (
+            ('parser2-minimal-v1', 'rejected', 'import_evidence_unsupported', (), False, 'finished', 'REJECTED'),
+            ('domain1-minimal-v1', 'rejected', 'import_stale', (), False, 'finished', 'REJECTED'),
+            ('domain1-minimal-v1', 'rejected', 'import_evidence_unsupported', ('pending',), False, 'finished',
+             'REJECTED'),
+            ('domain1-minimal-v1', None, None, (), True, 'cancelled', 'CANCELLED'),
+            ('domain1-minimal-v1', 'reupload_required', 'import_runner_unavailable', (), True, 'finished',
+             'CANCELLED'),
+        )
+        for projection, outcome, error_code, proofs, cancel, lease_state, set_state in cases:
+            with self.subTest(projection=projection, outcome=outcome, error_code=error_code, proofs=proofs):
+                _, _, seed, catalog = self.claim_seed(projection=projection)
+                script = seed + self.lease_call('claim_member_v1', 'claim')
+                if outcome:
+                    script += self.finish_call('finish', outcome=outcome, error_code=error_code, proofs=proofs)
+                if cancel:
+                    script += self.cancel_call(catalog)
+                out = self.run_labelled(
+                    script + age_normalize + self.plan_claim('first') + self.cleanup_call('waited', 'first') +
+                    self.CLEANUP_STATE.replace("'CSTATE '", "'HELD '") + self.age_cleanup_leases(120) +
+                    self.plan_claim('second', request='c1000000-0000-4000-8000-000000000004') +
+                    self.cleanup_call('again', 'second', request='c1000000-0000-4000-8000-0000000000a4') +
+                    self.CLEANUP_STATE + self.rejects(release_sql))
+                self.assertTrue(out['CLAIM']['ok'], out['CLAIM'])
+                if outcome:
+                    self.assertTrue(out['FINISH']['ok'], out['FINISH'])
+                    self.assertEqual(outcome, out['FINISH']['value']['state'])
+                if cancel:
+                    self.assertTrue(out['CANCEL']['ok'], out['CANCEL'])
+                first = self.assert_cleanup_lease(out['FIRST'], 'claimed', '1', out['HELD'])
+                second = self.assert_cleanup_lease(out['SECOND'], 'claimed', '2', out['HELD'])
+                for lease, label in ((first, 'WAITED'), (second, 'AGAIN')):
+                    self.assertEqual({'ok': True, 'value': self.cleanup_ack(lease, 'cleanup_pending', False)},
+                                     out[label])
+                for snapshot in (out['HELD'], out['CSTATE']):
+                    self.assertEqual(([set_state, 'failed'], [[lease_state, 'held', list(proofs) or None]], [1, 1], 1,
+                                      [1, schema.SET_RESERVATION_BYTES]),
+                                     (snapshot['set'], snapshot['attempts'], snapshot['raw'], snapshot['raw_instance'],
+                                      snapshot['storage']))
 
     def test_cleanup_and_claim_refuse_without_changing_anything(self):
         replica = 'SET LOCAL session_replication_role=replica;'
