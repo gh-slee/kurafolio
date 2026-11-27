@@ -134,7 +134,7 @@ The three V2 analysis pages need one versioned read contract so they can be buil
 
 ## Build plan
 
-- Based on: `main` at `d3588b2` ("Recheck the ANL-012A Build plan against the merged ingestion profile (#122)"). First written from `7d7acc1` in #106 and rechecked on 2026-11-26 against the merged IMP-007E (PR #115) in #122. Amended on 2026-11-26 for the Part C entity metadata rules. No file under `src/` changed between `574896b` and `d3588b2`. ANL-008 and IMP-007E are merged. IMP-007U, APP-011I, APP-011E and MKT-009B are not, and no migration after `0004_ingestion` exists.
+- Based on: `main` at `9503737` ("Plan ANL-012A Part C entity metadata rules (#123)"). First written from `7d7acc1` in #106 and rechecked on 2026-11-26 against the merged IMP-007E (PR #115) in #122. Amended on 2026-11-26 for the Part C entity metadata rules in #123, and again on 2026-11-26 for the oracle comparison rule. No file under `src/` changed between `574896b` and `9503737`. ANL-008 and IMP-007E are merged. IMP-007U, APP-011I, APP-011E and MKT-009B are not, and no migration after `0004_ingestion` exists.
 - Status: on 2026-11-22 the owner answered items 1 to 3 under Decisions needed with "Accept all recommended", so this plan implements option (a) of each item as a decided rule. The `depends_on` and `resources` changes of item 1 (a) are in the front matter, with the owner's confirmation in the Log. Both dependencies are `done`. The builder, who has built Parts A and B, resumes Part C when the amendment pull request has merged to `main`.
 
   A question the plan does not answer returns the ticket to the planner.
@@ -149,6 +149,11 @@ The three V2 analysis pages need one versioned read contract so they can be buil
   - `build_document` takes the resolved entities as an argument. Part C step 2 no longer reads entities from the state by ID.
   - Part D reads the current entities in the same transaction as the accepted state, and the cache key gains the instance incarnation and restore epoch.
   - New tests, new Stop-and-ask items and an opt-in mapping-row seed for the PostgreSQL suite.
+- What the comparison amendment of 2026-11-26 changed (no gated text, front matter or `spec_approved` changed):
+  - "Tests and expected values" gains a comparison rule keyed on how each literal is written. A literal with exactly 18 fractional digits is compared at 18 places; every other literal is compared exactly. It implements Decisions needed, item 5.
+  - The AC-02 `/total` cost in TWD is now written `89600.000000000000000000`. Summing the converted rows in the 120-digit context gives 89600 plus 1E-115, and the API keeps that value.
+  - A new default-suite assertion checks that the API does not round, and a new Stop-and-ask item covers an oracle that would pass only by rounding.
+  - No calculation, DTO, cache or export rule changes.
 - Shape:
   - A reference module fetches the Bitcoin price and two FX pairs at request time. It writes nothing.
   - A service reads the accepted state and the current entity metadata once per request, calculates once for the requested currency and builds the response for one of three scopes from that calculation.
@@ -634,7 +639,16 @@ Fixture:
 - Exchange purchases: x = 0.010 BTC for CAD 700 and y = 0.020 BTC for CAD 1500.
 - Every ID is a UUID.
 
-A non-terminating value is compared at 18 decimal places with `quantize`, and its emitted string is checked against `DecimalString`. A terminating value is compared as an exact `Decimal`.
+Comparison rule (Decisions needed, item 5):
+
+- The rule is set by how each literal in the table is written, not by whether the true value terminates:
+  - A literal with exactly 18 fractional digits, such as `USD 2800.000000000000000000` or `TWD 89600.000000000000000000`, is compared at 18 places. The test parses the response string with `Decimal`, calls `quantize(Decimal('1E-18'))` under `localcontext(ARITHMETIC)` (120 digits, `ROUND_HALF_EVEN`), and compares that result to the literal with `==`.
+  - Every other literal, such as `CAD 4720`, `USD 1800` or `"0"`, is compared exactly: `Decimal(response) == Decimal(literal)`.
+  - Neither comparison is a string comparison. `4720.0000` equals `4720`.
+- Why: a cross-currency conversion that does not terminate is held at 120 significant digits. A sum of such rows can then differ from its true value far below the 18th place, even when the true value terminates. The AC-02 TWD `/total` cost is the case on `main`. CAD 600 and CAD 2200 each convert to a non-terminating TWD amount, and with USD 800 the sum is 89600 plus 1E-115.
+- The rule does not depend on the summation order (by row, by class or by total line). Every tail in these fixtures is below 1E-18 by many orders of magnitude.
+- Only the test's parsed copy is quantized, and nothing is emitted again. `calculate`, `build_document`, the DTOs, the cache and the export never round or quantize. The response carries `format(value, 'f')` of the calculated `Decimal`, as `DecimalString` in Part C says, and each emitted string is checked against `DecimalString`. Rounding for display belongs to the pages (ANL-012B to 012D), not to this contract.
+- A new oracle literal for a converted amount that may carry a tail is written with 18 fractional digits.
 
 | AC | Case | Expected |
 |---|---|---|
@@ -642,8 +656,8 @@ A non-terminating value is compared at 18 decimal places with `quantize`, and it
 | 01 | Same, the empty lines | `/total` lines: `crypto` is `unavailable` [`no_eligible_acquisitions`] and `cash` is `unavailable` [`no_positions`], both with null amounts. `/crypto`: value `unavailable` [`no_eligible_acquisitions`], `known_subtotal` and `complete_total` null, `crypto.state` `no_eligible_acquisitions`, `btc_equivalent_quantity` null. A walk of the whole `/crypto` document finds no decimal-string field equal to zero. |
 | 01 | No accepted root | All three values `unavailable`: [`no_positions`] for `/securities` and `/total`, [`no_eligible_acquisitions`] for `/crypto`. `fact_generation.accepted` is `"0"`. |
 | 01 | PostgreSQL: a new commit generation | The first read is CAD 2200 at generation g. Seed the BTC purchases through the operator connection, as the ANL-008 fixture does, and raise `accepted_generation`. The next read is CAD 4720 at g + 1 with a new `calculation_id`, so no stale cache entry is served. |
-| 02 | G07 with G05 | `/total` value: CAD 4720, USD 3371.428571428571428571, TWD 107885.714285714285714286. `/total` cost: CAD 3920, USD 2800.000000000000000000, TWD 89600. `/total` gain: CAD 800, USD 571.428571428571428571, TWD 18285.714285714285714286. `/crypto` value: CAD 2520, USD 1800, TWD 57600, with quantity `0.030` and `crypto.state` `tracked`. `/crypto` cost CAD 2200 (G08). `/crypto` gain: CAD 320, USD 228.571428571428571429, TWD 7314.285714285714285714. With item 3 (a): `spending` CAD 2200 with 2 of 2 counted, and `purchase_rate` CAD 73333.333333333333333333 (18 places). |
-| 02 | Bitcoin counted once: a 0.030 TRANSFER, a 0.030 exchange balance snapshot and a mirrored 0.010 BUY added | The same totals. `excluded` shows `not_acquisition` 1, `balance_observation` 1 and `mirror` 1. |
+| 02 | G07 with G05 | `/total` value: CAD 4720, USD 3371.428571428571428571, TWD 107885.714285714285714286. `/total` cost: CAD 3920, USD 2800.000000000000000000, TWD 89600.000000000000000000. `/total` gain: CAD 800, USD 571.428571428571428571, TWD 18285.714285714285714286. `/crypto` value: CAD 2520, USD 1800, TWD 57600, with quantity `0.030` and `crypto.state` `tracked`. `/crypto` cost CAD 2200 (G08). `/crypto` gain: CAD 320, USD 228.571428571428571429, TWD 7314.285714285714285714. With item 3 (a): `spending` CAD 2200 with 2 of 2 counted, and `purchase_rate` CAD 73333.333333333333333333 (18 places). |
+| 02 | Bitcoin counted once: a 0.030 TRANSFER, a 0.030 exchange balance snapshot and a mirrored 0.010 BUY added | The same totals, under the same comparison rule. `excluded` shows `not_acquisition` 1, `balance_observation` 1 and `mirror` 1. |
 | 02 | Bitcoin counted once: a Bitcoin ETF security (CAD 100 source value) added | `/securities` CAD 2300, `/crypto` CAD 2520 and `/total` CAD 4820. The ETF row is `securities`. |
 | 02 | Decision 12: 0.030 bought and 0.030 sold, with no quote | `/crypto` value `available` `"0"`, `crypto.state` `tracked`, quantity `"0.000"`, and `sales_counted` set. It differs from the empty case above. |
 | 03 | G09: DEMO-B market value unknown | `/securities` CAD: `partial`, known 1400, complete null, reasons [`value_unavailable`]. Row B has null `value` and the gap `value_unavailable`. `/total` known: CAD 3920, USD 2800, TWD 89600, all with complete null. |
@@ -683,7 +697,8 @@ Also in the default suite:
   - a `currency` that is missing, is `cad`, is `EUR` or is repeated returns 422;
   - the JSON text of a document contains none of `custody`, `wallet`, `opening` or `self-custod`;
   - a decimal amount never arrives as a float;
-  - the existing ANL-008 tests pass unchanged after Part B.
+  - the existing ANL-008 tests pass unchanged after Part B;
+  - the API does not round (AC-02, item 5). In the G07 case, the USD `/total` value and gain strings each have more than 18 fractional digits. In CAD, USD and TWD, the `/total` value strings `known_subtotal` and `complete_total` equal `format(x, 'f')`, where x is `calculation.total.known_subtotal[currency]` or `calculation.total.complete_total[currency]` from `calculate` on the same inputs. The test does not assert the size of the TWD cost tail, which depends on the summation order.
 - The existing `tests/test_web_v2_imports.py` and `tests/test_web_v2_api.py` pass unchanged. Their `FakeAuth` has no `financial`, so this also checks that `create_app` reads the database lazily.
 - PostgreSQL HTTP tests (`tests/test_web_v2_analysis_postgres.py`, skipped unless `KURAFOLIO_INGESTION_TEST=1`):
   - Build the app as `tests/test_postgres_import_routes.py` does: a disposable database per test class or test, `migrate_sources` then `migrate_ingestion` with a synthetic worker role, `ready=true`, then `create_app(Settings(..., schema_profile='ingestion', worker_role=...), references=FixedReferences(snapshot))`. Sign in through the real login route.
@@ -716,7 +731,8 @@ The change is code only: no schema, migration, grant or stored data. Reverting t
 - The merged `ingestion` profile does not let `RequestDatabase` open a read-only transaction on `0004_ingestion` under the runtime login, or that login lacks SELECT on a table `read_accepted_state` reads.
 - `main` has a migration after `0004_ingestion` (APP-011I and APP-011E plan one). `projection.accepted.SUPPORTED_REVISIONS` would then refuse it, and changing that contract is a planner decision.
 - An ANL-008 test changes or fails after Part B.
-- An oracle above disagrees with the code, or a Figure that is not `available` has no reason.
+- An oracle above disagrees with the code under the comparison rule, or a Figure that is not `available` has no reason.
+- An oracle would pass only if `calculate`, `build_document`, the DTOs, the cache or the export rounded or quantized a value.
 - A case reaches an ANL-008 deferred gap:
   - a broker crypto holding together with BUY activities on the same account and instrument;
   - a BUY across several groups, beyond the purchase-rate refusal;
@@ -755,7 +771,9 @@ The opt-in PostgreSQL run uses the isolated environment of the claim (see `docs/
 - [x] Build plan rechecked against `main` at `574896b`.
 - [x] The recheck pull request merges (#122).
 - [x] Build plan amended for the Part C entity metadata rules (2026-11-26).
-- [ ] The amendment pull request merges.
+- [x] The amendment pull request merges (#123).
+- [x] Build plan amended for the oracle comparison rule (2026-11-26, item 5).
+- [ ] The comparison amendment pull request merges.
 - [ ] Part A: reference inputs and `tests/test_projection_references.py`.
 - [ ] Part B: calculator helpers; the ANL-008 tests pass unchanged.
 - [ ] Part C: DTOs and `build_document`, with the pure oracles for AC-01 to AC-03 and the cache test for AC-04.
@@ -765,7 +783,7 @@ The opt-in PostgreSQL run uses the isolated environment of the claim (see `docs/
 
 ## Decisions needed
 
-None open. On 2026-11-22 the owner answered items 1 to 3 with "Accept all recommended". The recheck of 2026-11-26 found that item 1 (a) is now satisfied: IMP-007E merged in #115 with the `ingestion` profile, and the recheck raised no new question. Item 4 was raised and answered during the build on 2026-11-26. Each item below keeps its question and options for the record and states the option taken; the Build plan implements each as a rule.
+None open. On 2026-11-22 the owner answered items 1 to 3 with "Accept all recommended". The recheck of 2026-11-26 found that item 1 (a) is now satisfied: IMP-007E merged in #115 with the `ingestion` profile, and the recheck raised no new question. Items 4 and 5 were raised and answered during the build on 2026-11-26. Each item below keeps its question and options for the record and states the option taken; the Build plan implements each as a rule.
 
 1. **The routes need the `ingestion` runtime profile.** Accepted facts exist only in a `0004_ingestion` database, and no profile on `main` serves one (Context, "Findings"). IMP-007E Part A adds that profile, but this ticket's `depends_on` lists only ANL-008. The routes also edit `web_v2/api.py` and `schemas.py`, which IMP-007E, IMP-007U, APP-011I and APP-011E change under the `identity-api` resource.
    - (a) Add IMP-007E to `depends_on` and `identity-api` to `resources`. The ticket is built after IMP-007E merges, and it moves from step 2 to step 3 of ROADMAP.md "Step 1". ANL-012B builds against a mocked contract, so it does not wait. The gated "may start after ANL-008" refers to not waiting for MKT-009, and it does not change.
@@ -795,6 +813,13 @@ None open. On 2026-11-22 the owner answered items 1 to 3 with "Accept all recomm
 4. **Which version of an account or instrument a row shows.** Raised by the builder at Part C. Facts pin `(id, version)`, but a position keeps only the IDs, and two facts of one position could pin different versions.
    - The owner's choice, as the builder's Log on the claim branch records it for 2026-11-26: "go C". Analysis shows the current account and instrument names, and historical facts keep their source-pinned metadata.
    - Resolved: Part C, "Entity metadata", implements that choice with three rules: the lookup, the invalidation and the fallback. The numbers stay on the pinned versions, and only display fields can differ. No gated text changes.
+
+5. **How the AC-02 oracle compares a total that terminates but is summed from rows that do not.** Raised by the builder at Part C. Part C emits the calculated `Decimal` without rounding. In G07, USD 800 converts to TWD 25600 exactly, but CAD 600 and CAD 2200 each give a non-terminating TWD amount at the fixture rates. Summed in the 120-digit context, the TWD `/total` cost is 89600 plus 1E-115, so the exact literal `TWD 89600` fails the rule for terminating values.
+   - (a) Keep the API value and clarify the test comparison. A figure summed from converted rows is compared at 18 places even when its true value terminates. Only the acceptance comparison changes.
+   - (b) Sum the native amounts per currency before converting. This fixture would then be exact, but a total could differ from the sum of its converted rows at wire precision. It changes `calculate`, which "Do not touch" forbids, and needs a new plan.
+   - Recommendation: (a).
+   - The owner's choice, given on 2026-11-26 in Chinese with the request to plan this ticket and relayed by the coordinating session (in English): "clarify the acceptance comparison rule for the G07 currency-exchange rounding tail, keeping the API result unrounded."
+   - Resolved: (a). "Tests and expected values" now has a comparison rule keyed on how each literal is written, and the TWD cost literal has 18 fractional digits. (b) is not taken. No calculation, DTO or wire value changes, and no gated text changes. AC-02's "equals the oracle" is read through this comparison rule, as the Build plan already read it for non-terminating values.
 
 Answered earlier: on 2026-11-10 the owner answered yes: the first version may value securities from the import's own market values, marked "as of the source file", or from a live quote where the MKT-009A adapter is enabled. This plan uses the source values. Stored quotes arrive with MKT-009B, whose Requirements already wire them into this contract.
 
