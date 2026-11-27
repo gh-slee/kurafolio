@@ -2,7 +2,7 @@
 id: ANL-012A
 title: Define the V2 analysis read contract for securities, crypto and total
 priority: P0
-status: in_progress
+status: blocked
 type: feature
 parent: ANL-012
 depends_on: [ANL-008, IMP-007E]
@@ -775,7 +775,7 @@ The opt-in PostgreSQL run uses the isolated environment of the claim (see `docs/
 - [x] Build plan amended for the oracle comparison rule (2026-11-26, item 5).
 - [ ] The comparison amendment pull request merges.
 - [x] Part A: reference inputs and `tests/test_projection_references.py`.
-- [ ] Part B: calculator helpers; the ANL-008 tests pass unchanged.
+- [x] Part B: calculator helpers; the ANL-008 tests pass unchanged.
 - [ ] Part C: DTOs and `build_document`, with the pure oracles for AC-01 to AC-03 and the cache test for AC-04.
 - [ ] Part D: service, routes and Boundary changes, with the default-suite Boundary and OpenAPI tests for AC-04 and AC-05 and the PostgreSQL HTTP tests for AC-01, AC-02, AC-04 and AC-05.
 - [ ] Part E: schema export, generated types and docs; export test for AC-05.
@@ -825,12 +825,11 @@ Answered earlier: on 2026-11-10 the owner answered yes: the first version may va
 
 ## Handoff
 
-- State: Claimed by codex/gpt-6.2-sol from origin/main at 0b7d03c49. Gate A matches. IMP-007E is done, and the ingestion profile supports scoped read-only transactions on 0004.
-- Next step: Refactor the calculator helpers in Part B and run the unchanged ANL-008 tests.
-- Part A: Eight synthetic reference tests passed, covering source parsing, cache windows, failure isolation and concurrent refresh.
-- Verify: `PYTHONPATH=src .venv/bin/python -m unittest tests.test_web_v2_api -v` with the opt-in identity environment from [web-v2-identity.md](../docs/web-v2-identity.md)
-- Gotchas: Real-PostgreSQL tests need the explicit isolated environment; a skipped test is not acceptance.
-- Open questions: None.
+- State: Blocked at Part C. Parts A and B provide the reference snapshot providers and calculator helpers. The approved spec still matches origin/main at 0b7d03c49.
+- Next step: Planner and owner decide which entity version an analysis row displays. Then resume at the Part C DTOs and document builder.
+- Verify: `PYTHONPATH=src:tests python -m unittest tests.test_projection_references tests.test_projection_positions -v` passed 36 tests. `KURAFOLIO_INGESTION_TEST=1 PYTHONPATH=src:tests python -m unittest tests.test_projection_accepted_postgres -v` passed four tests with one existing optional effects skip on isolated PostgreSQL. The run used the locked PostgreSQL test dependencies.
+- Gotchas: The accepted reader uses the version pinned by each fact. An ID-only lookup in the DTO can select the wrong label when more than one version exists. The analysis routes and their acceptance tests still need implementation.
+- Open question: See Decisions needed for the account and instrument version rule.
 
 ## Log
 
@@ -850,3 +849,4 @@ Answered earlier: on 2026-11-10 the owner answered yes: the first version may va
 - 2026-11-26 claude-code/opus-5.5: on the owner's request "plan ANL-012A" to clarify the acceptance comparison for the G07 exchange rounding tail while the API keeps its unrounded result (given in Chinese, quoted here in English), amended the Build plan from `main` at `9503737` in plan pull request #125 (https://github.com/gh-slee/kurafolio/pull/125). Added the literal-keyed comparison rule in "Tests and expected values", rewrote the AC-02 TWD `/total` cost as `89600.000000000000000000`, added a no-rounding test and a Stop-and-ask item, and recorded Decisions needed item 5 as resolved with option (a). Gated sections, front matter, Handoff, `gate_approval` and `spec_approved` are unchanged; the spec hash still matches.
 - 2026-11-26 codex/gpt-6.2-sol: claimed the build after verifying the approved spec, the merged Build plan, and the ingestion prerequisite.
 - 2026-11-26 codex/gpt-6.2-sol: implemented the reference snapshot providers and passed eight synthetic reference tests.
+- 2026-11-26 codex/gpt-6.2-sol: completed the calculator helper refactor and passed the unchanged ANL-008 calculator and scoped read tests. Blocked at Part C to obtain the entity metadata version rule.

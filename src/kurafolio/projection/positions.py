@@ -4,11 +4,13 @@ from decimal import (Context, Decimal, DivisionByZero, InvalidOperation, Overflo
                      ROUND_HALF_EVEN, localcontext)
 
 from kurafolio.market.contract import Listing
-from .model import (Calculation, ClassResult, CryptoSummary, EXCLUDED_CODES, Gap,
-                    Money, ObservationResult, PositionResult, calculation_id)
+from .model import (AcceptedState, ActivityFact, Calculation, ClassResult,
+                    CountedActivity, CryptoSummary, EXCLUDED_CODES, FxTable, Gap,
+                    Leg, Money, ObservationResult, PositionResult, calculation_id)
 
-_ARITHMETIC = Context(prec=120, rounding=ROUND_HALF_EVEN,
-                      traps=[InvalidOperation, DivisionByZero, Overflow])
+ARITHMETIC = Context(prec=120, rounding=ROUND_HALF_EVEN,
+                     traps=[InvalidOperation, DivisionByZero, Overflow])
+_ARITHMETIC = ARITHMETIC
 _ZERO = Decimal(0)
 
 
@@ -19,6 +21,62 @@ def _time_token(value):
 def _btc_equivalent(instrument):
     return (instrument.symbol == 'BTC' and instrument.network == 'bitcoin'
             or instrument.symbol == 'LBTC' and instrument.network == 'liquid')
+
+
+def convert_money(money: Money, currency: str, fx: FxTable | None) -> Decimal | None:
+    """Convert under the caller's arithmetic context using the table's pivot."""
+    if money.currency == currency:
+        return money.amount
+    if fx is None:
+        return None
+    source = Decimal(1) if money.currency == fx.pivot else fx.per_pivot.get(money.currency)
+    target = Decimal(1) if currency == fx.pivot else fx.per_pivot.get(currency)
+    if source is None or target is None:
+        return None
+    return money.amount / source * target
+
+
+def _classify(fact: ActivityFact) -> tuple[str | None, tuple[Leg, ...]]:
+    if not fact.active:
+        return 'void', ()
+    if fact.mirror:
+        return 'mirror', ()
+    if fact.kind not in ('BUY', 'SELL'):
+        code = 'unsupported' if fact.kind in ('CORPORATE_ACTION', 'UNSUPPORTED') else 'not_acquisition'
+        return code, ()
+    if fact.status in ('pending', 'cancelled'):
+        return fact.status, ()
+    if fact.status != 'completed' or fact.unsupported_reasons:
+        return 'unsupported', ()
+    eligible = tuple(leg for leg in fact.legs if leg.instrument.kind == 'CRYPTO' and (
+        leg.quantity > 0 and leg.role == 'ACQUISITION' if fact.kind == 'BUY'
+        else leg.quantity < 0 and leg.role != 'FEE'))
+    if not eligible:
+        return ('non_crypto_purchase' if fact.kind == 'BUY' else 'sale_shape_unsupported'), ()
+    return None, eligible
+
+
+def _legs_by_position(legs):
+    groups = defaultdict(list)
+    for leg in legs:
+        groups[(leg.account.id, leg.instrument.id)].append(leg)
+    return groups
+
+
+def counted_activities(state: AcceptedState) -> tuple[CountedActivity, ...]:
+    """Return the grouped BUY and SELL legs the calculator counts."""
+    result = []
+    with localcontext(ARITHMETIC):
+        for fact in sorted(state.activities, key=lambda item: item.economic_group_id):
+            excluded, eligible = _classify(fact)
+            if excluded is not None:
+                continue
+            cost = fact.acquisition_cost if fact.kind == 'BUY' else None
+            for (account_id, instrument_id), legs in sorted(_legs_by_position(eligible).items()):
+                quantity = sum((leg.quantity for leg in legs), _ZERO)
+                result.append(CountedActivity(fact.economic_group_id, fact.kind, account_id,
+                    instrument_id, quantity, cost, fact.occurred_at, fact.has_crypto_fee))
+    return tuple(result)
 
 
 def calculate(state, inputs) -> Calculation:
@@ -45,18 +103,10 @@ def _calculate(state, inputs):
     def convert(money, currency, account, instrument):
         if money is None:
             return None
-        if money.currency == currency:
-            return money.amount
-        fx = inputs.fx
-        if fx is None:
+        converted = convert_money(money, currency, inputs.fx)
+        if converted is None:
             gap('fx_unavailable', account, instrument)
-            return None
-        source = Decimal(1) if money.currency == fx.pivot else fx.per_pivot.get(money.currency)
-        target = Decimal(1) if currency == fx.pivot else fx.per_pivot.get(currency)
-        if source is None or target is None:
-            gap('fx_unavailable', account, instrument)
-            return None
-        return money.amount / source * target
+        return converted
 
     def result(asset_class, account, instrument, quantity, value, basis, as_of,
                cost, book_cost=None, codes=(), gain=None, cost_status=None, btc=False, known_zero=False):
@@ -153,30 +203,13 @@ def _calculate(state, inputs):
 
     groups = {}
     for fact in sorted(state.activities, key=lambda item: item.economic_group_id):
-        if not fact.active:
-            excluded['void'] += 1
-            continue
-        if fact.mirror:
-            excluded['mirror'] += 1
-            continue
-        if fact.kind not in ('BUY', 'SELL'):
-            excluded['unsupported' if fact.kind in ('CORPORATE_ACTION', 'UNSUPPORTED') else 'not_acquisition'] += 1
-            continue
-        if fact.status in ('pending', 'cancelled'):
-            excluded[fact.status] += 1
-            continue
-        if fact.status != 'completed' or fact.unsupported_reasons:
-            excluded['unsupported'] += 1
-            continue
-        eligible = [leg for leg in fact.legs if leg.instrument.kind == 'CRYPTO' and (
-            leg.quantity > 0 and leg.role == 'ACQUISITION' if fact.kind == 'BUY'
-            else leg.quantity < 0 and leg.role != 'FEE')]
-        if not eligible:
-            if fact.kind == 'BUY':
-                excluded['non_crypto_purchase'] += 1
-            else:
-                gap('sale_shape_unsupported', fact.source_account.id)
+        code, eligible = _classify(fact)
+        if code is not None:
+            if code == 'sale_shape_unsupported':
+                gap(code, fact.source_account.id)
                 sale_shape_gap = True
+            else:
+                excluded[code] += 1
             continue
         if fact.has_crypto_fee:
             assumptions.add('crypto_fees_not_deducted')
@@ -186,10 +219,7 @@ def _calculate(state, inputs):
             sales_counted_count += 1
             assumptions.add('sales_counted')
         # One activity may list several acquisition legs in the same position.
-        by_key = defaultdict(list)
-        for leg in eligible:
-            by_key[(leg.account.id, leg.instrument.id)].append(leg)
-        for key, legs in by_key.items():
+        for key, legs in _legs_by_position(eligible).items():
             group = groups.setdefault(key, {'account': legs[0].account, 'instrument': legs[0].instrument,
                 'purchased': _ZERO, 'sold': _ZERO, 'costs': [], 'sales': False})
             quantity = sum((leg.quantity for leg in legs), _ZERO)

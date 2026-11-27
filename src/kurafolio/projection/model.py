@@ -97,6 +97,18 @@ class ActivityFact:
 
 
 @dataclass(frozen=True, slots=True)
+class CountedActivity:
+    economic_group_id: str
+    kind: str
+    account_id: str
+    instrument_id: str
+    quantity: Decimal
+    cost: Money | None
+    occurred_at: dict
+    has_crypto_fee: bool
+
+
+@dataclass(frozen=True, slots=True)
 class AcceptedState:
     tenant_id: str
     portfolio_id: str
