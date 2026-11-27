@@ -825,11 +825,11 @@ Answered earlier: on 2026-11-10 the owner answered yes: the first version may va
 
 ## Handoff
 
-- State: Blocked at Part C pending a Build plan amendment. Parts A and B provide the reference snapshot providers and calculator helpers. The owner chose to show current account and instrument names in analysis and to retain the source-pinned metadata on historical facts.
-- Next step: The planner specifies the current-version lookup, cache invalidation when display metadata changes, and the fallback for missing or deleted current metadata. Resume Part C after the amended Build plan merges to main.
-- Verify: `PYTHONPATH=src:tests python -m unittest tests.test_projection_references tests.test_projection_positions -v` passed 36 tests. `KURAFOLIO_INGESTION_TEST=1 PYTHONPATH=src:tests python -m unittest tests.test_projection_accepted_postgres -v` passed four tests with one existing optional effects skip on isolated PostgreSQL. The run used the locked PostgreSQL test dependencies.
-- Gotchas: The accepted reader uses the version pinned by each fact, and the calculator groups by entity IDs. Analysis routes and their acceptance tests still need implementation.
-- Open questions: The display policy is decided. The current-version lookup, cache invalidation and fallback behavior await the amended Build plan.
+- State: Blocked during Part C on the G07 TWD cost oracle. The owner transferred the claim after confirming the previous writer had stopped, and the branch now includes the merged metadata amendment (#123). Parts A and B are unchanged. The current entity resolver and its pure tests are in place.
+- Next step: The planner clarifies the comparison or aggregation rule under Decisions needed. Resume Part C when the amendment merges. Document construction, route integration and schema export remain pending.
+- Verify: The 41 focused entity, reference and ANL-008 calculation tests passed. A synthetic reproduction using the existing fixture, `calculate`, `convert_money` and `localcontext(ARITHMETIC)` confirms the exact TWD difference is 1E-115. The prior PostgreSQL reader run passed four tests and skipped one optional effects test. The new metadata reader has not run against PostgreSQL.
+- Gotchas: The resolver does not change the metadata pinned by accepted facts. No amount is rounded or recomputed to make the oracle pass.
+- Open questions: See the open G07 TWD cost comparison question under Decisions needed.
 
 ## Log
 
@@ -851,3 +851,5 @@ Answered earlier: on 2026-11-10 the owner answered yes: the first version may va
 - 2026-11-26 codex/gpt-6.2-sol: implemented the reference snapshot providers and passed eight synthetic reference tests.
 - 2026-11-26 codex/gpt-6.2-sol: completed the calculator helper refactor and passed the unchanged ANL-008 calculator and scoped read tests. Blocked at Part C to obtain the entity metadata version rule.
 - 2026-11-26 codex/gpt-6.2-sol: the owner replied "go C", choosing current account and instrument names for analysis while retaining the source-pinned metadata on historical facts. The build remains blocked until the amended Build plan merges.
+- 2026-11-26 codex/gpt-6.2-sol: resumed the existing claim with the owner-approved transfer and rebased Parts A and B onto #123. The projection source and reference tests are unchanged by the rebase.
+- 2026-11-26 codex/gpt-6.2-sol: added the current entity resolver and passed its five pure tests alongside the 36 existing reference and calculator tests. Blocked at the G07 TWD cost oracle because per-row conversions under the required decimal context give 89600 plus 1E-115.
