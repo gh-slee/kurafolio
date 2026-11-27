@@ -2,7 +2,7 @@
 id: ANL-012A
 title: Define the V2 analysis read contract for securities, crypto and total
 priority: P0
-status: ready
+status: in_progress
 type: feature
 parent: ANL-012
 depends_on: [ANL-008, IMP-007E]
@@ -13,11 +13,11 @@ agent_tier: frontier
 gate: owner
 gate_approval: "owner 2026-11-10, V2 MVP scope as written in this ticket"
 review: independent
-branch:
+branch: ticket/anl-012a-define-the-v2-analysis-read-contract-for
 pr:
 spec:
 spec_approved: sha256:53db5ddc3a935a30bdbdefb6bc5d90d43426429e417c2ebb3db32784d205d4ee
-updated: 2026-11-22
+updated: 2026-11-26
 ---
 
 # ANL-012A: Define the V2 analysis read contract for securities, crypto and total
@@ -825,8 +825,8 @@ Answered earlier: on 2026-11-10 the owner answered yes: the first version may va
 
 ## Handoff
 
-- State: Not started. Gate A recorded 2026-11-10. ANL-008 is done. The Build plan and the owner's answers of 2026-11-22 merged in #106; the owner chose to wait on IMP-007E for the ingestion runtime profile.
-- Next step: After IMP-007E is done, claim the ticket and follow the Build plan on `main`.
+- State: Claimed by codex/gpt-6.2-sol from origin/main at 0b7d03c49. Gate A matches. IMP-007E is done, and the ingestion profile supports scoped read-only transactions on 0004.
+- Next step: Build the reference inputs and tests in Part A.
 - Verify: `PYTHONPATH=src .venv/bin/python -m unittest tests.test_web_v2_api -v` with the opt-in identity environment from [web-v2-identity.md](../docs/web-v2-identity.md)
 - Gotchas: Real-PostgreSQL tests need the explicit isolated environment; a skipped test is not acceptance.
 - Open questions: None.
@@ -847,3 +847,4 @@ Answered earlier: on 2026-11-10 the owner answered yes: the first version may va
 - 2026-11-26 claude-code/opus-5.5: on the owner's request "plan ANL-012A", rechecked the Build plan against `main` at `574896b` after IMP-007E merged (#115), in plan pull request #122 (https://github.com/gh-slee/kurafolio/pull/122). Updated the Context findings, Part D (Boundary lookup, query-key check and no `admit` for analysis; lazy database access in `create_app`), the OpenAPI component-name rule, the test split between the default suite and PostgreSQL, Stop-and-ask, Verify and the Plan steps. Gated sections, front matter, `gate_approval` and `spec_approved` are unchanged; the spec hash still matches. Decisions needed stays at none open.
 - 2026-11-26 claude-code/opus-5.5: on the owner's request to revise the Build plan so that the builder can continue Part C, amended the plan from `main` at `d3588b2` in plan pull request #123 (https://github.com/gh-slee/kurafolio/pull/123). Added the Context findings on entity metadata, Part C "Entity metadata" (current-version lookup, invalidation through `mapping_generation`, fallback for missing metadata), the Part D transaction and cache-key changes, tests, the opt-in mapping-row seed, Stop-and-ask items, the Plan steps and the resolved Decisions needed item 4, which records the owner's "go C" from the builder's Log. Gated sections, front matter, Handoff, `gate_approval` and `spec_approved` are unchanged; the spec hash still matches.
 - 2026-11-26 claude-code/opus-5.5: on the owner's request "plan ANL-012A" to clarify the acceptance comparison for the G07 exchange rounding tail while the API keeps its unrounded result (given in Chinese, quoted here in English), amended the Build plan from `main` at `9503737` in plan pull request #125 (https://github.com/gh-slee/kurafolio/pull/125). Added the literal-keyed comparison rule in "Tests and expected values", rewrote the AC-02 TWD `/total` cost as `89600.000000000000000000`, added a no-rounding test and a Stop-and-ask item, and recorded Decisions needed item 5 as resolved with option (a). Gated sections, front matter, Handoff, `gate_approval` and `spec_approved` are unchanged; the spec hash still matches.
+- 2026-11-26 codex/gpt-6.2-sol: claimed the build after verifying the approved spec, the merged Build plan, and the ingestion prerequisite.
