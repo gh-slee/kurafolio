@@ -77,6 +77,17 @@ The three V2 analysis pages need one versioned read contract so they can be buil
   - RPT-013A: an export request carries a calculation identifier and a currency.
   - MKT-009B: Bitcoin is priced "from a price fetched at request time (ANL-012A, first version)".
   - MKT-009D: it adds a daily `value_series` "in a backward-compatible way", although its Context says the first version has "one point per import date". Decisions needed, item 2.
+- Account and instrument metadata (`main` at `d3588b2`, checked 2026-11-26 for Part C):
+  - `wl_pg.accounts` and `wl_pg.instruments` hold one row per `(id, version)`, where the version is the hash of the body. Both tables are frozen: a `BEFORE UPDATE OR DELETE` trigger rejects every change (`persistence/schema.py:185-186`). No route renames or deletes an account or instrument.
+  - Each accepted fact pins an `(id, version)` through its plan's mappings, and `read_accepted_state` resolves the fact to that pinned version (`projection/accepted.py:106`). `PositionResult` keeps only the two IDs. An activity position takes the account and instrument of its first eligible leg (`positions.py:193`).
+  - `wl_ingestion.mappings` is append-only. Accepting a plan appends a mapping revision only when a source identity gets a different target. The same step sets `mapping_changed`, which raises `roots.mapping_generation` by one (`ingestion_schema.py:1643-1658`, `:1778`). That is the only INSERT into the table.
+  - An existing entity is reused only when its identifying fields match the source. For an account these are `category` and `role`. For an instrument they are `kind`, `currency`, `ticker`, `mic`, `symbol`, `network`, `settlement_identity`, the identifiers and the issuer (`ingestion/mapping.py:87`, `ingestion_schema.py:1106`). A label never establishes identity. A proposed entity always gets a newly allocated ID (`ingestion/review_bundle.py:195-205`, `:257`).
+  - So on the merged code each entity ID has exactly one version, and an account's label is fixed when it is first accepted. A second version of one ID can come only from a later feature or a write that bypasses the acceptance functions.
+  - A mapping can be re-pointed: a later plan can map a source identity to a new entity. No current mapping then targets the old ID, but its earlier facts still pin it.
+  - The runtime login has SELECT on `wl_ingestion.mappings` and `wl_ingestion.accepted_plans` (`ingestion_schema.READ_TABLES`) and on `wl_pg.accounts` and `wl_pg.instruments`.
+  - `AnalysisInstrument` has no name field. Every field it carries is an identifying field, which reuse requires to be equal.
+  - The ANL-008 PostgreSQL seed writes mappings only inside the plan document (`tests/test_projection_accepted_postgres.py:140`). It writes no `wl_ingestion.mappings` row.
+  - `RequestDatabase.transaction` yields a `UnitOfWork` with `incarnation` and `restore_epoch` (`persistence/context.py:128`).
 - ROADMAP.md, "V2 MVP first", step 4: the first version takes "Bitcoin from the existing live price; CAD, USD and TWD from the existing daily FX". PRODUCT_CONTEXT.md names the sources: Coinbase Exchange for Bitcoin, the Bank of Canada for USD/CAD and the CBC page for USD/TWD. The existing FX code reads CBC.
 
 ## Requirements
@@ -123,8 +134,8 @@ The three V2 analysis pages need one versioned read contract so they can be buil
 
 ## Build plan
 
-- Based on: `main` at `574896b` ("Add the dedicated import worker and trusted launcher (#116)"). First written from `7d7acc1` in #106; rechecked on 2026-11-26 against the merged IMP-007E (PR #115). ANL-008 and IMP-007E are merged. IMP-007U, APP-011I, APP-011E and MKT-009B are not, and no migration after `0004_ingestion` exists.
-- Status: on 2026-11-22 the owner answered items 1 to 3 under Decisions needed with "Accept all recommended", so this plan implements option (a) of each item as a decided rule. The `depends_on` and `resources` changes of item 1 (a) are in the front matter, with the owner's confirmation in the Log. Both dependencies are `done`. A builder starts when this recheck pull request has merged to `main`.
+- Based on: `main` at `d3588b2` ("Recheck the ANL-012A Build plan against the merged ingestion profile (#122)"). First written from `7d7acc1` in #106 and rechecked on 2026-11-26 against the merged IMP-007E (PR #115) in #122. Amended on 2026-11-26 for the Part C entity metadata rules. No file under `src/` changed between `574896b` and `d3588b2`. ANL-008 and IMP-007E are merged. IMP-007U, APP-011I, APP-011E and MKT-009B are not, and no migration after `0004_ingestion` exists.
+- Status: on 2026-11-22 the owner answered items 1 to 3 under Decisions needed with "Accept all recommended", so this plan implements option (a) of each item as a decided rule. The `depends_on` and `resources` changes of item 1 (a) are in the front matter, with the owner's confirmation in the Log. Both dependencies are `done`. The builder, who has built Parts A and B, resumes Part C when the amendment pull request has merged to `main`.
 
   A question the plan does not answer returns the ticket to the planner.
 - What the recheck changed (no gated text, front matter or `spec_approved` changed):
@@ -133,9 +144,14 @@ The three V2 analysis pages need one versioned read contract so they can be buil
   - Analysis component names must not collide with the import component names that `install_import_openapi` writes.
   - The live OpenAPI check, the 404s on other profiles and the query-key refusals move to the default suite. PostgreSQL keeps the tenant isolation and generation cases.
   - The Stop-and-ask items about the missing profile and harness are removed, because both exist now.
+- What the amendment of 2026-11-26 changed (no gated text, front matter or `spec_approved` changed):
+  - Part C gains "Entity metadata". It sets how a row's account and instrument are looked up, why no extra cache invalidation is needed, and what happens when the current metadata is missing. It implements the owner's "go C" choice (Decisions needed, item 4).
+  - `build_document` takes the resolved entities as an argument. Part C step 2 no longer reads entities from the state by ID.
+  - Part D reads the current entities in the same transaction as the accepted state, and the cache key gains the instance incarnation and restore epoch.
+  - New tests, new Stop-and-ask items and an opt-in mapping-row seed for the PostgreSQL suite.
 - Shape:
   - A reference module fetches the Bitcoin price and two FX pairs at request time. It writes nothing.
-  - A service reads the accepted state once per request, calculates once for the requested currency and builds the response for one of three scopes from that calculation.
+  - A service reads the accepted state and the current entity metadata once per request, calculates once for the requested currency and builds the response for one of three scopes from that calculation.
   - Nothing is persisted. One bounded in-process cache holds recent responses.
   - This ticket adds no table, SQL function, grant, migration or page.
 - Build order:
@@ -149,6 +165,7 @@ The three V2 analysis pages need one versioned read contract so they can be buil
 - `src/kurafolio/projection/references.py` (new): the reference snapshot and its live, fixed and no-fetch providers (Part A).
 - `src/kurafolio/projection/positions.py`: refactor only (Part B). It adds a public `ARITHMETIC`, `convert_money`, and with item 3 (a) the activity eligibility helper and `counted_activities`. No output of `calculate` changes.
 - `src/kurafolio/projection/model.py`: `CountedActivity`, with item 3 (a) only.
+- `src/kurafolio/projection/entities.py` (new): `CurrentEntities`, `read_current_entities` and the pure `resolve_current_entities` (Part C, "Entity metadata").
 - `src/kurafolio/web_v2/analysis.py` (new): `AnalysisService`, the pure `build_document`, the response cache and `install_routes` (Parts C and D).
 - `src/kurafolio/web_v2/schemas.py`: appends the analysis models and the error code `analysis_unavailable` (Part C).
 - `src/kurafolio/web_v2/api.py`: the analysis route table, its query exemption, route registration on the `ingestion` profile and the `references` argument of `create_app` (Part D).
@@ -158,6 +175,7 @@ The three V2 analysis pages need one versioned read contract so they can be buil
   - `tests/test_projection_references.py` (new, default suite).
   - `tests/test_web_v2_analysis.py` (new, default suite).
   - `tests/test_web_v2_analysis_postgres.py` (new, opt-in).
+  - `tests/test_projection_entities.py` (new, default suite) for `resolve_current_entities`.
 - Docs:
   - `docs/web-v2-analysis.md` (new).
   - `docs/web-v2-imports.md`: the positions section links to it.
@@ -365,9 +383,9 @@ class PurchaseRate(Closed):
 
 Every count is a non-negative `int`. Canonical IDs come from PostgreSQL `uuid` columns, so pure tests use UUID strings.
 
-#### `build_document(calculation, state, snapshot, scope, currency, counted=None) -> dict`
+#### `build_document(calculation, state, snapshot, scope, currency, entities, counted=None) -> dict`
 
-This function is pure. Use `localcontext(ARITHMETIC)` for every sum and conversion.
+This function is pure. Use `localcontext(ARITHMETIC)` for every sum and conversion. `entities` is the `CurrentEntities` that Part D reads in the request's transaction; pure tests build it directly.
 
 1. Rows by scope, in `calculation.positions` order:
 
@@ -378,7 +396,7 @@ This function is pure. Use `localcontext(ARITHMETIC)` for every sum and conversi
    | `total` | all |
 
 2. Each row comes from its `PositionResult`:
-   - `account` and `instrument` come from the state's `Account` and `Instrument` with the row's IDs.
+   - `account` and `instrument` come from `entities` under the rules in "Entity metadata" below, never from the state by ID alone.
    - `value` is `PositionResult.value`, and `value_converted` is `values[currency]`.
    - `cost` is `PositionResult.cost`. `cost_converted` is `convert_money(cost, currency, inputs.fx)`, or `None` when the cost is `None`.
    - `unrealized_gain` is `PositionResult.unrealized_gain`, and `unrealized_gain_converted` is `gain_values[currency]`.
@@ -446,6 +464,60 @@ This function is pure. Use `localcontext(ARITHMETIC)` for every sum and conversi
       The rate is then `Amount(sum(cost) / sum(quantity), cost currency)`. It stays in the cost's own currency, because converting a historical rate at today's FX would mislead. Otherwise the rate is null and the reasons are among `cost_unavailable`, `cost_currency_mixed`, `cost_allocation_unresolved` and `no_eligible_acquisitions`.
 11. No `value_series` field is built under item 2 (a). See item 2 for (b) and (c).
 
+#### Entity metadata
+
+The owner chose "go C" on 2026-11-26 (Decisions needed, item 4): analysis shows the current account and instrument metadata, and the facts keep the version they pinned. The numbers always come from the pinned versions, because the calculator reads those. The rules below only pick what the `account` and `instrument` objects of a row show. Context, "Account and instrument metadata", has the findings they rest on.
+
+`projection/entities.py` (new):
+
+```python
+@dataclass(frozen=True, slots=True)
+class CurrentEntities:
+    accounts: Mapping[str, Account]        # by entity ID
+    instruments: Mapping[str, Instrument]  # by entity ID
+
+def read_current_entities(connection, context: TenantContext) -> CurrentEntities: ...
+def resolve_current_entities(mappings, plans, accounts, instruments) -> CurrentEntities: ...
+```
+
+Rule 1: the lookup.
+
+- `read_current_entities` runs SELECTs only. It is called inside the transaction of `read_accepted_state`, right after it, so the metadata and the generations come from one snapshot.
+  - It checks the four transaction settings as `_read` does (`accepted.py:43-51`) and raises the same `projection_snapshot_required` or `projection_scope_mismatch`.
+  - Every query filters by the same `tenant_id` and `portfolio_id` literals as the reader's `rows()` (`accepted.py:65`).
+  - It reads `wl_ingestion.mappings` (`id, revision, entity_kind, entity_id, entity_version, plan_id`) for `entity_kind` in `account` and `instrument`, `wl_ingestion.accepted_plans` (`id, created_at`), and `wl_pg.accounts` and `wl_pg.instruments` with the reader's columns.
+  - It passes the rows to the pure `resolve_current_entities`. Any other failure raises `projection_reference_missing`, as the reader does.
+  - `read_accepted_state` does not change.
+- `resolve_current_entities` picks one version for each entity ID that any mapping row targets. It orders mapping rows by the plan's `(created_at, id)`, the order the reader uses, then by mapping `revision`, then by mapping `id` in C order. It takes the last row of that order:
+  1. among the current mapping rows that target the ID (the highest `revision` of each mapping `id`);
+  2. or, when no current mapping targets the ID (re-pointed), among every mapping row that ever targeted it.
+- The chosen `(id, version)` must exist in the entity rows, and its `plan_id` in the plans. Otherwise it raises `projection_reference_missing`. The foreign keys make this unreachable on a consistent database.
+- An ID that no mapping row targets is absent from the result. Only storage written around the acceptance functions can produce one.
+
+For each row, `build_document` collects the pinned versions of the row's account ID and instrument ID from `state`: head accounts, position accounts and instruments, activity source accounts, and leg accounts and instruments. It then resolves each entity:
+
+- The shown version is `entities.<kind>[id]`. When the ID is absent (rule 3), it is the single pinned version.
+- Identity check: the shown version and every pinned version must agree on the identifying fields. For an account that is `role` and `category`. For an instrument it is `kind`, `currency`, `ticker`, `mic`, `symbol`, `network` and `settlement_identity`. A disagreement raises `ProjectionUnavailable('projection_head_inconsistent')`. The merged code cannot produce one.
+- `AnalysisAccount`: `id`, `role` and `category` (equal on every version by the check), and `label` from the shown version. The label is the only field that can differ between versions.
+- `AnalysisInstrument`: every field from the shown version. By the check, these equal the pinned fields the calculator used, so a row never contradicts its own figures.
+- No instrument name (issuer label or source descriptor) is added. No consumer ticket asks for one.
+
+Rule 2: invalidation.
+
+- An account's label, or which version is current, can change only when a mapping revision is appended, because the entity rows are frozen. That append raises `mapping_generation` in the same acceptance step.
+- The cache key and `calculation_id` already include `mapping_generation`. So a metadata change always gives a cache miss and a new `calculation_id`. No other invalidation, TTL or stored copy is added, and the `calculation_id` formula does not change. RPT-013A, which pins a calculation, therefore pins the metadata too.
+- Part D adds `unit.incarnation` and `unit.restore_epoch` to the cache key. A restore can reuse generation numbers, and a session signed in after it would otherwise hit an entry built before it.
+- The direct PostgreSQL seed bypasses the acceptance functions. A test that changes metadata must append the mapping revision and raise `roots.mapping_generation` itself, or it proves nothing.
+
+Rule 3: missing or deleted metadata.
+
+- No row is ever deleted: entity rows and mappings are frozen, and mappings reference the entity rows by foreign key.
+- "No current metadata" means that every mapping that targeted the ID has been re-pointed. Rule 1, step 2, then shows the version that the newest of those mapping rows targeted. On the merged code that is the pinned version.
+- An ID absent from `entities` uses its pinned version when the state pins exactly one. When the state pins several, `build_document` raises `ProjectionUnavailable('projection_reference_missing')`. The response is then 503 `analysis_unavailable`, and nothing is cached.
+- Fields are passed through as stored. A null `ticker`, `mic`, `symbol`, `network` or `currency` stays null, and an empty `label` stays `""`.
+- The server never fills a name with the UUID, another version's value, another entity's value or a placeholder string. Display text for an empty name belongs to the pages (ANL-012B to 012D) and their locale catalogs.
+- The contract adds no field for the metadata source, so the AC-05 property lists do not change.
+
 ### Part D: service, cache and routes
 
 `web_v2/analysis.py`:
@@ -466,11 +538,12 @@ def install_routes(app, service_of, errors) -> None: ...
 1. `snapshot = references.snapshot()`, before any database work. No network wait happens inside a transaction; the transaction timeout is 5 s.
 2. Open `RequestDatabase(database_of(), principal).transaction(principal.context, readonly=True)`, then call `read_accepted_state(unit.connection, principal.context)`. The merged `ingestion` profile accepts this (Context, "Findings"). The realm check is the first read, and the transaction runs only the reader's SELECTs.
    - `database_of` is a zero-argument callable that returns the financial `Database`. It is called on each read, never in `__init__`.
+   - In the same transaction, call `entities = read_current_entities(unit.connection, principal.context)` (Part C, "Entity metadata"). Keep `unit.incarnation` and `unit.restore_epoch`.
 3. Set `inputs = snapshot.inputs(currency)` and `identifier = calculation_id(state, inputs)`.
-4. Build the cache key: `(principal.user_id, tenant_id, portfolio_id, scope, currency, state.accepted_generation, state.mapping_generation, identifier)`.
+4. Build the cache key: `(principal.user_id, tenant_id, portfolio_id, unit.incarnation, unit.restore_epoch, scope, currency, state.accepted_generation, state.mapping_generation, identifier)`.
 5. On a hit, return the cached document. On a miss:
    - call `calculate(state, inputs)`, and `counted_activities(state)` with item 3 (a);
-   - call `build_document`;
+   - call `build_document` with `entities`. A `ProjectionUnavailable` it raises maps as in the table below and is not cached;
    - validate the result with the scope's model;
    - store it.
 
@@ -578,9 +651,16 @@ A non-terminating value is compared at 18 decimal places with `quantize`, and it
 | 03 | No CAD rate | CAD `/total`: `partial`, known 800 (DEMO-B only), complete null, [`fx_unavailable`]. USD `/total`: `partial`, known 2800, complete null, [`fx_unavailable`]; only row B lacks its value. |
 | 03 | No BTC quote | `/crypto` value `unavailable` [`quote_unavailable`], quantity `0.030`, `crypto.state` `tracked`. `/total` CAD: known 2200, complete null. `references.btc.status` is `unavailable`. |
 | 03 | Cost of y unknown | The crypto row cost is null with `cost_unavailable`, so the `/crypto` cost figure is `unavailable` [`cost_unavailable`]. With item 3 (a): `spending` `partial`, known CAD 700, 1 of 2 counted; `purchase_rate` `unavailable` [`cost_unavailable`]. |
-| 04 | PostgreSQL: users A and B in separate tenants with different synthetic holdings | A gets A's literals and B gets B's. Neither response contains the other's account labels, instrument IDs or amounts. `?currency=CAD&portfolio_id=<B>` returns 422 `invalid_input`. A read after B's still returns A's values. No session returns 401. |
+| 04 | PostgreSQL: users A and B in separate tenants with different synthetic holdings and distinct account labels | A gets A's literals and B gets B's. Neither response contains the other's account labels, instrument IDs or amounts. `?currency=CAD&portfolio_id=<B>` returns 422 `invalid_input`. A read after B's still returns A's values. No session returns 401. |
 | 04 | Default suite: the Boundary, with `Auth` patched as in `tests/test_web_v2_imports.py` and a recording stub service | `?currency=CAD&portfolio_id=<B>`, `&user_id=<B>`, `&tenant_id=<B>`, a repeated `currency`, a missing `currency` and an unknown key each return 422 `invalid_input`, and the stub service is never called. No session returns 401 before any query check. No analysis request calls `admit`. |
-| 04 | Pure: the cache | Two principals with equal generations and equal inputs get separate entries and documents. Changing the currency or a generation misses the cache. |
+| 04 | Pure: the cache | Two principals with equal generations and equal inputs get separate entries and documents. Changing the currency, a generation, the incarnation or the restore epoch misses the cache. |
+| 01 | Pure: entity metadata. Account A is pinned at v1 (label "Old") by BUY x and at v2 (label "New", same role and category) by BUY y; `entities` holds v2 | One crypto row for A, with label "New". Every amount equals the G07 oracle above. |
+| 01 | Pure: A absent from `entities`, one pinned version | The row shows the pinned label. |
+| 01 | Pure: A absent from `entities`, two pinned versions | `ProjectionUnavailable('projection_reference_missing')`; the service answers 503 `analysis_unavailable` and caches nothing. |
+| 01 | Pure: the shown account's `role`, or the shown instrument's `kind`, differs from a pinned version | `ProjectionUnavailable('projection_head_inconsistent')`. |
+| 01 | Pure: a null `ticker` and an empty label | They arrive as `null` and `""`. No `label` equals any UUID in the document. |
+| 01 | PostgreSQL: metadata rename | Seed with mapping rows. Append account v2 with a new label and revision 2 of A's mapping, and raise `mapping_generation` by one. The next read shows the new label and `fact_generation.mapping` g + 1, has a new `calculation_id` and is not served from the cache. Every amount is unchanged. |
+| 01 | PostgreSQL: re-pointed mapping | Append revision 2 of A's only mapping targeting another account, and raise `mapping_generation`. A's rows show A's own label (rule 1, step 2). |
 | 05 | Export (default suite) | The three paths are GET with a required `currency` enum of CAD, USD and TWD. The response component property sets equal a literal list in the test. Every `DecimalString` property is `type: string` with the pattern. A walk finds no `number` type. The only `integer` properties are `contract_version`, `counted_count`, `position_count`, `purchases_counted`, `sales_counted_count` and the `excluded` values. The export equals `tests/fixtures/web_v2/analysis-openapi.json` byte for byte. |
 | 05 | Default suite: live OpenAPI, with `Auth` patched | `/api/v2/openapi.json` on `ingestion` contains the same three paths and component schemas as the export, and the import operations and components stay as `test_ac_01_openapi_frozen_schema_equality` expects. On `identity` and `sources` it contains none of the analysis paths, and they return 404 `not_found`. |
 | 05 | Default suite: component names | The analysis component names and the import component names are disjoint. |
@@ -596,6 +676,7 @@ Also in the default suite:
   - only the three hosts are requested, each with timeout 4;
   - nothing is written to a temporary working directory, and no value appears in the captured logs;
   - `inputs()` maps to `FxTable('USD', …)`, with its oldest date as `as_of`, or to `None` when there is no rate.
+- `tests/test_projection_entities.py`, on synthetic rows: a current mapping wins over an older revision of the same mapping; across mapping IDs the newest plan wins; within one plan, the higher revision and then the mapping ID decide; a re-pointed ID takes the newest row that ever targeted it; a missing entity row or plan raises `projection_reference_missing`; an ID with no mapping row is absent.
 - `tests/test_web_v2_analysis.py`, besides the oracles:
   - every `ProjectionUnavailable` code and a `PersistenceError` map to the status and code in Part D;
   - a failing `References` never becomes 500;
@@ -607,6 +688,7 @@ Also in the default suite:
 - PostgreSQL HTTP tests (`tests/test_web_v2_analysis_postgres.py`, skipped unless `KURAFOLIO_INGESTION_TEST=1`):
   - Build the app as `tests/test_postgres_import_routes.py` does: a disposable database per test class or test, `migrate_sources` then `migrate_ingestion` with a synthetic worker role, `ready=true`, then `create_app(Settings(..., schema_profile='ingestion', worker_role=...), references=FixedReferences(snapshot))`. Sign in through the real login route.
   - Seed accepted facts through the operator connection as `ProjectionAcceptedPostgresTests.seed` does. Moving that seeding into a shared support module under `tests/` is allowed if its behaviour stays the same and both existing PostgreSQL suites still pass.
+  - The analysis suite also needs `wl_ingestion.mappings` rows. Without them every row would use the rule 3 fallback. Add an opt-in `mapping_rows=True` to the seed that writes one row per entity: revision 1, the seed's plan ID, a synthetic `connection_id` and `source_key`, and the entity's `(id, version)`. The default stays off, so the ANL-008 suite runs unchanged. The metadata cases append rows through the operator connection and raise `roots.mapping_generation` themselves.
   - Use the claim's `isolation_id` and `port_base`. A skipped test is not acceptance.
 - Every test names its acceptance ID.
 
@@ -645,6 +727,9 @@ The change is code only: no schema, migration, grant or stored data. Reverting t
 - Any of the three reference sources needs a key, refuses the request or changes its format.
 - An existing test in `tests/test_web_v2_imports.py`, `tests/test_web_v2_api.py` or `tests/test_postgres_import_routes.py` has to change.
 - An analysis component name would have to collide with an import component name.
+- A fixture built through the acceptance functions gives one entity ID two versions, or fails the identity check in "Entity metadata".
+- A consumer or a reviewer requires an instrument name field, a field saying which metadata version is shown, or a typed "unavailable" in place of the 503 of rule 3. Each of these changes the contract.
+- `read_current_entities` would need a column or table outside the runtime grants named in Context.
 
 ### Verify
 
@@ -668,7 +753,9 @@ The opt-in PostgreSQL run uses the isolated environment of the claim (see `docs/
 - [x] Owner answers Decisions needed items 1 to 3 (2026-11-22, "Accept all recommended": option (a) of each).
 - [x] IMP-007E is `done` (PR #115).
 - [x] Build plan rechecked against `main` at `574896b`.
-- [ ] The recheck pull request merges.
+- [x] The recheck pull request merges (#122).
+- [x] Build plan amended for the Part C entity metadata rules (2026-11-26).
+- [ ] The amendment pull request merges.
 - [ ] Part A: reference inputs and `tests/test_projection_references.py`.
 - [ ] Part B: calculator helpers; the ANL-008 tests pass unchanged.
 - [ ] Part C: DTOs and `build_document`, with the pure oracles for AC-01 to AC-03 and the cache test for AC-04.
@@ -678,7 +765,7 @@ The opt-in PostgreSQL run uses the isolated environment of the claim (see `docs/
 
 ## Decisions needed
 
-None open. On 2026-11-22 the owner answered items 1 to 3 with "Accept all recommended". The recheck of 2026-11-26 found that item 1 (a) is now satisfied: IMP-007E merged in #115 with the `ingestion` profile, and the recheck raised no new question. Each item below keeps its question and options for the record and states the option taken; the Build plan implements each as a rule.
+None open. On 2026-11-22 the owner answered items 1 to 3 with "Accept all recommended". The recheck of 2026-11-26 found that item 1 (a) is now satisfied: IMP-007E merged in #115 with the `ingestion` profile, and the recheck raised no new question. Item 4 was raised and answered during the build on 2026-11-26. Each item below keeps its question and options for the record and states the option taken; the Build plan implements each as a rule.
 
 1. **The routes need the `ingestion` runtime profile.** Accepted facts exist only in a `0004_ingestion` database, and no profile on `main` serves one (Context, "Findings"). IMP-007E Part A adds that profile, but this ticket's `depends_on` lists only ANL-008. The routes also edit `web_v2/api.py` and `schemas.py`, which IMP-007E, IMP-007U, APP-011I and APP-011E change under the `identity-api` resource.
    - (a) Add IMP-007E to `depends_on` and `identity-api` to `resources`. The ticket is built after IMP-007E merges, and it moves from step 2 to step 3 of ROADMAP.md "Step 1". ANL-012B builds against a mocked contract, so it does not wait. The gated "may start after ANL-008" refers to not waiting for MKT-009, and it does not change.
@@ -705,6 +792,10 @@ None open. On 2026-11-22 the owner answered items 1 to 3 with "Accept all recomm
    - Recommendation: (a). Without it, `/crypto` carries no source date for exchange purchases either, and the Requirements ask for source dates.
    - Resolved 2026-11-22 ("Accept all recommended"): (a). Part B's shared eligibility helper and the `/crypto` fields marked "item 3 (a)" are part of the build.
 
+4. **Which version of an account or instrument a row shows.** Raised by the builder at Part C. Facts pin `(id, version)`, but a position keeps only the IDs, and two facts of one position could pin different versions.
+   - The owner's choice, as the builder's Log on the claim branch records it for 2026-11-26: "go C". Analysis shows the current account and instrument names, and historical facts keep their source-pinned metadata.
+   - Resolved: Part C, "Entity metadata", implements that choice with three rules: the lookup, the invalidation and the fallback. The numbers stay on the pinned versions, and only display fields can differ. No gated text changes.
+
 Answered earlier: on 2026-11-10 the owner answered yes: the first version may value securities from the import's own market values, marked "as of the source file", or from a live quote where the MKT-009A adapter is enabled. This plan uses the source values. Stored quotes arrive with MKT-009B, whose Requirements already wire them into this contract.
 
 ## Handoff
@@ -729,3 +820,4 @@ Answered earlier: on 2026-11-10 the owner answered yes: the first version may va
 - 2026-11-22 claude-code/opus-5.5: the owner answered Decisions needed items 1 to 3 with "Accept all recommended", relayed verbatim by the coordinating session of this planning conversation: option (a) of each. The same words confirm the front-matter change of item 1 (a): `depends_on` gains IMP-007E and `resources` gains `identity-api`. Gated sections, `gate_approval` and `spec_approved` are unchanged; the spec hash still matches. ROADMAP.md "Step 1" still lists ANL-012A at step 2; planner rules keep that file out of this pull request.
 - 2026-11-22 claude-code/opus-5.5: at the owner's request ("Yes, separate PR"), refreshed the stale Handoff and moved this ticket to step 3 of the roadmap's Step 1, after IMP-007E. No gated section changed.
 - 2026-11-26 claude-code/opus-5.5: on the owner's request "plan ANL-012A", rechecked the Build plan against `main` at `574896b` after IMP-007E merged (#115), in plan pull request #122 (https://github.com/gh-slee/kurafolio/pull/122). Updated the Context findings, Part D (Boundary lookup, query-key check and no `admit` for analysis; lazy database access in `create_app`), the OpenAPI component-name rule, the test split between the default suite and PostgreSQL, Stop-and-ask, Verify and the Plan steps. Gated sections, front matter, `gate_approval` and `spec_approved` are unchanged; the spec hash still matches. Decisions needed stays at none open.
+- 2026-11-26 claude-code/opus-5.5: on the owner's request to revise the Build plan so that the builder can continue Part C, amended the plan from `main` at `d3588b2` in plan pull request PR_URL. Added the Context findings on entity metadata, Part C "Entity metadata" (current-version lookup, invalidation through `mapping_generation`, fallback for missing metadata), the Part D transaction and cache-key changes, tests, the opt-in mapping-row seed, Stop-and-ask items, the Plan steps and the resolved Decisions needed item 4, which records the owner's "go C" from the builder's Log. Gated sections, front matter, Handoff, `gate_approval` and `spec_approved` are unchanged; the spec hash still matches.
