@@ -774,7 +774,7 @@ The opt-in PostgreSQL run uses the isolated environment of the claim (see `docs/
 - [x] The amendment pull request merges (#123).
 - [x] Build plan amended for the oracle comparison rule (2026-11-26, item 5).
 - [ ] The comparison amendment pull request merges.
-- [ ] Part A: reference inputs and `tests/test_projection_references.py`.
+- [x] Part A: reference inputs and `tests/test_projection_references.py`.
 - [ ] Part B: calculator helpers; the ANL-008 tests pass unchanged.
 - [ ] Part C: DTOs and `build_document`, with the pure oracles for AC-01 to AC-03 and the cache test for AC-04.
 - [ ] Part D: service, routes and Boundary changes, with the default-suite Boundary and OpenAPI tests for AC-04 and AC-05 and the PostgreSQL HTTP tests for AC-01, AC-02, AC-04 and AC-05.
@@ -826,7 +826,8 @@ Answered earlier: on 2026-11-10 the owner answered yes: the first version may va
 ## Handoff
 
 - State: Claimed by codex/gpt-6.2-sol from origin/main at 0b7d03c49. Gate A matches. IMP-007E is done, and the ingestion profile supports scoped read-only transactions on 0004.
-- Next step: Build the reference inputs and tests in Part A.
+- Next step: Refactor the calculator helpers in Part B and run the unchanged ANL-008 tests.
+- Part A: Eight synthetic reference tests passed, covering source parsing, cache windows, failure isolation and concurrent refresh.
 - Verify: `PYTHONPATH=src .venv/bin/python -m unittest tests.test_web_v2_api -v` with the opt-in identity environment from [web-v2-identity.md](../docs/web-v2-identity.md)
 - Gotchas: Real-PostgreSQL tests need the explicit isolated environment; a skipped test is not acceptance.
 - Open questions: None.
@@ -848,3 +849,4 @@ Answered earlier: on 2026-11-10 the owner answered yes: the first version may va
 - 2026-11-26 claude-code/opus-5.5: on the owner's request to revise the Build plan so that the builder can continue Part C, amended the plan from `main` at `d3588b2` in plan pull request #123 (https://github.com/gh-slee/kurafolio/pull/123). Added the Context findings on entity metadata, Part C "Entity metadata" (current-version lookup, invalidation through `mapping_generation`, fallback for missing metadata), the Part D transaction and cache-key changes, tests, the opt-in mapping-row seed, Stop-and-ask items, the Plan steps and the resolved Decisions needed item 4, which records the owner's "go C" from the builder's Log. Gated sections, front matter, Handoff, `gate_approval` and `spec_approved` are unchanged; the spec hash still matches.
 - 2026-11-26 claude-code/opus-5.5: on the owner's request "plan ANL-012A" to clarify the acceptance comparison for the G07 exchange rounding tail while the API keeps its unrounded result (given in Chinese, quoted here in English), amended the Build plan from `main` at `9503737` in plan pull request #125 (https://github.com/gh-slee/kurafolio/pull/125). Added the literal-keyed comparison rule in "Tests and expected values", rewrote the AC-02 TWD `/total` cost as `89600.000000000000000000`, added a no-rounding test and a Stop-and-ask item, and recorded Decisions needed item 5 as resolved with option (a). Gated sections, front matter, Handoff, `gate_approval` and `spec_approved` are unchanged; the spec hash still matches.
 - 2026-11-26 codex/gpt-6.2-sol: claimed the build after verifying the approved spec, the merged Build plan, and the ingestion prerequisite.
+- 2026-11-26 codex/gpt-6.2-sol: implemented the reference snapshot providers and passed eight synthetic reference tests.
