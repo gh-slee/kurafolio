@@ -764,12 +764,18 @@ class NormalizeTests(unittest.TestCase):
         self.assertEqual(bytearray(), holds[0].context)
 
     def test_ac_10_malformed_context_uses_the_rejection_path(self):
-        """AC-IMP-007F-10: a missing kind or non-object context cannot skip finish."""
-        for context, code in ((encode({'version': 1, 'payload_kind': 'mystery'}), 'import_evidence_unsupported'),
-                              (encode([1]), 'import_evidence_unsupported')):
-            with self.subTest(code=code):
+        """AC-IMP-007F-10: an unknown kind, non-object context or bad JSON cannot skip finish."""
+        cases = (
+            ('unknown payload_kind', encode({'version': 1, 'payload_kind': 'mystery'}),
+             'import_evidence_unsupported'),
+            ('non-object context', encode([1]), 'import_stale'),
+            ('malformed JSON bytes', b'{"version": 1', 'import_stale'),
+        )
+        for label, context, code in cases:
+            with self.subTest(context=label):
                 job, member = str(uuid.uuid4()), str(uuid.uuid4())
                 raw = b'synthetic raw bytes'
+                before = len(self.sql.calls)
                 metadata = handoff_metadata(context, raw, job, str(uuid.uuid4()), member)
                 launcher = FakeLauncher(metadata)
                 worker = ImportWorker(FakeConfig(self.directory.name), sql=self.sql,
@@ -778,10 +784,11 @@ class NormalizeTests(unittest.TestCase):
                 worker._executor = InlineExecutor()
                 worker.handoff(metadata, context, raw)
                 worker._executor.run()
-                finish = [call[1] for call in self.sql.calls
-                          if call[0] == 'finish_member_v1'][0]
+                finishes = [call[1] for call in self.sql.calls[before:]
+                            if call[0] == 'finish_member_v1']
+                self.assertEqual(1, len(finishes))
                 self.assertEqual(('rejected', code),
-                                 (finish['outcome'], finish['error_code']))
+                                 (finishes[0]['outcome'], finishes[0]['error_code']))
                 self.assertEqual([], launcher.starts)
 
     def test_ac_03_output_limits_reject_the_member_and_keep_an_absent_proof(self):

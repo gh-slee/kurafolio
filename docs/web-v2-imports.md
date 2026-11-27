@@ -266,7 +266,7 @@ for tracking and reports. Existing Web/CLI workspaces remain on SQLite.
   request fields are assertions, never scope authority. The helper returns the
   SHA-256 of the token's 32 decoded bytes for the caller's lease check. It
   needs no user session, so cleanup can run after the originating session
-  ends. Every worker function calls it first.
+  ends. Every SQL worker function calls it first.
   The declared gateway function `create_set_v1` takes only an `operation_id` and
   one to four member selections. Each selection names a connection, installation,
   format version and an optional declared size of at most 10 MiB; no financial
