@@ -327,7 +327,7 @@ class FakeTLS:
 
 class WorkerSQLUnitTests(unittest.TestCase):
     def test_ac_01_calls_are_the_six_worker_functions_and_nothing_else(self):
-        """AC-IMP-007F-01: the fixed inventory and no prepare function."""
+        """AC-IMP-007F-01, AC-IMP-008-04: the fixed inventory and no prepare function."""
         from kurafolio.persistence import ingestion_schema
         self.assertEqual(('claim_member_v1', 'renew_member_v1', 'admit_stage_v1',
                           'finish_member_v1', 'claim_plan_v1', 'cleanup_set_v1'), CALLS)
