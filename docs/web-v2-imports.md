@@ -694,9 +694,9 @@ See [source lifecycle](web-v2-sources.md), [parser SDK](parser-sdk.md) and
 ## Reading accepted facts: the positions calculation
 
 The internal `kurafolio.projection` service calculates positions from accepted
-0004 facts. It has no HTTP route or page; ANL-012A owns those interfaces. Quotes
-and FX are caller-supplied inputs until MKT-009B provides their storage and
-refresh path. The old SQLite projection and saved-report readers are unchanged.
+0004 facts. The ingestion profile exposes its [read-only analysis routes](web-v2-analysis.md)
+with public Bitcoin and FX references and source-reported security values. There
+is no analysis page yet. The SQLite projection and saved-report readers are unchanged.
 
 `read_accepted_state(connection, context)` takes an already scoped SQLAlchemy
 connection in a `REPEATABLE READ READ ONLY` transaction. The caller sets the tenant

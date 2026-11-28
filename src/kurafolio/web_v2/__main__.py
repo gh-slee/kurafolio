@@ -21,6 +21,7 @@ def parser():
     serve.add_argument('--schema-profile',choices=['identity','sources','ingestion'],default='identity')
     serve.add_argument('--source-catalog-file',type=Path)
     serve.add_argument('--worker-role')
+    serve.add_argument('--no-reference-fetch', action='store_true')
     for action,operations in [('operator',['migrate-identity','migrate-sources','migrate-ingestion','backup-ingestion','restore-ingestion']),('identity',['status','finalize-restore']),
                                ('sources',['status','catalog-apply','finalize-restore']),
                                ('setup',['arm','revoke']),('invite',['issue','revoke']),
@@ -59,7 +60,11 @@ def parser():
 
 
 def main(argv=None):
-    args=parser().parse_args(argv)
+    arguments=parser()
+    args=arguments.parse_args(argv)
+    if (args.action=='serve' and args.no_reference_fetch and
+            args.schema_profile != 'ingestion'):
+        arguments.error('--no-reference-fetch requires --schema-profile ingestion')
     try:
         if args.action=='serve':
             if not 1<=args.port<=65535:raise ValueError()
@@ -85,7 +90,11 @@ def main(argv=None):
                 context=ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
                 context.load_cert_chain(args.tls_cert_file,args.tls_key_file)
                 options.update(ssl_certfile=str(args.tls_cert_file),ssl_keyfile=str(args.tls_key_file))
-            app=create_app(settings)
+            references = None
+            if args.no_reference_fetch:
+                from kurafolio.projection.references import NoReferences
+                references = NoReferences()
+            app=create_app(settings, references=references)
             uvicorn.run(app,host=bind,port=args.port,proxy_headers=False,access_log=False,log_level='warning',**options)
             return 0
         from .operator import execute_command

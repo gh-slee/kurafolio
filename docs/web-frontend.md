@@ -185,6 +185,8 @@ npm --prefix frontend run build
 python scripts/export_web_schema.py --output work/web-schema.json
 frontend/node_modules/.bin/openapi-typescript work/web-schema.json -o work/web-schema.d.ts
 # Compare work/web-schema.d.ts with frontend/src/lib/schema.d.ts.
+python scripts/export_web_v2_analysis_schema.py --output tests/fixtures/web_v2/analysis-openapi.json
+frontend/node_modules/.bin/openapi-typescript tests/fixtures/web_v2/analysis-openapi.json -o frontend/src/v2/analysis-schema.d.ts
 cd frontend
 npx playwright install chromium
 npm run test:e2e

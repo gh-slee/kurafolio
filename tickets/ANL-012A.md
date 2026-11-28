@@ -2,7 +2,7 @@
 id: ANL-012A
 title: Define the V2 analysis read contract for securities, crypto and total
 priority: P0
-status: ready
+status: in_progress
 type: feature
 parent: ANL-012
 depends_on: [ANL-008, IMP-007E]
@@ -13,11 +13,11 @@ agent_tier: frontier
 gate: owner
 gate_approval: "owner 2026-11-10, V2 MVP scope as written in this ticket"
 review: independent
-branch:
+branch: ticket/anl-012a-define-the-v2-analysis-read-contract-for
 pr:
 spec:
 spec_approved: sha256:53db5ddc3a935a30bdbdefb6bc5d90d43426429e417c2ebb3db32784d205d4ee
-updated: 2026-11-22
+updated: 2026-11-27
 ---
 
 # ANL-012A: Define the V2 analysis read contract for securities, crypto and total
@@ -773,12 +773,12 @@ The opt-in PostgreSQL run uses the isolated environment of the claim (see `docs/
 - [x] Build plan amended for the Part C entity metadata rules (2026-11-26).
 - [x] The amendment pull request merges (#123).
 - [x] Build plan amended for the oracle comparison rule (2026-11-26, item 5).
-- [ ] The comparison amendment pull request merges.
-- [ ] Part A: reference inputs and `tests/test_projection_references.py`.
-- [ ] Part B: calculator helpers; the ANL-008 tests pass unchanged.
-- [ ] Part C: DTOs and `build_document`, with the pure oracles for AC-01 to AC-03 and the cache test for AC-04.
-- [ ] Part D: service, routes and Boundary changes, with the default-suite Boundary and OpenAPI tests for AC-04 and AC-05 and the PostgreSQL HTTP tests for AC-01, AC-02, AC-04 and AC-05.
-- [ ] Part E: schema export, generated types and docs; export test for AC-05.
+- [x] The comparison amendment pull request merges (#125).
+- [x] Part A: reference inputs and `tests/test_projection_references.py`.
+- [x] Part B: calculator helpers; the ANL-008 tests pass unchanged.
+- [x] Part C: DTOs and `build_document`, with the pure oracles for AC-01 to AC-03 and the cache test for AC-04.
+- [x] Part D: service, routes and Boundary changes, with the default-suite Boundary and OpenAPI tests for AC-04 and AC-05 and the PostgreSQL HTTP tests for AC-01, AC-02, AC-04 and AC-05.
+- [x] Part E: schema export, generated types and docs; export test for AC-05.
 - [ ] Independent QA and Architect review (frontier); repairs.
 
 ## Decisions needed
@@ -825,10 +825,10 @@ Answered earlier: on 2026-11-10 the owner answered yes: the first version may va
 
 ## Handoff
 
-- State: Not started. Gate A recorded 2026-11-10. ANL-008 is done. The Build plan and the owner's answers of 2026-11-22 merged in #106; the owner chose to wait on IMP-007E for the ingestion runtime profile.
-- Next step: After IMP-007E is done, claim the ticket and follow the Build plan on `main`.
-- Verify: `PYTHONPATH=src .venv/bin/python -m unittest tests.test_web_v2_api -v` with the opt-in identity environment from [web-v2-identity.md](../docs/web-v2-identity.md)
-- Gotchas: Real-PostgreSQL tests need the explicit isolated environment; a skipped test is not acceptance.
+- State: The analysis contract is implemented in Parts A to E. The three authenticated read routes are available on the ingestion profile. The Build plan includes the G07 comparison amendment (#125).
+- Next step: Finish the local candidate image check and obtain publication approval for the branch. Request independent QA and architecture review before owner review.
+- Verify: The final focused Python run passed 69 tests, with 10 identity cases skipped in that run and passed separately on isolated PostgreSQL. The new analysis PostgreSQL tests passed both cases. The accepted reader passed four tests with one optional effects skip, and all ten import route tests passed. Frontend formatting, source check, build and 46 tests passed. Both generated schema files reproduced byte for byte. The publication guard admits the exact approved public document and generated fixture and still refuses neighboring paths.
+- Gotchas: The G07 comparison uses the literal's precision in tests only. The API retains the full calculated Decimal. There is no schema migration or analysis page.
 - Open questions: None.
 
 ## Log
@@ -847,3 +847,11 @@ Answered earlier: on 2026-11-10 the owner answered yes: the first version may va
 - 2026-11-26 claude-code/opus-5.5: on the owner's request "plan ANL-012A", rechecked the Build plan against `main` at `574896b` after IMP-007E merged (#115), in plan pull request #122 (https://github.com/gh-slee/kurafolio/pull/122). Updated the Context findings, Part D (Boundary lookup, query-key check and no `admit` for analysis; lazy database access in `create_app`), the OpenAPI component-name rule, the test split between the default suite and PostgreSQL, Stop-and-ask, Verify and the Plan steps. Gated sections, front matter, `gate_approval` and `spec_approved` are unchanged; the spec hash still matches. Decisions needed stays at none open.
 - 2026-11-26 claude-code/opus-5.5: on the owner's request to revise the Build plan so that the builder can continue Part C, amended the plan from `main` at `d3588b2` in plan pull request #123 (https://github.com/gh-slee/kurafolio/pull/123). Added the Context findings on entity metadata, Part C "Entity metadata" (current-version lookup, invalidation through `mapping_generation`, fallback for missing metadata), the Part D transaction and cache-key changes, tests, the opt-in mapping-row seed, Stop-and-ask items, the Plan steps and the resolved Decisions needed item 4, which records the owner's "go C" from the builder's Log. Gated sections, front matter, Handoff, `gate_approval` and `spec_approved` are unchanged; the spec hash still matches.
 - 2026-11-26 claude-code/opus-5.5: on the owner's request "plan ANL-012A" to clarify the acceptance comparison for the G07 exchange rounding tail while the API keeps its unrounded result (given in Chinese, quoted here in English), amended the Build plan from `main` at `9503737` in plan pull request #125 (https://github.com/gh-slee/kurafolio/pull/125). Added the literal-keyed comparison rule in "Tests and expected values", rewrote the AC-02 TWD `/total` cost as `89600.000000000000000000`, added a no-rounding test and a Stop-and-ask item, and recorded Decisions needed item 5 as resolved with option (a). Gated sections, front matter, Handoff, `gate_approval` and `spec_approved` are unchanged; the spec hash still matches.
+- 2026-11-26 codex/gpt-6.2-sol: claimed the build after verifying the approved spec, the merged Build plan, and the ingestion prerequisite.
+- 2026-11-26 codex/gpt-6.2-sol: implemented the reference snapshot providers and passed eight synthetic reference tests.
+- 2026-11-26 codex/gpt-6.2-sol: completed the calculator helper refactor and passed the unchanged ANL-008 calculator and scoped read tests. Blocked at Part C to obtain the entity metadata version rule.
+- 2026-11-26 codex/gpt-6.2-sol: the owner replied "go C", choosing current account and instrument names for analysis while retaining the source-pinned metadata on historical facts. The build remains blocked until the amended Build plan merges.
+- 2026-11-26 codex/gpt-6.2-sol: resumed the existing claim with the owner-approved transfer and rebased Parts A and B onto #123. The projection source and reference tests are unchanged by the rebase.
+- 2026-11-26 codex/gpt-6.2-sol: added the current entity resolver and passed its five pure tests alongside the 36 existing reference and calculator tests. Blocked at the G07 TWD cost oracle because per-row conversions under the required decimal context give 89600 plus 1E-115.
+- 2026-11-27 codex/gpt-6.2-sol: rebased onto #125 and resumed Part C with the revised oracle comparison rule.
+- 2026-11-27 codex/gpt-6.2-sol: implemented the scoped analysis documents, ingestion-only HTTP routes, reference flag, and generated contract. Fixed-oracle, scoped PostgreSQL, identity and frontend checks passed. Independent review and publication are pending.

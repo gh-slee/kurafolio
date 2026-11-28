@@ -16,6 +16,8 @@ from starlette.responses import JSONResponse
 
 from .auth import Auth, RequestError, TOKEN, HEX, digest
 from . import schemas as s
+from .analysis import AnalysisService, SCOPES, install_routes
+from kurafolio.projection.references import LiveReferences
 from kurafolio.persistence.identity import IdentityError
 from kurafolio.data_sources.lifecycle_v1 import SourceError
 from kurafolio.domain.canonical_v1 import DomainBatchV1
@@ -45,6 +47,8 @@ IMPORT_DYNAMIC = (
     (re.compile(r'/api/v2/import-previews/[^/]+\Z'), ('GET',)),
     (re.compile(r'/api/v2/import-previews/[^/]+/confirm\Z'), ('POST',)),
     (re.compile(r'/api/v2/import-receipts/[^/]+\Z'), ('GET',)))
+ANALYSIS_ROUTES = {f'/api/v2/analysis/{scope}': ('GET',) for scope in SCOPES}
+ERROR_STATUSES = (400, 401, 403, 404, 405, 408, 409, 413, 415, 422, 429, 500, 503)
 ANONYMOUS = {'/api/v2/auth/login','/api/v2/auth/register','/api/v2/auth/setup'}
 # Anonymous GET-only browser bundle paths; they never reach identity or finance code.
 FRONTEND_PAGES = ('/','/login','/setup','/register')
@@ -196,11 +200,15 @@ class Boundary:
                 methods=next((m for pattern,m in SOURCE_DYNAMIC if pattern.fullmatch(path)),None)
             source_request=methods is not None
         import_request = False
+        analysis_request = False
         if methods is None and getattr(self.settings,'schema_profile','identity') == 'ingestion':
             methods = IMPORT_ROUTES.get(path)
             if methods is None:
                 methods = next((m for pattern,m in IMPORT_DYNAMIC if pattern.fullmatch(path)), None)
             import_request = methods is not None
+            if methods is None:
+                methods = ANALYSIS_ROUTES.get(path)
+                analysis_request = methods is not None
         if methods is None:
             raise RequestError('not_found',404)
         if method not in methods:
@@ -263,12 +271,16 @@ class Boundary:
             if not set(params) <= allowed:
                 raise RequestError('invalid_input',422)
             await asyncio.to_thread(self.auth.imports.admit, principal, 'control' if unsafe else 'read')
+        elif analysis_request:
+            if set(params) != {'currency'}:
+                raise RequestError('invalid_input',422)
         elif (not source_list and path!='/api/v2/admin/invitations') or method!='GET':
             if params:
                 raise RequestError('invalid_input',422)
         scope.setdefault('state',{}).update(request_id=request_id,token=token,principal=principal,
                                              peer=scope.get('client',('unknown',0))[0],query=params,language=scope.get('identity_language','en-CA'),
-                                             source_request=source_request,import_request=import_request,source_deadline=entered+20)
+                                             source_request=source_request,import_request=import_request,
+                                             analysis_request=analysis_request,source_deadline=entered+20)
         if unsafe:
             content_types=headers.get(b'content-type',[])
             if len(content_types)!=1 or not re.fullmatch(r'application/json(?:\s*;\s*charset=utf-8)?',content_types[0],re.I):
@@ -313,7 +325,7 @@ def checked_uuid(value):
         raise RequestError('invalid_input',422) from None
 
 
-def create_app(settings, *, frontend_root=None):
+def create_app(settings, *, frontend_root=None, references=None):
     auth=Auth(settings)
     @asynccontextmanager
     async def lifespan(app):
@@ -325,7 +337,7 @@ def create_app(settings, *, frontend_root=None):
     # A partial bundle without assets/ is treated as absent so the API still starts.
     frontend=bundle_ready(frontend_root) and install_frontend(app,frontend_root,pages=FRONTEND_PAGES,licenses=False)
     app.add_middleware(Boundary,settings=settings,auth=auth,frontend=frontend)
-    errors={status:{'model':s.Error} for status in [400,401,403,404,405,408,409,413,415,422,429,500,503]}
+    errors={status:{'model':s.Error} for status in ERROR_STATUSES}
 
     @app.exception_handler(RequestValidationError)
     async def validation(request,error):
@@ -333,7 +345,10 @@ def create_app(settings, *, frontend_root=None):
 
     @app.exception_handler(ResponseValidationError)
     async def invalid_response(request,error):
-        return error_response(RequestError('internal_error',500) if getattr(request.state,'source_request',False) or getattr(request.state,'import_request',False) else IdentityError(),request.state.request_id,settings,language=getattr(request.state,'language','en-CA'))
+        scoped_response = any(getattr(request.state, name, False) for name in
+                              ('source_request', 'import_request', 'analysis_request'))
+        failure = RequestError('internal_error',500) if scoped_response else IdentityError()
+        return error_response(failure,request.state.request_id,settings,language=getattr(request.state,'language','en-CA'))
 
     @app.exception_handler(RequestError)
     @app.exception_handler(IdentityError)
@@ -588,6 +603,9 @@ def create_app(settings, *, frontend_root=None):
         def import_receipt(receipt: str, request: Request):
             return imported(request, 'read_receipt_v1', {'receipt_id': checked_uuid(receipt)}, 'Receipt')
 
+        app.state.analysis = AnalysisService(lambda: auth.financial,
+                                             references if references is not None else LiveReferences())
+        install_routes(app, lambda request: request.app.state.analysis, errors)
         s.install_import_openapi(app, route_contracts)
 
     @app.get('/api/v2/openapi.json',responses=errors)

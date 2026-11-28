@@ -3,6 +3,7 @@ from typing import Annotated, Literal
 import re
 from pydantic import BaseModel, ConfigDict, Field, AfterValidator, SecretStr, field_validator, model_validator
 from kurafolio.persistence.errors import CODES
+from kurafolio.projection import model
 
 
 def password(value, minimum=15):
@@ -149,7 +150,7 @@ ERROR_CODES = ('invalid_headers','invalid_host','invalid_length','not_found','me
  'source_catalog_unavailable','source_unavailable','source_capability_unavailable','source_context_incompatible',
  'source_connection_conflict','source_revision_conflict','source_idempotency_conflict','source_repreview_required',
  'source_capacity_reached','source_counter_exhausted','source_commit_uncertain',
- 'import_busy','import_cleanup_pending','import_commit_uncertain','import_conflict','import_evidence_unsupported','import_expired','import_invalid','import_limit','import_mapping_required','import_operation_conflict','import_reupload_required','import_runner_unavailable','import_stale','length_required')
+ 'import_busy','import_cleanup_pending','import_commit_uncertain','import_conflict','import_evidence_unsupported','import_expired','import_invalid','import_limit','import_mapping_required','import_operation_conflict','import_reupload_required','import_runner_unavailable','import_stale','length_required','analysis_unavailable')
 
 
 class ErrorDetail(Closed):
@@ -386,3 +387,177 @@ def install_import_openapi(app, routes):
         return document
 
     app.openapi = openapi
+
+
+# Analysis read contract, version 1.
+DecimalString = Annotated[str, Field(
+    min_length=1, max_length=256, pattern=r'^-?(0|[1-9][0-9]*)(\.[0-9]+)?$')]
+ReportCurrency = Literal['CAD', 'USD', 'TWD']
+NativeCurrency = Annotated[str, Field(pattern=r'^[A-Z]{3}$')]
+DateString = Annotated[str, Field(pattern=r'^\d{4}-\d{2}-\d{2}$')]
+Text = Annotated[str, Field(min_length=0, max_length=4096)]
+TimeToken = Annotated[str, Field(min_length=1, max_length=4096)]
+GapCode = Literal[*sorted(model.GAP_CODES)]
+AssumptionCode = Literal[*sorted(model.ASSUMPTION_CODES)]
+ExcludedCode = Literal[*model.EXCLUDED_CODES]
+ReasonCode = Literal[*sorted(model.GAP_CODES | {
+    'sales_counted', 'no_positions', 'no_eligible_acquisitions',
+    'value_cost_currency_differs', 'cost_allocation_unresolved',
+})]
+AssetClass = Literal['securities', 'cash', 'crypto', 'unsupported']
+Count = Annotated[int, Field(ge=0)]
+
+
+class Amount(Closed):
+    amount: DecimalString
+    currency: NativeCurrency
+
+
+class FactGeneration(Closed):
+    accepted: Counter
+    mapping: Counter
+
+
+class Figure(Closed):
+    status: Literal['available', 'partial', 'unavailable']
+    known_subtotal: DecimalString | None
+    complete_total: DecimalString | None
+    counted_count: Count
+    position_count: Count
+    reasons: list[ReasonCode]
+
+
+class AnalysisAccount(Closed):
+    id: UUID
+    label: Text
+    category: Text
+    role: Literal['investment', 'crypto', 'funding']
+
+
+class AnalysisInstrument(Closed):
+    id: UUID
+    kind: Literal['SECURITY', 'CASH', 'CRYPTO', 'UNSUPPORTED']
+    currency: NativeCurrency | None
+    ticker: Text | None
+    mic: Text | None
+    symbol: Text | None
+    network: Text | None
+
+
+class AnalysisRow(Closed):
+    asset_class: AssetClass
+    account: AnalysisAccount
+    instrument: AnalysisInstrument
+    quantity: DecimalString | None
+    btc_equivalent: bool
+    value: Amount | None
+    value_converted: DecimalString | None
+    value_basis: Literal['quote', 'source_reported', 'par'] | None
+    value_as_of: TimeToken | None
+    cost: Amount | None
+    cost_converted: DecimalString | None
+    cost_status: Literal['known', 'unavailable', 'not_applicable']
+    book_cost_cad: Amount | None
+    unrealized_gain: Amount | None
+    unrealized_gain_converted: DecimalString | None
+    codes: list[AssumptionCode]
+    gaps: list[GapCode]
+
+
+class ClassLine(Closed):
+    asset_class: AssetClass
+    value: Figure
+    native_known: list[Amount]
+
+
+class Observation(Closed):
+    account_id: UUID
+    observed_at: TimeToken
+    coverage_status: Literal['complete', 'partial', 'unknown']
+    position_count: Count
+
+
+class GapItem(Closed):
+    code: GapCode
+    account_id: UUID | None
+    instrument_id: UUID | None
+
+
+class BtcReference(Closed):
+    status: Literal['available', 'unavailable']
+    price: Amount | None
+    as_of: Timestamp | None
+    source: Text | None
+
+
+class FxReference(Closed):
+    currency: Literal['CAD', 'TWD']
+    per_pivot: DecimalString
+    effective_date: DateString
+    source: Text
+
+
+class References(Closed):
+    btc: BtcReference
+    fx_pivot: Literal['USD']
+    fx: list[FxReference]
+
+
+class AnalysisBase(Closed):
+    contract_version: Literal[1]
+    calculation_id: Hex
+    fact_generation: FactGeneration
+    valuation_time: Timestamp
+    report_currency: ReportCurrency
+    references: References
+    value: Figure
+    cost: Figure
+    unrealized_gain: Figure
+    lines: list[ClassLine]
+    rows: list[AnalysisRow]
+    observations: list[Observation]
+    assumptions: list[AssumptionCode]
+    gaps: list[GapItem]
+
+
+class CountedActivityRow(Closed):
+    economic_group_id: UUID
+    kind: Literal['BUY', 'SELL']
+    account_id: UUID
+    instrument_id: UUID
+    quantity: DecimalString
+    cost: Amount | None
+    occurred_at: TimeToken
+    has_crypto_fee: bool
+
+
+class PurchaseRate(Closed):
+    status: Literal['available', 'unavailable']
+    rate: Amount | None
+    reasons: list[ReasonCode]
+
+
+class CryptoDetail(Closed):
+    basis: Literal['acquisitions_assumed_held']
+    state: Literal['tracked', 'no_eligible_acquisitions']
+    btc_equivalent_quantity: DecimalString | None
+    purchases_counted: Count
+    sales_counted: bool
+    sales_counted_count: Count
+    excluded: dict[ExcludedCode, Count]
+    activities: list[CountedActivityRow]
+    spending: Figure
+    purchase_rate: PurchaseRate
+
+
+class SecuritiesAnalysis(AnalysisBase):
+    scope: Literal['securities']
+
+
+class TotalAnalysis(AnalysisBase):
+    scope: Literal['total']
+
+
+class CryptoAnalysis(AnalysisBase):
+    scope: Literal['crypto']
+    crypto: CryptoDetail
